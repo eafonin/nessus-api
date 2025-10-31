@@ -4,6 +4,29 @@
 
 Python automation scripts for managing Nessus Essentials scans. This project includes **FULL SCAN AUTOMATION** via Web UI simulation, bypassing the `scan_api: false` API restrictions.
 
+**Environment**: Linux (Ubuntu 24.04) | Docker-based Nessus | Python 3.12 Virtual Environment
+
+## Quick Start
+
+```bash
+# Clone repository
+git clone https://github.com/eafonin/nessus-api.git
+cd nessus-api
+
+# Setup Python environment
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Verify Nessus is running
+curl -k https://localhost:8834/server/status
+
+# List scans
+python list_scans.py
+```
+
+See [docs/PROJECT_SETUP.md](docs/PROJECT_SETUP.md) for detailed setup and conventions.
+
 ## Key Innovation
 
 While Nessus Essentials restricts scan control via API (`scan_api: false`), this project **bypasses these restrictions** by simulating Web UI interactions using HTTP requests with proper authentication headers.
@@ -18,7 +41,15 @@ While Nessus Essentials restricts scan control via API (`scan_api: false`), this
 ## Project Structure
 
 ```
-c:\nessus\
+/home/nessus/projects/nessus-api/
+├── docs/                          # Documentation
+│   ├── DOCKER_SETUP.md           # Docker configuration and maintenance
+│   └── PROJECT_SETUP.md          # Project conventions and setup guide
+│
+├── claudeScripts/                 # Throw-away scripts (temporary utilities)
+├── temp/                          # Intermediate outputs (git-ignored)
+├── venv/                          # Python virtual environment (git-ignored)
+│
 ├── API-Based Scripts (Read-Only Operations)
 │   ├── list_scans.py                       # List all scans
 │   ├── scan_config.py                      # View scan configuration
@@ -33,10 +64,21 @@ c:\nessus\
 │   ├── manage_scans.py                     # Create/delete scans
 │   └── check_dropdown_options.py           # Extract field options
 │
-└── Documentation
-    ├── README.md                           # This file
-    ├── NESSUS_ESSENTIALS_LIMITATIONS.md    # API restrictions (now with workarounds)
-    └── nessus_automation_prompt.md         # LLM usage template
+├── Documentation
+│   ├── README.md                           # This file
+│   ├── NESSUS_ESSENTIALS_LIMITATIONS.md    # API restrictions
+│   ├── nessus_automation_prompt.md         # LLM usage template
+│   └── docs/                               # Additional documentation
+│       ├── DOCKER_SETUP.md                 # Docker setup and operations
+│       └── PROJECT_SETUP.md                # Project conventions
+│
+├── requirements.txt               # Python dependencies
+└── credentials.md                 # Sensitive credentials (git-ignored)
+```
+
+**Important**: This project uses a Python virtual environment. Always activate it before running scripts:
+```bash
+source venv/bin/activate
 ```
 
 ## Authentication Methods
@@ -475,16 +517,38 @@ STATIC_API_TOKEN = 'af824aba-e642-4e63-a49b-0810542ad8a5'
 
 ---
 
-## Dependencies
+## System Requirements
+
+### Host System
+- **OS**: Linux (Ubuntu 24.04+) with Docker support
+- **User**: Must be in docker group
+- **Python**: 3.12+
+- **Docker**: For running Nessus container (see [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md))
+
+### Python Dependencies
 
 ```bash
-pip install pytenable requests
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
 ```
 
-Or activate the virtual environment:
-```bash
-.\env\Scripts\activate
-```
+**Required packages**:
+- pytenable >= 1.4.0
+- requests >= 2.31.0
+- urllib3 >= 2.0.0
+
+### Nessus Instance
+
+Nessus runs in Docker at `/home/nessus/docker/nessus/` with:
+- Web UI: https://localhost:8834
+- VPN Gateway: WireGuard (Gluetun)
+- Network: 172.32.0.0/24
+
+See [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) for Docker configuration details.
 
 ---
 
@@ -601,10 +665,25 @@ From `GET /server/properties`:
 
 ## Additional Resources
 
+### Documentation
+- [docs/PROJECT_SETUP.md](docs/PROJECT_SETUP.md) - Project conventions, directory structure, Claude Code guidelines
+- [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) - Docker setup, networking, maintenance, troubleshooting
+- [NESSUS_ESSENTIALS_LIMITATIONS.md](NESSUS_ESSENTIALS_LIMITATIONS.md) - API restrictions and workarounds
+- [nessus_automation_prompt.md](nessus_automation_prompt.md) - LLM usage template
+
+### External Resources
 - **Tenable pyTenable Documentation**: https://pytenable.readthedocs.io
 - **Nessus API Reference**: https://developer.tenable.com/reference/navigate
-- **Local pytenable source**: `.\env\Lib\site-packages\tenable\nessus\`
+- **GitHub Repository**: https://github.com/eafonin/nessus-api
+
+### Local Resources
+- Python venv: `/home/nessus/projects/nessus-api/venv/`
+- Docker setup: `/home/nessus/docker/nessus/`
+- Credentials: `credentials.md` (git-ignored)
 
 ---
 
-Last Updated: Based on Nessus Essentials 10.x with successful Web UI simulation bypass.
+**Project Status**: Production Ready
+**Last Updated**: 2025-10-31
+**License**: Nessus Essentials 10.x with successful Web UI simulation bypass
+**Environment**: Linux (Ubuntu 24.04) | Docker | Python 3.12

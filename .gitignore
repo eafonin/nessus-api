@@ -19,6 +19,8 @@ __pycache__/
 *.json
 vulns_*.json
 nul
+temp/
+scan_config_debug.json
 
 # OS
 .DS_Store
