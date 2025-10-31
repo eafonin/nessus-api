@@ -1,0 +1,25 @@
+# Python virtual environment
+env/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment variables and secrets
+.env
+*.key
+*.pem
+
+# IDE
+.vscode/
+.idea/
+
+# Output files
+*.json
+vulns_*.json
+nul
+
+# OS
+.DS_Store
+Thumbs.db
