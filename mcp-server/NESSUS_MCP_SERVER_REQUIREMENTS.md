@@ -22,7 +22,7 @@ Build an MCP (Model Context Protocol) server that provides vulnerability scannin
 - **Architecture Design**: [`docs/NESSUS_MCP_SERVER_ARCHITECTURE.md`](./NESSUS_MCP_SERVER_ARCHITECTURE.md)
 - **Existing Codebase Index**: [`docs/CODEBASE_INDEX.md`](./CODEBASE_INDEX.md)
 - **FastMCP Documentation**: [`docs/fastMCPServer/INDEX.md`](./fastMCPServer/INDEX.md)
-- **Existing Scripts**: [`scripts/`](../scripts/)
+- **Existing Scripts directory**: [`nessusAPIWrapper/`](./nessusAPIWrapper/)
 
 ---
 
@@ -37,10 +37,10 @@ Build an MCP (Model Context Protocol) server that provides vulnerability scannin
 
 ### 2.2 Existing Infrastructure
 The MCP server wraps existing Python automation scripts:
-- `scripts/manage_scans.py` - Scan creation/deletion
-- `scripts/manage_credentials.py` - SSH credential management
-- `scripts/launch_scan.py` - Scan execution control
-- `scripts/export_vulnerabilities_detailed.py` - Result export
+- `nessusAPIWrapper/manage_scans.py` - Scan creation/deletion
+- `nessusAPIWrapper/manage_credentials.py` - SSH credential management
+- `nessusAPIWrapper/launch_scan.py` - Scan execution control
+- `nessusAPIWrapper/export_vulnerabilities_detailed.py` - Result export
 - See [`docs/CODEBASE_INDEX.md`](./CODEBASE_INDEX.md) for complete script inventory
 
 ---
@@ -535,7 +535,7 @@ filters={"host": "192.168.1.10", "cve": "CVE-2023"}
 - **Storage**: File system (JSON, JSON-NL, .nessus)
 
 ### 6.2 Code Organization
-- **Location**: `mcp-server/` directory (separate from `scripts/`)
+- **Location**: `mcp-server/` directory
 - **Structure**:
   ```
   mcp-server/
@@ -547,7 +547,7 @@ filters={"host": "192.168.1.10", "cve": "CVE-2023"}
   ```
 
 ### 6.3 Dependencies
-- **Existing Scripts**: Reuse `scripts/` via imports (do not duplicate)
+- **Existing Scripts**: Reuse `nessusAPIWrapper/` via imports (do not duplicate)
 - **FastMCP Docs**: Reference [`docs/fastMCPServer/`](./fastMCPServer/)
 - **Scanner Independence**: Abstract interface allows adding non-Nessus scanners
 
@@ -624,7 +624,6 @@ See [`docs/NESSUS_MCP_SERVER_ARCHITECTURE.md#11-implementation-phases`](./NESSUS
 - **Architecture**: [`NESSUS_MCP_SERVER_ARCHITECTURE.md`](./NESSUS_MCP_SERVER_ARCHITECTURE.md)
 - **Codebase Index**: [`CODEBASE_INDEX.md`](./CODEBASE_INDEX.md)
 - **FastMCP Docs**: [`fastMCPServer/INDEX.md`](./fastMCPServer/INDEX.md)
-- **Existing Scripts**: [`../scripts/`](../scripts/)
 
 ### 10.2 External Resources
 - **FastMCP GitHub**: https://github.com/jlowin/fastmcp
