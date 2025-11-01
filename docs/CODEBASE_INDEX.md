@@ -1,7 +1,7 @@
 # Nessus API Automation - Codebase Index
 
 ## Project Overview
-This project provides Python automation scripts for managing Nessus vulnerability scans. It bypasses API license restrictions by using direct HTTP requests that simulate web UI interactions, enabling full scan management capabilities with Nessus Essentials.
+This project provides Python automation scripts for managing Nessus vulnerability scans. It bypasses API restrictions by using direct HTTP requests that simulate web UI interactions, enabling full scan management capabilities with Nessus Essentials.
 
 **Technology Stack:** Python 3.12, tenable.nessus SDK, requests, urllib3
 **Primary Use Case:** Automated vulnerability scanning and credential management for Nessus Essentials
