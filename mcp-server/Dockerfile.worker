@@ -1,0 +1,37 @@
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libxml2-dev \
+    libxslt-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install dependencies
+COPY requirements-worker.txt .
+RUN pip install --no-cache-dir -r requirements-worker.txt
+
+# Copy application code
+COPY scanners/ ./scanners/
+COPY core/ ./core/
+COPY schema/ ./schema/
+COPY worker/ ./worker/
+COPY config/ ./config/
+
+# Create data directory
+RUN mkdir -p /app/data/tasks
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1
+ENV LOG_LEVEL=INFO
+ENV MAX_CONCURRENT_SCANS=5
+
+# Health check (verify Redis connectivity)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import redis; r=redis.from_url('${REDIS_URL:-redis://redis:6379}'); r.ping()" || exit 1
+
+# Run worker
+CMD ["python", "-m", "worker.scanner_worker"]

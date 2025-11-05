@@ -1154,17 +1154,23 @@ class ScannerRegistry:
 **Directory Structure**:
 ```
 nessus-api/                          # Root project directory
-├── scripts/                         # Existing Python scripts (unchanged)
+├── nessusAPIWrapper/                # Existing Python scripts (relocated)
+│   ├── CODEBASE_INDEX.md
 │   ├── manage_scans.py
 │   ├── manage_credentials.py
 │   ├── launch_scan.py
 │   ├── export_vulnerabilities_detailed.py
-│   └── ...
+│   └── ... (all automation scripts)
 ├── docs/                            # Documentation
 │   ├── CODEBASE_INDEX.md
-│   ├── NESSUS_MCP_SERVER_ARCHITECTURE.md
-│   └── fastMCPServer/
+│   ├── DOCKER_SETUP.md
+│   └── fastMCPServer/              # FastMCP framework docs (43 files)
+│       └── INDEX.md
+├── PROJECT_SETUP.md                 # Project conventions (root)
+├── README.md                        # Main documentation (root)
 └── mcp-server/                      # NEW: MCP server implementation
+    ├── NESSUS_MCP_SERVER_ARCHITECTURE.md  # This file
+    ├── NESSUS_MCP_SERVER_REQUIREMENTS.md
     ├── README.md
     ├── requirements.txt
     ├── Dockerfile
@@ -1178,7 +1184,7 @@ nessus-api/                          # Root project directory
     │   ├── __init__.py
     │   ├── base.py                  # ScannerBackend protocol
     │   ├── registry.py              # ScannerRegistry + ScannerInstance
-    │   └── nessus.py                # Nessus implementation (wraps ../scripts/)
+    │   └── nessus.py                # Nessus implementation (wraps ../nessusAPIWrapper/)
     ├── core/                        # Core task management
     │   ├── __init__.py
     │   ├── task_manager.py          # Task state management

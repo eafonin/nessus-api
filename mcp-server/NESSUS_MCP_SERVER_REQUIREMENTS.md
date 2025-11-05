@@ -1,7 +1,7 @@
 # Nessus MCP Server - Requirements Document
 
-> **Version:** 1.0
-> **Date:** 2025-01-01
+> **Version:** 2.2 (aligned with ARCHITECTURE_v2.2.md)
+> **Date:** 2025-11-01
 > **Status:** Approved for Implementation
 
 ---
@@ -19,10 +19,11 @@ Build an MCP (Model Context Protocol) server that provides vulnerability scannin
 - Maintain simple, maintainable code architecture
 
 ### 1.3 Related Documents
-- **Architecture Design**: [`docs/NESSUS_MCP_SERVER_ARCHITECTURE.md`](./NESSUS_MCP_SERVER_ARCHITECTURE.md)
-- **Existing Codebase Index**: [`docs/CODEBASE_INDEX.md`](./CODEBASE_INDEX.md)
-- **FastMCP Documentation**: [`docs/fastMCPServer/INDEX.md`](./fastMCPServer/INDEX.md)
-- **Existing Scripts directory**: [`nessusAPIWrapper/`](./nessusAPIWrapper/)
+- **Architecture Design**: [`ARCHITECTURE_v2.2.md`](./ARCHITECTURE_v2.2.md) (same directory)
+- **Implementation Guide**: [`IMPLEMENTATION_GUIDE.md`](./IMPLEMENTATION_GUIDE.md)
+- **Existing Codebase Index**: [`../nessusAPIWrapper/CODEBASE_INDEX.md`](../nessusAPIWrapper/CODEBASE_INDEX.md)
+- **FastMCP Documentation**: [`../docs/fastMCPServer/INDEX.md`](../docs/fastMCPServer/INDEX.md)
+- **Existing Scripts directory**: [`../nessusAPIWrapper/`](../nessusAPIWrapper/)
 
 ---
 
@@ -139,6 +140,7 @@ The MCP server wraps existing Python automation scripts:
 - Scan submission completes in <1 second regardless of scan duration
 - Task ID is unique and includes scanner instance information
 - Queue position indicates number of scans ahead
+- Scan creation is async by default (like "async with httpx.AsyncClient() as client: \response = await client.post") so MCP server can perform several tasks concurrently
 
 #### FR-3.2: Task Status Polling
 **Description**: Monitor long-running scans
@@ -153,15 +155,16 @@ The MCP server wraps existing Python automation scripts:
 #### FR-3.3: Task Queue (FIFO)
 **Description**: Serialize scan execution to prevent scanner overload
 **Requirements**:
-- Simple FIFO queue (file-based)
+- Simple FIFO queue (Redis-based, key: `nessus:queue`)
 - Single background worker processes queue sequentially
 - Multiple agents can submit concurrently (queue handles serialization)
-- File-based locking for queue operations
+- Redis LPUSH/BRPOP for atomic queue operations
+- Dead Letter Queue (DLQ) for failed tasks (Redis sorted set: `nessus:queue:dead`)
 
 **Acceptance Criteria**:
 - Multiple agents can submit scans simultaneously
-- Only one scan runs at a time (Nessus limitation)
 - Queue persists across MCP server restarts
+- Failed tasks moved to DLQ for manual inspection
 
 #### FR-3.4: Scan Timeout
 **Description**: Automatically fail scans exceeding maximum duration
@@ -178,22 +181,31 @@ The MCP server wraps existing Python automation scripts:
 ### 3.4 Result Retrieval & Schema Negotiation
 
 #### FR-4.1: Schema Profiles (Predefined)
-**Description**: Four standard output schemas
+**Description**: Four standard output schemas plus custom mode
 **Profiles**:
-1. **minimal**: `host, plugin_id, severity, cve, cvss_score, exploit_available`
-2. **summary**: minimal + `plugin_name, cvss3_base_score, synopsis`
-3. **brief** (default): summary + `description, solution`
-4. **full**: All fields from Nessus detailed export
+- **minimal**: 6 core fields: `host, plugin_id, severity, cve, cvss_score, exploit_available`
+- **summary**: minimal + 3 additional fields: `plugin_name, cvss3_base_score, synopsis`
+- **brief** (default): summary + 2 more fields: `description, solution`
+- **full**: All fields from Nessus detailed export (no field filtering)
+
+**Custom Mode**:
+- **custom**: Agent provides explicit field list via `custom_fields` parameter
+- Mutually exclusive with `schema_profile` (cannot specify both)
+- Allows arbitrary field selection from Nessus export
 
 **Acceptance Criteria**:
-- Agent specifies profile in scan request: `schema_profile="brief"`
+- Agent specifies profile in scan request: `schema_profile="minimal"` | `"summary"` | `"brief"` | `"full"`
+- Agent can use custom mode: `custom_fields=["host", "cve", "cvss3_base_score"]`
+- **API rejects with 400 error if both `schema_profile` and `custom_fields` are provided**
 - Results include only requested fields
-- Schema definition included in first line of JSON-NL output
+- Scan configuration settings included as a JSON object
+- Vulnerability schema definition included in first line of JSON-NL output
+- Schema line echoes applied filters for LLM reasoning: `"filters_applied": {...}`
 
 #### FR-4.2: Custom Schema Definition
 **Description**: Agent provides custom field list
-**Format**: `custom_schema={"fields": ["host", "cve", "cvss3_base_score", ...]}`
-**Priority**: Overrides profile if both provided
+**Format**: `custom_fields=["host", "cve", "cvss3_base_score", ...]`
+**Exclusivity**: Mutually exclusive with `schema_profile` - API rejects if both provided
 
 **Acceptance Criteria**:
 - Agent can specify arbitrary field list
@@ -345,13 +357,13 @@ filters={"host": "192.168.1.10", "cve": "CVE-2023"}
 
 #### FR-8.1: Native Scan Storage
 **Description**: Store scan results in native Nessus `.nessus` format
-**Reason**: Minimize scanner engagement, enable semantic search indexing
+**Reason**: Minimize scanner engagement, enable semantic search indexing later
 
 **Acceptance Criteria**:
 - Completed scans exported to `.nessus` file
 - Stored in task directory: `data/tasks/{task_id}/scan_native.nessus`
 - Available via `download_native_scan()` tool
-- Pre-generated JSON-NL files for each schema profile (brief, full)
+- Pre-generated JSON-NL files for each hardcoded schema profile (brief, full)
 
 #### FR-8.2: File System Layout
 **Description**: Task-based directory structure
@@ -379,13 +391,13 @@ filters={"host": "192.168.1.10", "cve": "CVE-2023"}
 - Debug logs only created when `debug_mode=True`
 
 #### FR-8.3: Scanner Debug Logs
-**Description**: Capture internal scanner API logs for troubleshooting
+**Description**: Capture internal scanner API logs for troubleshooting (future, stub at the moment)
 **Trigger**: `debug_mode=True` parameter in scan request
 **Storage**: `scanner_logs/` directory (not single file)
 
 **Acceptance Criteria**:
 - Debug logs OFF by default (performance)
-- When enabled, creates `scanner_logs/` directory
+- When enabled, populates `scanner_logs/` directory
 - Captures API requests/responses, scan progress, export operations
 - `task.json` includes `scanner_logs_available: true` when present
 - Admin CLI can access logs
@@ -491,16 +503,16 @@ filters={"host": "192.168.1.10", "cve": "CVE-2023"}
 - **Requirement**: Code must be simple and maintainable
 - **Rationale**: Performance is NOT a concern for Phase 1
 - **Implications**:
-  - Use file system storage (no premature database optimization)
-  - Simple FIFO queue (no complex job system)
-  - File-based locking (no distributed locks)
+  - Use file system storage for task data and results
+  - Redis for queue, scanner registry, idempotency keys, and task metadata
+  - Simple FIFO queue via Redis LPUSH/BRPOP (no complex job system)
+  - File-based locking (fcntl) for atomic task.json updates
   - Clear separation of concerns (scanners/, core/, schema/, tools/)
 
 ### 5.2 Multi-Agent Concurrency
 - **Shared State**: All agents see all scans (no tenant isolation)
 - **Concurrent Submissions**: Queue handles multiple simultaneous scan requests
 - **Collaboration Pattern**: Agents share task_ids, access each other's results
-- **Queue Serialization**: Only one scan runs at a time (scanner limitation)
 
 ### 5.3 Security
 - **Authentication**: Bearer token for HTTP access (all clients same privilege level)
@@ -529,10 +541,12 @@ filters={"host": "192.168.1.10", "cve": "CVE-2023"}
 ### 6.1 Technology Stack
 - **MCP Framework**: FastMCP (Python)
 - **Transport**: HTTP with Bearer authentication
-- **Deployment**: Docker Compose (alongside existing Nessus)
-- **Python Version**: 3.12+ (match existing scripts)
-- **Scanner API**: Nessus REST API (existing scripts)
-- **Storage**: File system (JSON, JSON-NL, .nessus)
+- **Deployment**: Docker Compose (redis, mcp-api, scanner-worker services)
+- **Python Version**: 3.11+ (async/await support)
+- **Queue & Registry**: Redis (FIFO queue, scanner registry, idempotency, task metadata)
+- **Scanner API**: Nessus REST API (native async with httpx.AsyncClient)
+- **Storage**: File system for task data (JSON, JSON-NL, .nessus), Redis for ephemeral state
+- **Observability**: Prometheus metrics (/metrics endpoint), JSON structured logs
 
 ### 6.2 Code Organization
 - **Location**: `mcp-server/` directory
@@ -607,23 +621,31 @@ filters={"host": "192.168.1.10", "cve": "CVE-2023"}
 
 ## 9. Implementation Phases
 
-See [`docs/NESSUS_MCP_SERVER_ARCHITECTURE.md#11-implementation-phases`](./NESSUS_MCP_SERVER_ARCHITECTURE.md#11-implementation-phases) for detailed 5-week implementation plan.
+See [`ARCHITECTURE_v2.2.md`](./ARCHITECTURE_v2.2.md) for architectural details and [`IMPLEMENTATION_GUIDE.md`](./IMPLEMENTATION_GUIDE.md) for the comprehensive implementation checklist.
 
-**Summary**:
-1. **Week 1**: Core infrastructure (scanner abstraction, task management, queue, auth)
-2. **Week 2**: Scan workflows (three scan types, credential handling, worker)
-3. **Week 3**: Results & schema (JSON-NL export, pagination, filtering)
-4. **Week 4**: Management & housekeeping (list/delete, TTL cleanup, admin CLI)
-5. **Week 5**: Deployment & testing (Docker, integration tests, documentation)
+**Summary** (10 phases):
+1. **Phase 1**: Core infrastructure setup (directories, Docker, Redis config)
+2. **Phase 2**: State management & idempotency (TaskManager, trace IDs)
+3. **Phase 3**: Scanner abstraction layer (interface, native async Nessus)
+4. **Phase 4**: MCP tools implementation (10 tools)
+5. **Phase 5**: Worker implementation (queue consumer, task execution)
+6. **Phase 6**: JSON-NL converter & schema system
+7. **Phase 7**: Observability & monitoring (logs, metrics, health checks)
+8. **Phase 8**: Testing infrastructure (unit, integration, comparison tests)
+9. **Phase 9**: Deployment & configuration (Docker, env vars, scanner config)
+10. **Phase 10**: Documentation & future enhancements
 
 ---
 
 ## 10. References
 
 ### 10.1 Project Documents
-- **Architecture**: [`NESSUS_MCP_SERVER_ARCHITECTURE.md`](./NESSUS_MCP_SERVER_ARCHITECTURE.md)
-- **Codebase Index**: [`CODEBASE_INDEX.md`](./CODEBASE_INDEX.md)
-- **FastMCP Docs**: [`fastMCPServer/INDEX.md`](./fastMCPServer/INDEX.md)
+- **Architecture**: [`ARCHITECTURE_v2.2.md`](./ARCHITECTURE_v2.2.md) (same directory)
+- **Implementation Guide**: [`IMPLEMENTATION_GUIDE.md`](./IMPLEMENTATION_GUIDE.md)
+- **Archived Architectures**: [`archive/`](./archive/) (v1.0, v2.0, v2.1)
+- **Codebase Index (nessusAPIWrapper)**: [`../nessusAPIWrapper/CODEBASE_INDEX.md`](../nessusAPIWrapper/CODEBASE_INDEX.md)
+- **Codebase Index (general)**: [`../docs/CODEBASE_INDEX.md`](../docs/CODEBASE_INDEX.md)
+- **FastMCP Docs**: [`../docs/fastMCPServer/INDEX.md`](../docs/fastMCPServer/INDEX.md)
 
 ### 10.2 External Resources
 - **FastMCP GitHub**: https://github.com/jlowin/fastmcp
@@ -654,8 +676,9 @@ See [`docs/NESSUS_MCP_SERVER_ARCHITECTURE.md#11-implementation-phases`](./NESSUS
 ## 12. Approval
 
 **Requirements Approved By**: User
-**Date**: 2025-01-01
-**Architecture Approved**: Yes ([`NESSUS_MCP_SERVER_ARCHITECTURE.md`](./NESSUS_MCP_SERVER_ARCHITECTURE.md))
+**Date**: 2025-11-01 (updated for v2.2)
+**Architecture Approved**: Yes ([`ARCHITECTURE_v2.2.md`](./ARCHITECTURE_v2.2.md))
+**Implementation Guide**: Available ([`IMPLEMENTATION_GUIDE.md`](./IMPLEMENTATION_GUIDE.md))
 **Ready for Implementation**: Yes
 
-**Next Step**: Begin Phase 1 implementation (Core Infrastructure)
+**Next Step**: Begin Phase 1 implementation per IMPLEMENTATION_GUIDE.md

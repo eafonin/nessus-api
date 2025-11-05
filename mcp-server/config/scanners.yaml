@@ -1,0 +1,27 @@
+# Scanner instance configuration
+#
+# Environment variable substitution supported using ${VAR_NAME} syntax
+
+nessus:
+  - instance_id: nessus-scanner-1
+    url: ${NESSUS_URL_1:-https://nessus1.example.com:8834}
+    access_key: ${NESSUS_ACCESS_KEY_1}
+    secret_key: ${NESSUS_SECRET_KEY_1}
+    enabled: true
+    max_concurrent_scans: 10
+
+  # Example: Additional Nessus instance
+  # - instance_id: nessus-scanner-2
+  #   url: ${NESSUS_URL_2:-https://nessus2.example.com:8834}
+  #   access_key: ${NESSUS_ACCESS_KEY_2}
+  #   secret_key: ${NESSUS_SECRET_KEY_2}
+  #   enabled: true
+  #   max_concurrent_scans: 5
+
+# Future: OpenVAS scanner support
+# openvas:
+#   - instance_id: openvas-1
+#     url: ${OPENVAS_URL}
+#     username: ${OPENVAS_USERNAME}
+#     password: ${OPENVAS_PASSWORD}
+#     enabled: false
