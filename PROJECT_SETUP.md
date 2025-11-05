@@ -29,10 +29,87 @@ This project provides Python automation for Nessus Essentials vulnerability scan
 
 ```
 /home/nessus/projects/nessus-api/
-├── docs/                          # Documentation (populated by user or Claude with permission)
+├── nessusAPIWrapper/              # Existing Nessus automation scripts
+│   ├── CODEBASE_INDEX.md         # Script inventory and documentation
+│   │
+│   ├── API-Based Scripts (Read-Only):
+│   │   ├── list_scans.py                      # List all scans with status
+│   │   ├── scan_config.py                     # Display scan configuration
+│   │   ├── check_status.py                    # Check Nessus server health
+│   │   ├── export_vulnerabilities.py          # Quick vulnerability export
+│   │   └── export_vulnerabilities_detailed.py # Full vulnerability details
+│   │
+│   └── Web UI Simulation Scripts (Full Control):
+│       ├── launch_scan.py                     # Launch/stop scans
+│       ├── edit_scan.py                       # Edit scan parameters
+│       ├── manage_credentials.py              # SSH credential management
+│       ├── manage_scans.py                    # Create/delete scans
+│       └── check_dropdown_options.py          # Extract field options
+│
+├── mcp-server/                    # 🚀 MCP server implementation (Active Development)
+│   ├── README.md                  # ⭐ START HERE - Master tracker for agents
+│   ├── ARCHITECTURE_v2.2.md       # Complete technical design (54KB)
+│   ├── NESSUS_MCP_SERVER_REQUIREMENTS.md  # Functional requirements (27KB)
+│   ├── PHASE_0_FOUNDATION.md      # Phase 0: Mock infrastructure (36KB)
+│   ├── PHASE_1_REAL_NESSUS.md     # Phase 1: Real Nessus + queue (30KB)
+│   ├── PHASE_2_SCHEMA_RESULTS.md  # Phase 2: Schema & filtering (14KB)
+│   ├── PHASE_3_OBSERVABILITY.md   # Phase 3: Metrics & tests (11KB)
+│   ├── PHASE_4_PRODUCTION.md      # Phase 4: Production hardening (13KB)
+│   ├── archive/                   # Previous architectures (v1.0, v2.0, v2.1)
+│   │
+│   ├── scanners/                  # Scanner abstraction layer
+│   │   ├── base.py                # ScannerInterface (abstract)
+│   │   ├── mock_scanner.py        # Mock for testing (Phase 0)
+│   │   ├── nessus.py              # Async Nessus scanner (Phase 1)
+│   │   └── registry.py            # Multi-instance registry (Phase 1)
+│   │
+│   ├── core/                      # Core functionality
+│   │   ├── task_manager.py        # Task lifecycle & state machine
+│   │   ├── idempotency.py         # Duplicate scan prevention
+│   │   └── middleware.py          # Trace ID tracking
+│   │
+│   ├── schema/                    # Results schema & conversion
+│   │   ├── profiles.py            # Schema definitions (4 profiles)
+│   │   └── jsonl_converter.py     # Nessus → JSON-NL converter
+│   │
+│   ├── tools/                     # MCP tool implementations
+│   │   └── mcp_tools.py           # FastMCP server + 10 tools
+│   │
+│   ├── worker/                    # Background scanner worker
+│   │   └── scanner_worker.py      # Queue consumer & executor
+│   │
+│   ├── tests/                     # Test suite
+│   │   ├── client/                # Test clients (HTTP, FastMCP SDK)
+│   │   ├── fixtures/              # Mock .nessus files
+│   │   ├── unit/                  # Unit tests (Phase 3)
+│   │   └── integration/           # Integration tests (Phase 3)
+│   │
+│   ├── config/                    # Configuration files
+│   │   └── scanners.yaml          # Scanner instances
+│   │
+│   ├── Dockerfile.api             # API service image
+│   ├── Dockerfile.worker          # Worker service image
+│   ├── docker-compose.yml         # Base compose file
+│   ├── requirements-*.txt         # Python dependencies
+│   └── pyproject.toml             # Import linter config
+│
+├── dev1/                          # Development environment (Phase 0)
+│   ├── docker-compose.yml         # Dev-specific overrides
+│   ├── .env.dev                   # Dev environment vars
+│   ├── data/                      # Dev task storage
+│   └── logs/                      # Dev logs
+│
+├── prod/                          # Production environment (Phase 4)
+│   ├── docker-compose.yml         # Prod config
+│   ├── .env.prod                  # Prod environment vars
+│   ├── data/                      # Prod task storage
+│   └── logs/                      # Prod logs
+│
+├── docs/                          # Documentation
 │   ├── DOCKER_SETUP.md           # Docker configuration and maintenance
-│   ├── PROJECT_SETUP.md          # This file - project conventions
-│   └── [user-provided docs]      # Additional documentation as needed
+│   ├── CODEBASE_INDEX.md         # General project documentation
+│   └── fastMCPServer/            # FastMCP framework documentation (43 files)
+│       └── INDEX.md              # Quick reference for MCP development
 │
 ├── claudeScripts/                 # Throw-away scripts by Claude Code
 │   └── [temporary scripts]       # One-off automation, testing, utilities
@@ -45,26 +122,11 @@ This project provides Python automation for Nessus Essentials vulnerability scan
 ├── venv/                          # Python virtual environment (git-ignored)
 │   └── [Python packages]         # pytenable, requests, urllib3
 │
-├── [Python scripts]              # Main automation scripts (see below)
+├── PROJECT_SETUP.md              # This file - project conventions
+├── README.md                     # Main project documentation
 ├── credentials.md                # Sensitive credentials (git-ignored, see note)
 ├── requirements.txt              # Python dependencies
-├── README.md                     # Main project documentation
 └── .gitignore                    # Git exclusions
-
-Python Scripts (Project Root):
-├── API-Based Scripts (Read-Only):
-│   ├── list_scans.py                      # List all scans with status
-│   ├── scan_config.py                     # Display scan configuration
-│   ├── check_status.py                    # Check Nessus server health
-│   ├── export_vulnerabilities.py          # Quick vulnerability export
-│   └── export_vulnerabilities_detailed.py # Full vulnerability details
-│
-└── Web UI Simulation Scripts (Full Control):
-    ├── launch_scan.py                     # Launch/stop scans
-    ├── edit_scan.py                       # Edit scan parameters
-    ├── manage_credentials.py              # SSH credential management
-    ├── manage_scans.py                    # Create/delete scans
-    └── check_dropdown_options.py          # Extract field options
 ```
 
 ## Python Environment
@@ -93,9 +155,9 @@ pip install -r requirements.txt
 # Always activate before running scripts
 source /home/nessus/projects/nessus-api/venv/bin/activate
 
-# Run scripts
-python list_scans.py
-python manage_scans.py create "Test" "192.168.1.1"
+# Run scripts (note: scripts now in nessusAPIWrapper/)
+python nessusAPIWrapper/list_scans.py
+python nessusAPIWrapper/manage_scans.py create "Test" "192.168.1.1"
 
 # Deactivate when done
 deactivate
@@ -166,17 +228,20 @@ STATIC_API_TOKEN = 'af824aba-e642-4e63-a49b-0810542ad8a5'
 
 1. **Python Environment**
    - ALWAYS activate venv before running Python scripts
-   - Use: `source venv/bin/activate && python script.py`
+   - Use: `source venv/bin/activate && python nessusAPIWrapper/script.py`
    - Never run scripts outside venv
 
 2. **Directory Usage**
+   - **nessusAPIWrapper/**: Existing Nessus automation scripts (stable, modify with care)
+   - **mcp-server/**: MCP server implementation (planning phase, to be developed)
    - **docs/**: Only create/modify with user permission
    - **claudeScripts/**: Free to create throw-away scripts
    - **temp/**: Use for intermediate outputs, summaries, checkpoints
-   - **Root**: Only modify existing scripts or create new automation scripts
+   - **Root**: Documentation and configuration files
 
 3. **Script Development**
-   - Follow existing code patterns (see scan_config.py, manage_scans.py)
+   - **Existing scripts** in nessusAPIWrapper/: Follow existing patterns
+   - **New MCP server**: Follow architecture in mcp-server/NESSUS_MCP_SERVER_ARCHITECTURE.md
    - Use urllib3.disable_warnings() for SSL
    - Implement proper error handling
    - Add usage instructions in docstrings
@@ -203,21 +268,43 @@ STATIC_API_TOKEN = 'af824aba-e642-4e63-a49b-0810542ad8a5'
 ### Common Workflows for Claude
 
 #### Creating New Automation Script
-1. Analyze existing scripts for patterns
-2. Create in project root (not claudeScripts/)
+1. Analyze existing scripts in nessusAPIWrapper/ for patterns
+2. Create in nessusAPIWrapper/ directory (not claudeScripts/)
 3. Add to README.md under appropriate section
 4. Test with venv activated
 5. Commit with descriptive message
 
+#### Working on MCP Server Implementation
+1. **Always start session by reading**: `mcp-server/README.md` ⭐
+2. **Check current phase**: Look for "Current Phase" marker in README
+3. **Follow active phase guide**: Open corresponding `PHASE_X_*.md` file
+4. **Reference architecture**: `mcp-server/ARCHITECTURE_v2.2.md` for design decisions
+5. **Track progress**: Check/uncheck tasks in PHASE files as you complete them
+6. **Commit frequently**: Small, logical commits with descriptive messages
+
+**Key MCP Server Resources:**
+- `mcp-server/README.md` - Master tracker (updated each session)
+- `mcp-server/ARCHITECTURE_v2.2.md` - Complete technical design
+- `mcp-server/PHASE_0_FOUNDATION.md` - Start here for implementation
+- `mcp-server/NESSUS_MCP_SERVER_REQUIREMENTS.md` - Functional requirements
+- FastMCP docs: `docs/fastMCPServer/INDEX.md`
+
+**Implementation Approach:**
+- Phase 0: Mock scanner, basic tools, Docker setup (Days 1-2)
+- Phase 1: Real Nessus + Redis queue + worker (Week 1)
+- Phase 2: Schema system + results retrieval (Week 2)
+- Phase 3: Observability + testing (Week 3)
+- Phase 4: Production hardening (Week 4)
+
 #### Debugging Nessus API Issues
-1. Use `check_status.py` to verify server health
+1. Use `nessusAPIWrapper/check_status.py` to verify server health
 2. Check scan_config_debug.json for full API responses
-3. Use `check_dropdown_options.py` for credential field options
+3. Use `nessusAPIWrapper/check_dropdown_options.py` for credential field options
 4. Enable verbose output in scripts (add print statements)
 5. Save debug output to temp/ for analysis
 
 #### Generating Reports/Summaries
-1. Export data using `export_vulnerabilities_detailed.py`
+1. Export data using `nessusAPIWrapper/export_vulnerabilities_detailed.py`
 2. Process JSON in temp/ directory
 3. Generate summary reports (CSV, Markdown)
 4. Save final outputs to temp/
@@ -244,7 +331,7 @@ STATIC_API_TOKEN = 'af824aba-e642-4e63-a49b-0810542ad8a5'
 
 ### Script Categories
 
-**API Scripts** (pytenable library):
+**API Scripts** (pytenable library) - in nessusAPIWrapper/:
 - list_scans.py
 - scan_config.py
 - check_status.py
@@ -252,7 +339,7 @@ STATIC_API_TOKEN = 'af824aba-e642-4e63-a49b-0810542ad8a5'
 - export_vulnerabilities_detailed.py
 - check_dropdown_options.py
 
-**Web UI Scripts** (requests library):
+**Web UI Scripts** (requests library) - in nessusAPIWrapper/:
 - launch_scan.py
 - edit_scan.py
 - manage_credentials.py
@@ -365,13 +452,13 @@ source /home/nessus/projects/nessus-api/venv/bin/activate
 ### Run Common Operations
 ```bash
 # List scans
-python list_scans.py
+python nessusAPIWrapper/list_scans.py
 
 # Create scan
-python manage_scans.py create "Scan Name" "192.168.1.1"
+python nessusAPIWrapper/manage_scans.py create "Scan Name" "192.168.1.1"
 
 # Export results
-python export_vulnerabilities_detailed.py 24
+python nessusAPIWrapper/export_vulnerabilities_detailed.py 24
 ```
 
 ### Git Sync

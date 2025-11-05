@@ -25,7 +25,7 @@ curl -k https://localhost:8834/server/status
 python list_scans.py
 ```
 
-See [docs/PROJECT_SETUP.md](docs/PROJECT_SETUP.md) for detailed setup and conventions.
+See [PROJECT_SETUP.md](PROJECT_SETUP.md) for detailed setup and conventions.
 
 ## Key Innovation
 
@@ -42,35 +42,54 @@ While Nessus Essentials restricts scan control via API (`scan_api: false`), this
 
 ```
 /home/nessus/projects/nessus-api/
+├── nessusAPIWrapper/              # Existing Nessus automation scripts
+│   ├── CODEBASE_INDEX.md         # Script inventory and documentation
+│   │
+│   ├── API-Based Scripts (Read-Only Operations)
+│   │   ├── list_scans.py                       # List all scans
+│   │   ├── scan_config.py                      # View scan configuration
+│   │   ├── check_status.py                     # Check server status
+│   │   ├── export_vulnerabilities.py           # Export vulnerability summaries
+│   │   └── export_vulnerabilities_detailed.py  # Export FULL details
+│   │
+│   └── Web UI Simulation Scripts (Full Control)
+│       ├── launch_scan.py                      # Launch/stop scans
+│       ├── edit_scan.py                        # Edit scan parameters
+│       ├── manage_credentials.py               # SSH credential management
+│       ├── manage_scans.py                     # Create/delete scans
+│       └── check_dropdown_options.py           # Extract field options
+│
+├── mcp-server/                    # 🚀 MCP server implementation (Active Development)
+│   ├── README.md                  # ⭐ START HERE - Master implementation tracker
+│   ├── ARCHITECTURE_v2.2.md       # Complete technical design (production-ready)
+│   ├── NESSUS_MCP_SERVER_REQUIREMENTS.md  # Functional requirements
+│   ├── PHASE_0-4.md              # 4 detailed implementation guides
+│   ├── archive/                  # Previous architecture versions
+│   ├── scanners/                 # Scanner abstraction layer (stubs ready)
+│   ├── core/                     # Task management, queue, state machine (stubs ready)
+│   ├── schema/                   # Results conversion & filtering (stubs ready)
+│   ├── tools/                    # MCP tool implementations (stubs ready)
+│   ├── worker/                   # Background scanner worker (stubs ready)
+│   └── tests/                    # Test suite (to be created in Phase 0)
+│
+├── dev1/                          # Development environment (to be created in Phase 0)
+├── prod/                          # Production environment (to be created in Phase 4)
+│
 ├── docs/                          # Documentation
 │   ├── DOCKER_SETUP.md           # Docker configuration and maintenance
-│   └── PROJECT_SETUP.md          # Project conventions and setup guide
+│   ├── CODEBASE_INDEX.md         # General project documentation
+│   └── fastMCPServer/            # FastMCP framework documentation (43 files)
+│       └── INDEX.md              # Quick reference for MCP development
 │
 ├── claudeScripts/                 # Throw-away scripts (temporary utilities)
 ├── temp/                          # Intermediate outputs (git-ignored)
 ├── venv/                          # Python virtual environment (git-ignored)
 │
-├── API-Based Scripts (Read-Only Operations)
-│   ├── list_scans.py                       # List all scans
-│   ├── scan_config.py                      # View scan configuration
-│   ├── check_status.py                     # Check server status
-│   ├── export_vulnerabilities.py           # Export vulnerability summaries
-│   └── export_vulnerabilities_detailed.py  # Export FULL details
-│
-├── Web UI Simulation Scripts (Full Control)
-│   ├── launch_scan.py                      # Launch/stop scans
-│   ├── edit_scan.py                        # Edit scan parameters
-│   ├── manage_credentials.py               # SSH credential management
-│   ├── manage_scans.py                     # Create/delete scans
-│   └── check_dropdown_options.py           # Extract field options
-│
 ├── Documentation
 │   ├── README.md                           # This file
+│   ├── PROJECT_SETUP.md                    # Project conventions and setup guide
 │   ├── NESSUS_ESSENTIALS_LIMITATIONS.md    # API restrictions
-│   ├── nessus_automation_prompt.md         # LLM usage template
-│   └── docs/                               # Additional documentation
-│       ├── DOCKER_SETUP.md                 # Docker setup and operations
-│       └── PROJECT_SETUP.md                # Project conventions
+│   └── nessus_automation_prompt.md         # LLM usage template
 │
 ├── requirements.txt               # Python dependencies
 └── credentials.md                 # Sensitive credentials (git-ignored)
@@ -80,6 +99,13 @@ While Nessus Essentials restricts scan control via API (`scan_api: false`), this
 ```bash
 source venv/bin/activate
 ```
+
+**Two Components:**
+1. **nessusAPIWrapper/** - Production-ready scripts for direct Nessus automation
+2. **mcp-server/** - MCP (Model Context Protocol) server for AI agent integration
+   - Ready for Phase 0 implementation (see [mcp-server/README.md](mcp-server/README.md))
+   - Complete documentation: Architecture, Requirements, 4 Phase Guides
+   - Stub code structure ready (779 lines across scanners, core, schema, tools, worker)
 
 ## Authentication Methods
 
@@ -110,7 +136,7 @@ password = 'nessus'
 
 **Usage**:
 ```bash
-python list_scans.py
+python nessusAPIWrapper/list_scans.py
 ```
 
 **Output**:
@@ -131,14 +157,14 @@ python list_scans.py
 
 **Usage**:
 ```bash
-python scan_config.py [scan_id_or_name]
+python nessusAPIWrapper/scan_config.py [scan_id_or_name]
 ```
 
 **Examples**:
 ```bash
-python scan_config.py                # Default scan
-python scan_config.py 12             # By ID
-python scan_config.py "172.32.0.209" # By partial name
+python nessusAPIWrapper/scan_config.py                # Default scan
+python nessusAPIWrapper/scan_config.py 12             # By ID
+python nessusAPIWrapper/scan_config.py "172.32.0.209" # By partial name
 ```
 
 **Output**:
@@ -160,7 +186,7 @@ python scan_config.py "172.32.0.209" # By partial name
 
 **Usage**:
 ```bash
-python check_status.py
+python nessusAPIWrapper/check_status.py
 ```
 
 **Output**:
@@ -179,15 +205,15 @@ python check_status.py
 
 **Usage**:
 ```bash
-python export_vulnerabilities.py <scan_id_or_name> [format]
+python nessusAPIWrapper/export_vulnerabilities.py <scan_id_or_name> [format]
 ```
 
 **Formats**: `json`, `csv`, `nessus`, `html`, `pdf`, `all`
 
 **Examples**:
 ```bash
-python export_vulnerabilities.py 12 csv
-python export_vulnerabilities.py "172.32.0.215" all
+python nessusAPIWrapper/export_vulnerabilities.py 12 csv
+python nessusAPIWrapper/export_vulnerabilities.py "172.32.0.215" all
 ```
 
 **Output**:
@@ -207,13 +233,13 @@ python export_vulnerabilities.py "172.32.0.215" all
 
 **Usage**:
 ```bash
-python export_vulnerabilities_detailed.py <scan_id_or_name>
+python nessusAPIWrapper/export_vulnerabilities_detailed.py <scan_id_or_name>
 ```
 
 **Examples**:
 ```bash
-python export_vulnerabilities_detailed.py 24
-python export_vulnerabilities_detailed.py "corrosion"
+python nessusAPIWrapper/export_vulnerabilities_detailed.py 24
+python nessusAPIWrapper/export_vulnerabilities_detailed.py "corrosion"
 ```
 
 **Output**:
@@ -238,18 +264,18 @@ python export_vulnerabilities_detailed.py "corrosion"
 
 **Usage**:
 ```bash
-python launch_scan.py list                  # List scans
-python launch_scan.py launch <scan_id>      # Launch specific scan
-python launch_scan.py stop <scan_id>        # Stop specific scan
-python launch_scan.py stop-all              # Stop all running scans
+python nessusAPIWrapper/launch_scan.py list                  # List scans
+python nessusAPIWrapper/launch_scan.py launch <scan_id>      # Launch specific scan
+python nessusAPIWrapper/launch_scan.py stop <scan_id>        # Stop specific scan
+python nessusAPIWrapper/launch_scan.py stop-all              # Stop all running scans
 ```
 
 **Examples**:
 ```bash
-python launch_scan.py list
-python launch_scan.py launch 24
-python launch_scan.py stop 12
-python launch_scan.py stop-all
+python nessusAPIWrapper/launch_scan.py list
+python nessusAPIWrapper/launch_scan.py launch 24
+python nessusAPIWrapper/launch_scan.py stop 12
+python nessusAPIWrapper/launch_scan.py stop-all
 ```
 
 **Output**:
@@ -269,14 +295,14 @@ python launch_scan.py stop-all
 
 **Usage**:
 ```bash
-python edit_scan.py <scan_id> [--name NAME] [--description DESC] [--targets TARGETS]
+python nessusAPIWrapper/edit_scan.py <scan_id> [--name NAME] [--description DESC] [--targets TARGETS]
 ```
 
 **Examples**:
 ```bash
-python edit_scan.py 24 --name "Updated Scan"
-python edit_scan.py 24 --targets "172.32.0.1-254"
-python edit_scan.py 24 --name "Web Server Scan" --description "Weekly scan" --targets "192.168.1.10"
+python nessusAPIWrapper/edit_scan.py 24 --name "Updated Scan"
+python nessusAPIWrapper/edit_scan.py 24 --targets "172.32.0.1-254"
+python nessusAPIWrapper/edit_scan.py 24 --name "Web Server Scan" --description "Weekly scan" --targets "192.168.1.10"
 ```
 
 **Output**:
@@ -298,12 +324,12 @@ python edit_scan.py 24 --name "Web Server Scan" --description "Weekly scan" --ta
 
 **Usage**:
 ```bash
-python manage_credentials.py <scan_id>                     # Export template
-python manage_credentials.py <scan_id> <json_file>         # Import credentials
+python nessusAPIWrapper/manage_credentials.py <scan_id>                     # Export template
+python nessusAPIWrapper/manage_credentials.py <scan_id> <json_file>         # Import credentials
 ```
 
 **Workflow**:
-1. **Export template**: `python manage_credentials.py 24`
+1. **Export template**: `python nessusAPIWrapper/manage_credentials.py 24`
    - Creates `scan_24_ssh_credentials.json`
    - Includes existing credentials with masked passwords (or PLACEHOLDER if created by manage_scans.py)
    - Shows available options for dropdown fields (auth methods, privilege escalation, etc.)
@@ -318,7 +344,7 @@ python manage_credentials.py <scan_id> <json_file>         # Import credentials
    }
    ```
 
-3. **Import credentials**: `python manage_credentials.py 24 scan_24_ssh_credentials.json`
+3. **Import credentials**: `python nessusAPIWrapper/manage_credentials.py 24 scan_24_ssh_credentials.json`
    - Updates scan with new credentials
    - Validates against available options
    - **Can create credentials from scratch** (replaces PLACEHOLDER or adds new)
@@ -342,15 +368,15 @@ python manage_credentials.py <scan_id> <json_file>         # Import credentials
 
 **Usage**:
 ```bash
-python manage_scans.py create "Scan Name" "IP/CIDR" ["Description"]
-python manage_scans.py delete <scan_id>
+python nessusAPIWrapper/manage_scans.py create "Scan Name" "IP/CIDR" ["Description"]
+python nessusAPIWrapper/manage_scans.py delete <scan_id>
 ```
 
 **Examples**:
 ```bash
-python manage_scans.py create "Web Server Scan" "192.168.1.0/24"
-python manage_scans.py create "Host Scan" "172.32.0.215" "Production server"
-python manage_scans.py delete 25
+python nessusAPIWrapper/manage_scans.py create "Web Server Scan" "192.168.1.0/24"
+python nessusAPIWrapper/manage_scans.py create "Host Scan" "172.32.0.215" "Production server"
+python nessusAPIWrapper/manage_scans.py delete 25
 ```
 
 **Output**:
@@ -377,7 +403,7 @@ python manage_scans.py delete 25
 
 **Usage**:
 ```bash
-python check_dropdown_options.py <scan_id>
+python nessusAPIWrapper/check_dropdown_options.py <scan_id>
 ```
 
 **Output**:
@@ -396,12 +422,12 @@ python check_dropdown_options.py <scan_id>
 ### Example 1: Create and Launch New Scan (Complete Automation)
 ```bash
 # 1. Create scan with automatic PLACEHOLDER SSH credentials
-python manage_scans.py create "New Server Scan" "172.32.0.100"
+python nessusAPIWrapper/manage_scans.py create "New Server Scan" "172.32.0.100"
 # Output: [SUCCESS] New scan ID: 30
 #         [INFO] Dummy SSH credentials added (username/password: PLACEHOLDER)
 
 # 2. Configure SSH credentials
-python manage_credentials.py 30
+python nessusAPIWrapper/manage_credentials.py 30
 # Creates scan_30_ssh_credentials.json
 
 # Edit the JSON file:
@@ -411,49 +437,49 @@ python manage_credentials.py 30
 #   "elevate_privileges_with": "Nothing"
 # }
 
-python manage_credentials.py 30 scan_30_ssh_credentials.json
+python nessusAPIWrapper/manage_credentials.py 30 scan_30_ssh_credentials.json
 # Output: [SUCCESS] SSH credentials updated for scan 30
 
 # 3. Launch scan
-python launch_scan.py launch 30
+python nessusAPIWrapper/launch_scan.py launch 30
 
 # 4. Monitor progress
-python list_scans.py
+python nessusAPIWrapper/list_scans.py
 
 # 5. Export results (once completed)
-python export_vulnerabilities_detailed.py 30
+python nessusAPIWrapper/export_vulnerabilities_detailed.py 30
 ```
 
 ### Example 2: Bulk Delete Scans
 ```bash
 # List scans to find IDs
-python list_scans.py
+python nessusAPIWrapper/list_scans.py
 
 # Delete scans with "test" in name (manually)
-python manage_scans.py delete 15
-python manage_scans.py delete 18
-python manage_scans.py delete 22
+python nessusAPIWrapper/manage_scans.py delete 15
+python nessusAPIWrapper/manage_scans.py delete 18
+python nessusAPIWrapper/manage_scans.py delete 22
 ```
 
 ### Example 3: Edit Existing Scan
 ```bash
 # Update scan targets
-python edit_scan.py 24 --targets "172.32.0.1-50"
+python nessusAPIWrapper/edit_scan.py 24 --targets "172.32.0.1-50"
 
 # Launch updated scan
-python launch_scan.py launch 24
+python nessusAPIWrapper/launch_scan.py launch 24
 
 # Stop if needed
-python launch_scan.py stop 24
+python nessusAPIWrapper/launch_scan.py stop 24
 ```
 
 ### Example 4: Daily Reporting
 ```bash
 # Export all completed scans
-python list_scans.py  # Get scan IDs
-python export_vulnerabilities_detailed.py 12
-python export_vulnerabilities_detailed.py 24
-python export_vulnerabilities_detailed.py 30
+python nessusAPIWrapper/list_scans.py  # Get scan IDs
+python nessusAPIWrapper/export_vulnerabilities_detailed.py 12
+python nessusAPIWrapper/export_vulnerabilities_detailed.py 24
+python nessusAPIWrapper/export_vulnerabilities_detailed.py 30
 ```
 
 ---
@@ -580,42 +606,42 @@ Expected with self-signed certificates. Suppressed with `urllib3.disable_warning
 
 **Pattern 1: Create, Configure, Launch, Export**
 ```bash
-manage_scans.py create --name "X" --targets "Y"
+nessusAPIWrapper/manage_scans.py create --name "X" --targets "Y"
   → Returns scan_id
-manage_credentials.py export <scan_id>
+nessusAPIWrapper/manage_credentials.py export <scan_id>
   → Edit JSON manually
-manage_credentials.py import <scan_id> <json>
-launch_scan.py launch <scan_id>
+nessusAPIWrapper/manage_credentials.py import <scan_id> <json>
+nessusAPIWrapper/launch_scan.py launch <scan_id>
   → Wait for completion (check with list_scans.py)
-export_vulnerabilities_detailed.py <scan_id>
+nessusAPIWrapper/export_vulnerabilities_detailed.py <scan_id>
 ```
 
 **Pattern 2: Bulk Operations**
 ```bash
-list_scans.py
+nessusAPIWrapper/list_scans.py
   → Parse output for scan IDs matching criteria
 For each scan_id:
-  launch_scan.py stop <scan_id>  # or delete, or export
+  nessusAPIWrapper/launch_scan.py stop <scan_id>  # or delete, or export
 ```
 
 **Pattern 3: Update and Relaunch**
 ```bash
-edit_scan.py <scan_id> --targets "new_targets"
-launch_scan.py launch <scan_id>
+nessusAPIWrapper/edit_scan.py <scan_id> --targets "new_targets"
+nessusAPIWrapper/launch_scan.py launch <scan_id>
 ```
 
 ### Script Selection Guide
 
-- **View scans**: `list_scans.py`
-- **View configuration**: `scan_config.py`
-- **Create scan**: `manage_scans.py create`
-- **Delete scan**: `manage_scans.py delete`
-- **Launch scan**: `launch_scan.py launch`
-- **Stop scan**: `launch_scan.py stop`
-- **Edit basic params**: `edit_scan.py`
-- **Edit credentials**: `manage_credentials.py`
-- **Export results**: `export_vulnerabilities_detailed.py` (recommended) or `export_vulnerabilities.py`
-- **Check server**: `check_status.py`
+- **View scans**: `nessusAPIWrapper/list_scans.py`
+- **View configuration**: `nessusAPIWrapper/scan_config.py`
+- **Create scan**: `nessusAPIWrapper/manage_scans.py create`
+- **Delete scan**: `nessusAPIWrapper/manage_scans.py delete`
+- **Launch scan**: `nessusAPIWrapper/launch_scan.py launch`
+- **Stop scan**: `nessusAPIWrapper/launch_scan.py stop`
+- **Edit basic params**: `nessusAPIWrapper/edit_scan.py`
+- **Edit credentials**: `nessusAPIWrapper/manage_credentials.py`
+- **Export results**: `nessusAPIWrapper/export_vulnerabilities_detailed.py` (recommended) or `nessusAPIWrapper/export_vulnerabilities.py`
+- **Check server**: `nessusAPIWrapper/check_status.py`
 
 ---
 
@@ -666,8 +692,10 @@ From `GET /server/properties`:
 ## Additional Resources
 
 ### Documentation
-- [docs/PROJECT_SETUP.md](docs/PROJECT_SETUP.md) - Project conventions, directory structure, Claude Code guidelines
+- [PROJECT_SETUP.md](PROJECT_SETUP.md) - Project conventions, directory structure, Claude Code guidelines
 - [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) - Docker setup, networking, maintenance, troubleshooting
+- [nessusAPIWrapper/CODEBASE_INDEX.md](nessusAPIWrapper/CODEBASE_INDEX.md) - Complete script inventory and details
+- [mcp-server/](mcp-server/) - MCP server architecture and requirements (planning phase)
 - [NESSUS_ESSENTIALS_LIMITATIONS.md](NESSUS_ESSENTIALS_LIMITATIONS.md) - API restrictions and workarounds
 - [nessus_automation_prompt.md](nessus_automation_prompt.md) - LLM usage template
 
