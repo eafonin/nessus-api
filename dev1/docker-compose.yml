@@ -1,0 +1,62 @@
+# =============================================================================
+# Nessus MCP Server - Development Environment
+# =============================================================================
+# Note: 'version' key removed - obsolete in Docker Compose v2+
+# Modern Compose infers format from file structure
+# =============================================================================
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: nessus-mcp-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_dev:/data
+    command: redis-server --appendonly yes --maxmemory 256mb
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  mcp-api:
+    build:
+      context: ../mcp-server
+      dockerfile: Dockerfile.api
+    container_name: nessus-mcp-api-dev
+    ports:
+      # Host port 8835 maps to container port 8000
+      # MCP clients connect to: http://localhost:8835/mcp
+      - "8835:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATA_DIR=/app/data/tasks
+      - LOG_LEVEL=DEBUG
+      - ENVIRONMENT=development
+    volumes:
+      # Hot reload: mount source code for development
+      # Changes to these files take effect without rebuild
+      - ../mcp-server/scanners:/app/scanners
+      - ../mcp-server/core:/app/core
+      - ../mcp-server/schema:/app/schema
+      - ../mcp-server/tools:/app/tools
+      - ../mcp-server/client:/app/client
+      - ../mcp-server/tests:/app/tests
+      # Data persistence (writable)
+      - ./data:/app/data
+      # Logs (writable)
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    # IMPORTANT: Override Dockerfile CMD
+    # Uses run_server.py which starts uvicorn with SSE app directly
+    # This ensures proper lifespan management and SSE transport initialization
+    command: python tools/run_server.py
+    restart: unless-stopped
+
+volumes:
+  redis_data_dev:
+    driver: local
