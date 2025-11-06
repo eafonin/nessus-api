@@ -164,15 +164,20 @@ async def get_scan_status(task_id: str) -> dict:
 # =============================================================================
 # Create the ASGI app for uvicorn to serve.
 #
-# IMPORTANT: Using SSE transport instead of StreamableHTTP
-# Reason: Avoids "Task group is not initialized" error that occurs with:
-#   - anyio >= 4.11.0 + starlette >= 0.50.0
-#   - StreamableHTTPSessionManager initialization
+# IMPORTANT: Version pins required to avoid "Task group is not initialized" error
+# Bug: anyio >= 4.11.0 + starlette >= 0.50.0 causes task group initialization issues
+# Fix: Pin to starlette==0.49.1, anyio==4.6.2.post1 (see requirements-api.txt)
 #
-# SSE (Server-Sent Events) provides:
-#   - Long-lived HTTP connections for bidirectional communication
-#   - Compatible with MCP protocol requirements
-#   - More stable with current dependency versions
+# Using SSE transport (Server-Sent Events):
+#   - Client→Server: HTTP POST /mcp with JSON-RPC requests
+#   - Server→Client: SSE stream (text/event-stream) for responses
+#   - This is the ONLY working transport with current MCP SDK + FastMCP versions
+#   - StreamableHTTP also uses SSE internally (same behavior, different API)
+#
+# NOTE: SSE operational requirements:
+#   - Proxy must not buffer (set X-Accel-Buffering: no)
+#   - Long timeouts needed (3600s+)
+#   - For multi-worker: sticky sessions OR Redis pub/sub
 #
 # The app is imported by run_server.py and served via uvicorn directly.
 # Path "/mcp" is the endpoint where MCP clients connect.
