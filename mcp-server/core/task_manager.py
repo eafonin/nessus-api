@@ -1,82 +1,99 @@
-"""Task manager with state machine enforcement (single writer pattern)."""
-
-import fcntl
+"""Task manager with file-based storage."""
 import json
-from enum import Enum
-from dataclasses import dataclass
-from typing import Dict, Any, Optional, Set
+import uuid
+from pathlib import Path
+from datetime import datetime
+from typing import Optional
+from .types import Task, ScanState, VALID_TRANSITIONS, StateTransitionError
 
 
-class ScanState(Enum):
-    """Valid scan states."""
-    QUEUED = "queued"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    TIMEOUT = "timeout"
-
-
-# Valid state transitions
-VALID_TRANSITIONS: Dict[ScanState, Set[ScanState]] = {
-    ScanState.QUEUED: {ScanState.RUNNING, ScanState.FAILED},
-    ScanState.RUNNING: {ScanState.COMPLETED, ScanState.FAILED, ScanState.TIMEOUT},
-    ScanState.COMPLETED: set(),  # Terminal state
-    ScanState.FAILED: set(),     # Terminal state
-    ScanState.TIMEOUT: set(),    # Terminal state
-}
-
-
-class StateTransitionError(Exception):
-    """Raised when invalid state transition is attempted."""
-    pass
-
-
-@dataclass
-class Task:
-    """Task representation."""
-    task_id: str
-    trace_id: str
-    scan_type: str
-    scanner_type: str
-    scanner_instance_id: str
-    payload: Dict[str, Any]
+def generate_task_id(scanner_type: str, instance_id: str) -> str:
+    """Generate unique task ID."""
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    random_suffix = uuid.uuid4().hex[:8]
+    type_prefix = scanner_type[:2].lower()
+    instance_prefix = instance_id[:4].lower()
+    return f"{type_prefix}_{instance_prefix}_{timestamp}_{random_suffix}"
 
 
 class TaskManager:
-    """Manages task state with file locking for atomic updates."""
+    """Manages task lifecycle with file-based storage."""
 
-    def __init__(self, data_dir: str = "data/tasks"):
-        self.data_dir = data_dir
+    def __init__(self, data_dir: str = "/app/data/tasks"):
+        self.data_dir = Path(data_dir)
+        self.data_dir.mkdir(parents=True, exist_ok=True)
 
-    async def create_task(self, task: Task) -> str:
-        """Create new task and persist to disk."""
-        # TODO: Implement task creation
-        pass
+    def create_task(self, task: Task) -> None:
+        """Create new task directory and metadata file."""
+        task_dir = self.data_dir / task.task_id
+        task_dir.mkdir(parents=True, exist_ok=True)
 
-    async def get_task(self, task_id: str) -> Optional[Dict[str, Any]]:
+        task_file = task_dir / "task.json"
+        with open(task_file, "w") as f:
+            json.dump(self._task_to_dict(task), f, indent=2)
+
+    def get_task(self, task_id: str) -> Optional[Task]:
         """Retrieve task metadata."""
-        # TODO: Implement task retrieval
-        pass
+        task_file = self.data_dir / task_id / "task.json"
+        if not task_file.exists():
+            return None
 
-    async def transition_state(
+        with open(task_file) as f:
+            data = json.load(f)
+
+        return Task(**data)
+
+    def update_status(
         self,
         task_id: str,
         new_state: ScanState,
-        trace_id: str,
         **metadata
     ) -> None:
-        """Transition task to new state with validation and file locking."""
-        # TODO: Implement state transition with fcntl locking
-        # 1. Open task.json
-        # 2. Acquire exclusive lock (fcntl.LOCK_EX)
-        # 3. Read current state
-        # 4. Validate transition
-        # 5. Update state and metadata
-        # 6. Write back to file
-        # 7. Release lock
-        pass
+        """Update task status with state machine validation."""
+        task = self.get_task(task_id)
+        if not task:
+            raise ValueError(f"Task {task_id} not found")
 
-    async def delete_task(self, task_id: str) -> bool:
-        """Delete task and all associated data."""
-        # TODO: Implement task deletion
-        pass
+        current_state = ScanState(task.status)
+
+        # Validate transition
+        if new_state not in VALID_TRANSITIONS.get(current_state, set()):
+            raise StateTransitionError(
+                f"Invalid transition: {current_state.value} → {new_state.value}"
+            )
+
+        # Update timestamps
+        if new_state == ScanState.RUNNING:
+            task.started_at = datetime.utcnow().isoformat()
+        elif new_state in {ScanState.COMPLETED, ScanState.FAILED, ScanState.TIMEOUT}:
+            task.completed_at = datetime.utcnow().isoformat()
+
+        task.status = new_state.value
+
+        # Update additional metadata
+        for key, value in metadata.items():
+            if hasattr(task, key):
+                setattr(task, key, value)
+
+        # Write back
+        task_file = self.data_dir / task_id / "task.json"
+        with open(task_file, "w") as f:
+            json.dump(self._task_to_dict(task), f, indent=2)
+
+    @staticmethod
+    def _task_to_dict(task: Task) -> dict:
+        """Convert Task to dict for JSON serialization."""
+        return {
+            "task_id": task.task_id,
+            "trace_id": task.trace_id,
+            "scan_type": task.scan_type,
+            "scanner_type": task.scanner_type,
+            "scanner_instance_id": task.scanner_instance_id,
+            "status": task.status,
+            "payload": task.payload,
+            "created_at": task.created_at,
+            "started_at": task.started_at,
+            "completed_at": task.completed_at,
+            "nessus_scan_id": task.nessus_scan_id,
+            "error_message": task.error_message,
+        }

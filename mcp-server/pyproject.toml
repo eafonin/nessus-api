@@ -1,0 +1,20 @@
+[tool.import-linter]
+root_packages = ["scanners", "core", "schema", "tools", "worker"]
+
+[[tool.import-linter.contracts]]
+name = "Layer boundaries"
+type = "layers"
+layers = [
+    "tools",
+    "worker",
+    "core | schema | scanners",
+]
+
+[[tool.import-linter.contracts]]
+name = "No circular dependencies"
+type = "independence"
+modules = [
+    "scanners",
+    "core",
+    "schema",
+]

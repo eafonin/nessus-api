@@ -34,4 +34,4 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
     CMD python -c "import httpx; httpx.get('http://localhost:8000/health', timeout=2)" || exit 1
 
 # Run uvicorn server
-CMD ["uvicorn", "tools.mcp_tools:mcp.app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "tools.mcp_server:app", "--host", "0.0.0.0", "--port", "8000"]

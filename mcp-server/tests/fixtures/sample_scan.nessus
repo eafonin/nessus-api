@@ -1,0 +1,25 @@
+<?xml version="1.0" ?>
+<NessusClientData_v2>
+  <Report name="Sample Mock Scan">
+    <ReportHost name="192.168.1.1">
+      <ReportItem pluginID="10267" pluginName="SSH Server Type and Version Information" severity="0">
+        <description>It is possible to obtain information about the remote SSH server.</description>
+        <plugin_output>SSH version : SSH-2.0-OpenSSH_8.2p1 Ubuntu-4ubuntu0.5</plugin_output>
+        <solution>n/a</solution>
+      </ReportItem>
+      <ReportItem pluginID="22964" pluginName="Service Detection" severity="0">
+        <description>The remote service could be identified.</description>
+        <port>22</port>
+        <protocol>tcp</protocol>
+      </ReportItem>
+      <ReportItem pluginID="51192" pluginName="SSL Certificate Cannot Be Trusted" severity="2">
+        <description>The SSL certificate is self-signed.</description>
+        <cve>CVE-2023-99999</cve>
+        <cvss_base_score>5.0</cvss_base_score>
+        <cvss3_base_score>5.3</cvss3_base_score>
+        <exploit_available>false</exploit_available>
+        <solution>Purchase or generate a proper certificate.</solution>
+      </ReportItem>
+    </ReportHost>
+  </Report>
+</NessusClientData_v2>
