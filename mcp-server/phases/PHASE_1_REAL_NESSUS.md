@@ -950,8 +950,8 @@ CMD ["python", "-m", "worker.scanner_worker"]
 ### 1.5-1.8: Remaining Components
 
 Due to message length, see detailed code in:
-- **Idempotency**: [ARCHITECTURE_v2.2.md](./ARCHITECTURE_v2.2.md) Section 2
-- **Trace ID Middleware**: [ARCHITECTURE_v2.2.md](./ARCHITECTURE_v2.2.md) Section 3
+- **Idempotency**: [ARCHITECTURE_v2.2.md](../ARCHITECTURE_v2.2.md) Section 2
+- **Trace ID Middleware**: [ARCHITECTURE_v2.2.md](../ARCHITECTURE_v2.2.md) Section 3
 - **Enhanced Tools**: Update `tools/mcp_server.py` to use queue instead of immediate execution
 
 ---
@@ -1011,7 +1011,7 @@ docker compose logs -f scanner-worker
 ## Next Steps
 
 Once Phase 1 is complete:
-1. Update [README.md](./README.md) progress tracker
+1. Update [README.md](../README.md) progress tracker
 2. Commit: "feat: Complete Phase 1 - Real Nessus Integration + Queue"
 3. Tag: `git tag phase-1-complete`
 4. Move to [PHASE_2_SCHEMA_RESULTS.md](./PHASE_2_SCHEMA_RESULTS.md)

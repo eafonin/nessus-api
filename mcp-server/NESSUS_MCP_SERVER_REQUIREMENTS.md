@@ -20,7 +20,7 @@ Build an MCP (Model Context Protocol) server that provides vulnerability scannin
 
 ### 1.3 Related Documents
 - **Architecture Design**: [`ARCHITECTURE_v2.2.md`](./ARCHITECTURE_v2.2.md) (same directory)
-- **Implementation Guide**: [`IMPLEMENTATION_GUIDE.md`](./IMPLEMENTATION_GUIDE.md)
+- **Implementation Guide**: [`archive/IMPLEMENTATION_GUIDE.md`](./archive/IMPLEMENTATION_GUIDE.md)
 - **Existing Codebase Index**: [`../nessusAPIWrapper/CODEBASE_INDEX.md`](../nessusAPIWrapper/CODEBASE_INDEX.md)
 - **FastMCP Documentation**: [`../docs/fastMCPServer/INDEX.md`](../docs/fastMCPServer/INDEX.md)
 - **Existing Scripts directory**: [`../nessusAPIWrapper/`](../nessusAPIWrapper/)
@@ -32,7 +32,7 @@ Build an MCP (Model Context Protocol) server that provides vulnerability scannin
 ### 2.1 Deployment Environment
 - **Client**: FastAPI-based multi-agent system with OpenRouter LLM backend
 - **Scanner**: Existing Nessus Docker container (VPN gateway + Nessus Pro)
-- **Docker Compose**: See [`docker/nessus/docker-compose.yml`](../docker/nessus/docker-compose.yml)
+- **Docker Compose**: See `/home/nessus/docker/nessus/docker-compose.yml` (external to project)
 - **Network**: Containerized services on `nessus_net` bridge network
 - **MCP Server**: New HTTP service deployed alongside existing Nessus infrastructure
 
@@ -42,7 +42,7 @@ The MCP server wraps existing Python automation scripts:
 - `nessusAPIWrapper/manage_credentials.py` - SSH credential management
 - `nessusAPIWrapper/launch_scan.py` - Scan execution control
 - `nessusAPIWrapper/export_vulnerabilities_detailed.py` - Result export
-- See [`docs/CODEBASE_INDEX.md`](./CODEBASE_INDEX.md) for complete script inventory
+- See [`../nessusAPIWrapper/CODEBASE_INDEX.md`](../nessusAPIWrapper/CODEBASE_INDEX.md) for complete script inventory
 
 ---
 
@@ -562,7 +562,7 @@ filters={"host": "192.168.1.10", "cve": "CVE-2023"}
 
 ### 6.3 Dependencies
 - **Existing Scripts**: Reuse `nessusAPIWrapper/` via imports (do not duplicate)
-- **FastMCP Docs**: Reference [`docs/fastMCPServer/`](./fastMCPServer/)
+- **FastMCP Docs**: Reference [`../docs/fastMCPServer/`](../docs/fastMCPServer/)
 - **Scanner Independence**: Abstract interface allows adding non-Nessus scanners
 
 ---
@@ -621,7 +621,7 @@ filters={"host": "192.168.1.10", "cve": "CVE-2023"}
 
 ## 9. Implementation Phases
 
-See [`ARCHITECTURE_v2.2.md`](./ARCHITECTURE_v2.2.md) for architectural details and [`IMPLEMENTATION_GUIDE.md`](./IMPLEMENTATION_GUIDE.md) for the comprehensive implementation checklist.
+See [`ARCHITECTURE_v2.2.md`](./ARCHITECTURE_v2.2.md) for architectural details and [`archive/IMPLEMENTATION_GUIDE.md`](./archive/IMPLEMENTATION_GUIDE.md) for the comprehensive implementation checklist.
 
 **Summary** (10 phases):
 1. **Phase 1**: Core infrastructure setup (directories, Docker, Redis config)
@@ -641,10 +641,9 @@ See [`ARCHITECTURE_v2.2.md`](./ARCHITECTURE_v2.2.md) for architectural details a
 
 ### 10.1 Project Documents
 - **Architecture**: [`ARCHITECTURE_v2.2.md`](./ARCHITECTURE_v2.2.md) (same directory)
-- **Implementation Guide**: [`IMPLEMENTATION_GUIDE.md`](./IMPLEMENTATION_GUIDE.md)
+- **Implementation Guide**: [`archive/IMPLEMENTATION_GUIDE.md`](./archive/IMPLEMENTATION_GUIDE.md)
 - **Archived Architectures**: [`archive/`](./archive/) (v1.0, v2.0, v2.1)
 - **Codebase Index (nessusAPIWrapper)**: [`../nessusAPIWrapper/CODEBASE_INDEX.md`](../nessusAPIWrapper/CODEBASE_INDEX.md)
-- **Codebase Index (general)**: [`../docs/CODEBASE_INDEX.md`](../docs/CODEBASE_INDEX.md)
 - **FastMCP Docs**: [`../docs/fastMCPServer/INDEX.md`](../docs/fastMCPServer/INDEX.md)
 
 ### 10.2 External Resources
@@ -653,7 +652,7 @@ See [`ARCHITECTURE_v2.2.md`](./ARCHITECTURE_v2.2.md) for architectural details a
 - **MCP Protocol Spec**: https://spec.modelcontextprotocol.io/
 
 ### 10.3 Docker Environment
-- **Nessus Compose**: [`../docker/nessus/docker-compose.yml`](../docker/nessus/docker-compose.yml)
+- **Nessus Compose**: `/home/nessus/docker/nessus/docker-compose.yml` (external to project)
 - **Nessus URL**: `https://localhost:8834` (via VPN gateway)
 - **MCP Server URL**: `http://localhost:8835` (to be deployed)
 
@@ -678,7 +677,7 @@ See [`ARCHITECTURE_v2.2.md`](./ARCHITECTURE_v2.2.md) for architectural details a
 **Requirements Approved By**: User
 **Date**: 2025-11-01 (updated for v2.2)
 **Architecture Approved**: Yes ([`ARCHITECTURE_v2.2.md`](./ARCHITECTURE_v2.2.md))
-**Implementation Guide**: Available ([`IMPLEMENTATION_GUIDE.md`](./IMPLEMENTATION_GUIDE.md))
+**Implementation Guide**: Available ([`archive/IMPLEMENTATION_GUIDE.md`](./archive/IMPLEMENTATION_GUIDE.md))
 **Ready for Implementation**: Yes
 
-**Next Step**: Begin Phase 1 implementation per IMPLEMENTATION_GUIDE.md
+**Next Step**: Begin Phase 1 implementation per archive/IMPLEMENTATION_GUIDE.md

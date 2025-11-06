@@ -49,7 +49,7 @@
 **Status**: **WORKING** - All tests pass successfully!
 
 **Test Results** (2025-11-06):
-```
+```text
 ============================================================
 Phase 0: Mock Scan Workflow Test
 ============================================================

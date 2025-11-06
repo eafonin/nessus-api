@@ -50,12 +50,16 @@ This project provides Python automation for Nessus Essentials vulnerability scan
 │   ├── README.md                  # ⭐ START HERE - Master tracker for agents
 │   ├── ARCHITECTURE_v2.2.md       # Complete technical design (54KB)
 │   ├── NESSUS_MCP_SERVER_REQUIREMENTS.md  # Functional requirements (27KB)
-│   ├── PHASE_0_FOUNDATION.md      # Phase 0: Mock infrastructure (36KB)
-│   ├── PHASE_1_REAL_NESSUS.md     # Phase 1: Real Nessus + queue (30KB)
-│   ├── PHASE_2_SCHEMA_RESULTS.md  # Phase 2: Schema & filtering (14KB)
-│   ├── PHASE_3_OBSERVABILITY.md   # Phase 3: Metrics & tests (11KB)
-│   ├── PHASE_4_PRODUCTION.md      # Phase 4: Production hardening (13KB)
-│   ├── archive/                   # Previous architectures (v1.0, v2.0, v2.1)
+│   │
+│   ├── phases/                    # Implementation phase guides
+│   │   ├── PHASE_0_FOUNDATION.md      # Phase 0: Mock infrastructure (36KB)
+│   │   ├── PHASE_1_REAL_NESSUS.md     # Phase 1: Real Nessus + queue (30KB)
+│   │   ├── PHASE_2_SCHEMA_RESULTS.md  # Phase 2: Schema & filtering (14KB)
+│   │   ├── PHASE_3_OBSERVABILITY.md   # Phase 3: Metrics & tests (11KB)
+│   │   ├── PHASE_4_PRODUCTION.md      # Phase 4: Production hardening (13KB)
+│   │   └── phase0/                    # Phase 0 completion artifacts (✅ complete)
+│   │
+│   ├── archive/                   # Previous architectures & superseded docs
 │   │
 │   ├── scanners/                  # Scanner abstraction layer
 │   │   ├── base.py                # ScannerInterface (abstract)
@@ -277,15 +281,16 @@ STATIC_API_TOKEN = 'af824aba-e642-4e63-a49b-0810542ad8a5'
 #### Working on MCP Server Implementation
 1. **Always start session by reading**: `mcp-server/README.md` ⭐
 2. **Check current phase**: Look for "Current Phase" marker in README
-3. **Follow active phase guide**: Open corresponding `PHASE_X_*.md` file
+3. **Follow active phase guide**: Open corresponding `mcp-server/phases/PHASE_X_*.md` file
 4. **Reference architecture**: `mcp-server/ARCHITECTURE_v2.2.md` for design decisions
-5. **Track progress**: Check/uncheck tasks in PHASE files as you complete them
+5. **Track progress**: Check/uncheck tasks in phase files as you complete them
 6. **Commit frequently**: Small, logical commits with descriptive messages
 
 **Key MCP Server Resources:**
 - `mcp-server/README.md` - Master tracker (updated each session)
 - `mcp-server/ARCHITECTURE_v2.2.md` - Complete technical design
-- `mcp-server/PHASE_0_FOUNDATION.md` - Start here for implementation
+- `mcp-server/phases/PHASE_1_REAL_NESSUS.md` - Current phase (Phase 0 complete ✅)
+- `mcp-server/phases/phase0/PHASE0_STATUS.md` - Phase 0 completion report
 - `mcp-server/NESSUS_MCP_SERVER_REQUIREMENTS.md` - Functional requirements
 - FastMCP docs: `docs/fastMCPServer/INDEX.md`
 

@@ -63,14 +63,16 @@ While Nessus Essentials restricts scan control via API (`scan_api: false`), this
 │   ├── README.md                  # ⭐ START HERE - Master implementation tracker
 │   ├── ARCHITECTURE_v2.2.md       # Complete technical design (production-ready)
 │   ├── NESSUS_MCP_SERVER_REQUIREMENTS.md  # Functional requirements
-│   ├── PHASE_0-4.md              # 4 detailed implementation guides
+│   ├── phases/                   # Implementation phase guides
+│   │   ├── PHASE_0-4.md          # 5 phase implementation guides
+│   │   └── phase0/               # Phase 0 completion artifacts (✅ complete)
 │   ├── archive/                  # Previous architecture versions
-│   ├── scanners/                 # Scanner abstraction layer (stubs ready)
-│   ├── core/                     # Task management, queue, state machine (stubs ready)
-│   ├── schema/                   # Results conversion & filtering (stubs ready)
-│   ├── tools/                    # MCP tool implementations (stubs ready)
-│   ├── worker/                   # Background scanner worker (stubs ready)
-│   └── tests/                    # Test suite (to be created in Phase 0)
+│   ├── scanners/                 # Scanner abstraction layer (Phase 0 ✅)
+│   ├── core/                     # Task management, state machine (Phase 0 ✅)
+│   ├── schema/                   # Results conversion & filtering (Phase 2)
+│   ├── tools/                    # MCP tool implementations (Phase 0 ✅)
+│   ├── worker/                   # Background scanner worker (Phase 0 ✅)
+│   └── tests/                    # Test suite (Phase 0 ✅, expand in Phase 3)
 │
 ├── dev1/                          # Development environment (to be created in Phase 0)
 ├── prod/                          # Production environment (to be created in Phase 4)
@@ -696,8 +698,8 @@ From `GET /server/properties`:
 - [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) - Docker setup, networking, maintenance, troubleshooting
 - [nessusAPIWrapper/CODEBASE_INDEX.md](nessusAPIWrapper/CODEBASE_INDEX.md) - Complete script inventory and details
 - [mcp-server/](mcp-server/) - MCP server architecture and requirements (planning phase)
-- [NESSUS_ESSENTIALS_LIMITATIONS.md](NESSUS_ESSENTIALS_LIMITATIONS.md) - API restrictions and workarounds
-- [nessus_automation_prompt.md](nessus_automation_prompt.md) - LLM usage template
+- [docs/NESSUS_ESSENTIALS_LIMITATIONS.md](docs/NESSUS_ESSENTIALS_LIMITATIONS.md) - API restrictions and workarounds
+- [docs/nessus_automation_prompt.md](docs/nessus_automation_prompt.md) - LLM usage template
 
 ### External Resources
 - **Tenable pyTenable Documentation**: https://pytenable.readthedocs.io
