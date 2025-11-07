@@ -201,12 +201,13 @@ class TaskQueue:
             count: Number of tasks to peek at (default: 1)
 
         Returns:
-            List of task dictionaries (may be empty)
+            List of task dictionaries in FIFO order (next to be dequeued first)
         """
         try:
             # LRANGE -count -1 gets last 'count' items (next to be dequeued)
+            # Reverse to get FIFO order (BRPOP pops from right, so rightmost is next)
             task_jsons = self.redis_client.lrange(self.queue_key, -count, -1)
-            tasks = [json.loads(tj) for tj in task_jsons]
+            tasks = [json.loads(tj) for tj in reversed(task_jsons)]
             return tasks
         except Exception as e:
             logger.error(f"Failed to peek queue: {e}")

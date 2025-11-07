@@ -44,7 +44,7 @@ class NessusScanner(ScannerInterface):
         if not self._session:
             self._session = httpx.AsyncClient(
                 verify=self.verify_ssl,
-                timeout=30.0,
+                timeout=60.0,  # Increased for scan creation operations
                 follow_redirects=True
             )
         return self._session

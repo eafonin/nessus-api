@@ -3,6 +3,7 @@
 import asyncio
 import sys
 from pathlib import Path
+import pytest
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -11,6 +12,7 @@ from scanners.nessus_scanner import NessusScanner
 from scanners.base import ScanRequest
 
 
+@pytest.mark.asyncio
 async def test_authentication():
     """Test Nessus authentication."""
     print("\n" + "="*60)
@@ -43,6 +45,7 @@ async def test_authentication():
         await scanner.close()
 
 
+@pytest.mark.asyncio
 async def test_create_and_cleanup():
     """Test scan creation, launch, and cleanup."""
     print("\n" + "="*60)
