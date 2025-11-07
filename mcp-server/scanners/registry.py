@@ -71,16 +71,12 @@ class ScannerRegistry:
                 url = self._expand_env(scanner_config["url"])
                 username = self._expand_env(scanner_config.get("username", ""))
                 password = self._expand_env(scanner_config.get("password", ""))
-                access_key = self._expand_env(scanner_config.get("access_key", ""))
-                secret_key = self._expand_env(scanner_config.get("secret_key", ""))
 
                 # Create scanner instance
                 scanner = NessusScanner(
                     url=url,
-                    username=username if username else None,
-                    password=password if password else None,
-                    access_key=access_key if access_key else None,
-                    secret_key=secret_key if secret_key else None,
+                    username=username,
+                    password=password,
                     verify_ssl=False  # Default to False for self-signed certs
                 )
 

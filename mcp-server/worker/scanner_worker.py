@@ -135,6 +135,7 @@ class ScannerWorker:
 
         logger.info(f"Processing task: {task_id}, trace_id: {trace_id}")
 
+        scanner = None
         try:
             # Transition to RUNNING
             self.task_manager.update_status(
@@ -187,6 +188,15 @@ class ScannerWorker:
         except Exception as e:
             logger.error(f"[{task_id}] Task failed: {e}", exc_info=True)
             await self._handle_error(task_data, e)
+
+        finally:
+            # Cleanup scanner resources
+            if scanner:
+                try:
+                    await scanner.close()
+                    logger.debug(f"[{task_id}] Scanner connection closed")
+                except Exception as e:
+                    logger.error(f"[{task_id}] Error closing scanner: {e}")
 
     async def _poll_until_complete(
         self,

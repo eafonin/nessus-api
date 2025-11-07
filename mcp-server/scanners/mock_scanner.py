@@ -106,3 +106,7 @@ class MockNessusScanner(ScannerInterface):
             del self._scans[scan_id]
             return True
         return False
+
+    async def close(self) -> None:
+        """Cleanup mock scanner resources (no-op for mock)."""
+        pass

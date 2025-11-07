@@ -3,7 +3,8 @@
 > **Status**: 🚧 In Development
 > **Current Phase**: Phase 1 - Real Nessus Integration + Queue
 > **Phase 0**: ✅ Completed (2025-11-06)
-> **Last Updated**: 2025-11-06
+> **Phase 1A**: ✅ Completed (2025-11-07) - Scanner Rewrite
+> **Last Updated**: 2025-11-07
 
 ---
 
@@ -11,7 +12,8 @@
 
 ### Implementation Phases
 - [Phase 0: Foundation & Mock Infrastructure](./phases/PHASE_0_FOUNDATION.md) ✅ **COMPLETED** - [Status Report](./phases/phase0/PHASE0_STATUS.md)
-- [Phase 1: Real Nessus Integration + Queue](./phases/PHASE_1_REAL_NESSUS.md) ⬅️ **NEXT**
+- [Phase 1A: Scanner Rewrite](./phases/PHASE_1A_SCANNER_REWRITE.md) ✅ **COMPLETED** - [Completion Report](./phases/PHASE_1A_COMPLETION_REPORT.md)
+- [Phase 1: Real Nessus Integration + Queue](./phases/PHASE_1_REAL_NESSUS.md) ⬅️ **IN PROGRESS**
 - [Phase 2: Schema System & Results](./phases/PHASE_2_SCHEMA_RESULTS.md)
 - [Phase 3: Observability & Testing](./phases/PHASE_3_OBSERVABILITY.md)
 - [Phase 4: Production Hardening](./phases/PHASE_4_PRODUCTION.md)
@@ -20,6 +22,11 @@
 - [Phase 0 Status Report](./phases/phase0/PHASE0_STATUS.md) - Complete implementation summary
 - [Bug Fix Guide](./phases/phase0/FINAL_MINIMAL_CHANGES.md) - Task group initialization fix
 - [Fix Summary](./phases/phase0/MINIMAL_FIX_SUMMARY.md) - Quick reference
+
+### Phase 1A Completion Documents
+- [Phase 1A Completion Report](./phases/PHASE_1A_COMPLETION_REPORT.md) - Scanner rewrite summary and validation
+- [Nessus HTTP Patterns](./scanners/NESSUS_HTTP_PATTERNS.md) - Extracted patterns from proven wrapper code
+- [Docker Network Configuration](./docs/DOCKER_NETWORK_CONFIG.md) - Network topology and URL configuration guide
 
 ### Key Documents
 - **[Architecture v2.2](./ARCHITECTURE_v2.2.md)** ⭐ - Complete technical design (READ THIS for design decisions)

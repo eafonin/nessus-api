@@ -58,3 +58,12 @@ class ScannerInterface(ABC):
     async def delete_scan(self, scan_id: int) -> bool:
         """Delete scan."""
         pass
+
+    @abstractmethod
+    async def close(self) -> None:
+        """
+        Cleanup scanner resources (HTTP sessions, connections).
+
+        Should be called when scanner is no longer needed.
+        """
+        pass
