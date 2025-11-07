@@ -3,13 +3,14 @@
 # Environment variable substitution supported using ${VAR_NAME} syntax
 #
 # IMPORTANT: Nessus runs through VPN gateway (network_mode: service)
-# - Use host IP (172.32.0.209), NOT localhost
-# - Localhost connections timeout due to Docker network routing
+# - Containers connect via vpn-gateway hostname on nessus_net network
+# - vpn-gateway exposes Nessus on port 8834
+# - nessus-pro container shares network with vpn-gateway
 
 nessus:
   - instance_id: local
     name: "Local Nessus Scanner"
-    url: ${NESSUS_URL:-https://172.32.0.209:8834}
+    url: ${NESSUS_URL:-https://vpn-gateway:8834}
     username: ${NESSUS_USERNAME:-nessus}
     password: ${NESSUS_PASSWORD:-nessus}
     enabled: true

@@ -11,7 +11,7 @@ def queue():
     """Create TaskQueue instance for testing."""
     # Use test-specific keys to avoid interference
     q = TaskQueue(
-        redis_url="redis://localhost:6379",
+        redis_url="redis://redis:6379",
         queue_key="nessus:queue:test",
         dlq_key="nessus:queue:test:dead"
     )

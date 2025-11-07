@@ -18,7 +18,7 @@ async def test_authentication():
     print("="*60)
 
     scanner = NessusScanner(
-        url="https://localhost:8834",
+        url="https://vpn-gateway:8834",
         username="nessus",
         password="nessus",
         verify_ssl=False
@@ -50,7 +50,7 @@ async def test_create_and_cleanup():
     print("="*60)
 
     scanner = NessusScanner(
-        url="https://localhost:8834",
+        url="https://vpn-gateway:8834",
         username="nessus",
         password="nessus",
         verify_ssl=False

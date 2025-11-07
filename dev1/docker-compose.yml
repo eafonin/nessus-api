@@ -35,6 +35,13 @@ services:
       - DATA_DIR=/app/data/tasks
       - LOG_LEVEL=DEBUG
       - ENVIRONMENT=development
+      # Nessus scanner URL for tests
+      - NESSUS_URL=https://vpn-gateway:8834
+      - NESSUS_USERNAME=nessus
+      - NESSUS_PASSWORD=nessus
+    networks:
+      - default
+      - nessus_net
     volumes:
       # Hot reload: mount source code for development
       # Changes to these files take effect without rebuild
@@ -68,10 +75,13 @@ services:
       - SCANNER_CONFIG=/app/config/scanners.yaml
       - LOG_LEVEL=INFO
       - MAX_CONCURRENT_SCANS=3
-      # Nessus credentials
-      - NESSUS_URL=https://172.32.0.209:8834
+      # Nessus credentials - connect via vpn-gateway on nessus_net
+      - NESSUS_URL=https://vpn-gateway:8834
       - NESSUS_USERNAME=nessus
       - NESSUS_PASSWORD=nessus
+    networks:
+      - default
+      - nessus_net
     volumes:
       # Hot reload: mount source code for development
       - ../mcp-server/scanners:/app/scanners
@@ -96,3 +106,14 @@ services:
 volumes:
   redis_data_dev:
     driver: local
+
+networks:
+  # Default network for internal communication (redis, mcp-api, scanner-worker)
+  default:
+    driver: bridge
+
+  # External network for Nessus scanner connectivity
+  # Connects to vpn-gateway container in /home/nessus/docker/nessus
+  nessus_net:
+    external: true
+    name: nessus_nessus_net
