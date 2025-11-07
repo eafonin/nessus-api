@@ -1,72 +1,227 @@
 """Scanner registry for managing multiple scanner instances."""
+import os
+import signal
+import yaml
+import time
+from pathlib import Path
+from typing import Dict, List, Optional, Any
+import logging
+from .nessus_scanner import NessusScanner
+from .mock_scanner import MockNessusScanner
 
-from typing import Dict, List, Optional
-import random
+logger = logging.getLogger(__name__)
 
 
 class ScannerRegistry:
     """
-    Manages scanner instances with round-robin selection and health tracking.
+    Registry for scanner instances.
 
-    Loads scanner configurations from config/scanners.yaml at startup.
-    Registers instances in Redis with heartbeat mechanism.
+    Supports:
+    - Multiple instances of same scanner type
+    - Round-robin load balancing
+    - Hot-reload on SIGHUP
+    - Environment variable substitution
     """
 
-    def __init__(self, redis_client, config_path: str = "config/scanners.yaml"):
-        self.redis = redis_client
-        self.config_path = config_path
-        self.scanners: Dict[str, List[Dict]] = {}  # {scanner_type: [instances]}
+    def __init__(self, config_file: str = "config/scanners.yaml"):
+        self.config_file = Path(config_file)
+        self._instances: Dict[str, Dict[str, Any]] = {}
+        self._load_config()
 
-    async def load_scanners(self) -> None:
-        """Load scanner configurations from YAML file."""
-        # TODO: Implement scanner loading
-        # 1. Read config/scanners.yaml
-        # 2. Parse scanner definitions
-        # 3. Register in Redis with heartbeat
-        # 4. Store in self.scanners
-        pass
+        # Setup SIGHUP handler for hot-reload
+        try:
+            signal.signal(signal.SIGHUP, self._handle_reload)
+        except AttributeError:
+            # SIGHUP not available on Windows
+            logger.warning("SIGHUP signal not available on this platform")
 
-    async def get_available_scanner(
+    def _load_config(self) -> None:
+        """Load scanner configuration from YAML."""
+        if not self.config_file.exists():
+            logger.warning(f"Config file not found: {self.config_file}")
+            logger.info("Using mock scanner as fallback")
+            self._register_mock_scanner()
+            return
+
+        try:
+            with open(self.config_file) as f:
+                config = yaml.safe_load(f)
+
+            if not config:
+                logger.warning("Empty config file, using mock scanner")
+                self._register_mock_scanner()
+                return
+
+            # Parse Nessus instances
+            nessus_configs = config.get("nessus", [])
+            if not nessus_configs:
+                logger.warning("No Nessus instances configured, using mock scanner")
+                self._register_mock_scanner()
+                return
+
+            for scanner_config in nessus_configs:
+                instance_id = scanner_config["instance_id"]
+                enabled = scanner_config.get("enabled", True)
+
+                if not enabled:
+                    logger.info(f"Skipping disabled scanner: nessus:{instance_id}")
+                    continue
+
+                # Substitute environment variables
+                url = self._expand_env(scanner_config["url"])
+                username = self._expand_env(scanner_config.get("username", ""))
+                password = self._expand_env(scanner_config.get("password", ""))
+                access_key = self._expand_env(scanner_config.get("access_key", ""))
+                secret_key = self._expand_env(scanner_config.get("secret_key", ""))
+
+                # Create scanner instance
+                scanner = NessusScanner(
+                    url=url,
+                    username=username if username else None,
+                    password=password if password else None,
+                    access_key=access_key if access_key else None,
+                    secret_key=secret_key if secret_key else None,
+                    verify_ssl=False  # Default to False for self-signed certs
+                )
+
+                key = f"nessus:{instance_id}"
+                self._instances[key] = {
+                    "scanner": scanner,
+                    "config": scanner_config,
+                    "last_used": 0,
+                    "type": "nessus"
+                }
+
+                logger.info(f"Registered scanner: {key} ({scanner_config.get('name', instance_id)})")
+
+            if not self._instances:
+                logger.warning("No enabled scanners found, using mock scanner")
+                self._register_mock_scanner()
+
+        except Exception as e:
+            logger.error(f"Failed to load config: {e}", exc_info=True)
+            logger.info("Using mock scanner as fallback")
+            self._register_mock_scanner()
+
+    def _register_mock_scanner(self) -> None:
+        """Register mock scanner as fallback."""
+        mock_scanner = MockNessusScanner()
+        self._instances["nessus:mock"] = {
+            "scanner": mock_scanner,
+            "config": {"instance_id": "mock", "name": "Mock Scanner"},
+            "last_used": 0,
+            "type": "mock"
+        }
+        logger.info("Registered scanner: nessus:mock (Mock Scanner)")
+
+    def _expand_env(self, value: str) -> str:
+        """
+        Expand ${VAR} or ${VAR:-default} environment variables.
+
+        Examples:
+            ${NESSUS_URL} -> os.getenv("NESSUS_URL", "")
+            ${NESSUS_URL:-https://localhost:8834} -> os.getenv("NESSUS_URL", "https://localhost:8834")
+        """
+        if not value or not isinstance(value, str):
+            return value
+
+        if value.startswith("${") and value.endswith("}"):
+            # Extract variable name and default value
+            inner = value[2:-1]
+            if ":-" in inner:
+                var_name, default = inner.split(":-", 1)
+                return os.getenv(var_name, default)
+            else:
+                var_name = inner
+                return os.getenv(var_name, "")
+
+        return value
+
+    def _handle_reload(self, signum, frame):
+        """Handle SIGHUP for config reload."""
+        logger.info("Received SIGHUP, reloading scanner config...")
+        self._instances.clear()
+        self._load_config()
+
+    def get_instance(
         self,
-        scanner_type: str,
+        scanner_type: str = "nessus",
         instance_id: Optional[str] = None
-    ) -> Dict:
+    ) -> Any:
         """
-        Get available scanner instance.
+        Get scanner instance (round-robin if instance_id not specified).
 
-        If instance_id provided, return that specific instance.
-        Otherwise, use round-robin selection among enabled instances.
+        Args:
+            scanner_type: Scanner type (e.g., "nessus")
+            instance_id: Specific instance ID, or None for round-robin
+
+        Returns:
+            Scanner instance
+
+        Raises:
+            ValueError: If no instances available
         """
-        # TODO: Implement scanner selection
-        # 1. If instance_id specified, return that instance
-        # 2. Otherwise, get all enabled instances for scanner_type
-        # 3. Round-robin or random selection
-        # 4. Update last_used_at timestamp
-        pass
+        if instance_id:
+            key = f"{scanner_type}:{instance_id}"
+            if key not in self._instances:
+                raise ValueError(f"Scanner not found: {key}")
+            return self._instances[key]["scanner"]
 
-    async def register_scanner(self, scanner_type: str, instance_id: str, config: Dict) -> None:
-        """Register scanner instance in Redis."""
-        # TODO: Implement scanner registration
-        # key = f"nessus:scanners:{scanner_type}:{instance_id}"
-        # self.redis.hset(key, mapping=config)
-        pass
+        # Round-robin: get least recently used
+        candidates = [
+            (key, data) for key, data in self._instances.items()
+            if key.startswith(f"{scanner_type}:")
+        ]
 
-    async def update_heartbeat(self, scanner_type: str, instance_id: str) -> None:
-        """Update scanner heartbeat timestamp."""
-        # TODO: Implement heartbeat update
-        pass
+        if not candidates:
+            raise ValueError(f"No enabled {scanner_type} instances")
 
-    async def check_health(self, scanner_type: str, instance_id: str) -> bool:
-        """Check scanner health (ping endpoint)."""
-        # TODO: Implement health check
-        pass
+        # Sort by last_used, pick first
+        candidates.sort(key=lambda x: x[1]["last_used"])
+        key, data = candidates[0]
 
-    async def disable_scanner(self, scanner_type: str, instance_id: str) -> None:
-        """Disable scanner instance."""
-        # TODO: Implement disable
-        pass
+        # Update last_used
+        data["last_used"] = time.time()
 
-    async def enable_scanner(self, scanner_type: str, instance_id: str) -> None:
-        """Enable scanner instance."""
-        # TODO: Implement enable
-        pass
+        return data["scanner"]
+
+    def list_instances(
+        self,
+        scanner_type: Optional[str] = None,
+        enabled_only: bool = True
+    ) -> List[Dict[str, Any]]:
+        """List all registered scanner instances."""
+        results = []
+
+        for key, data in self._instances.items():
+            if scanner_type and not key.startswith(f"{scanner_type}:"):
+                continue
+
+            config = data["config"]
+            results.append({
+                "scanner_type": data["type"],
+                "instance_id": config["instance_id"],
+                "name": config.get("name", config["instance_id"]),
+                "url": config.get("url", "N/A"),
+                "enabled": config.get("enabled", True),
+                "max_concurrent_scans": config.get("max_concurrent_scans", 0),
+            })
+
+        return results
+
+    def get_scanner_count(self, scanner_type: Optional[str] = None) -> int:
+        """Get count of registered scanners."""
+        if scanner_type:
+            return len([k for k in self._instances.keys() if k.startswith(f"{scanner_type}:")])
+        return len(self._instances)
+
+    async def close_all(self) -> None:
+        """Close all scanner instances."""
+        for key, data in self._instances.items():
+            scanner = data["scanner"]
+            if hasattr(scanner, "close"):
+                try:
+                    await scanner.close()
+                    logger.info(f"Closed scanner: {key}")
+                except Exception as e:
+                    logger.error(f"Error closing scanner {key}: {e}")
