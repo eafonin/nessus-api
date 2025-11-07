@@ -57,6 +57,42 @@ services:
     command: python tools/run_server.py
     restart: unless-stopped
 
+  scanner-worker:
+    build:
+      context: ../mcp-server
+      dockerfile: Dockerfile.worker
+    container_name: nessus-mcp-worker-dev
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATA_DIR=/app/data/tasks
+      - SCANNER_CONFIG=/app/config/scanners.yaml
+      - LOG_LEVEL=INFO
+      - MAX_CONCURRENT_SCANS=3
+      # Nessus credentials
+      - NESSUS_URL=https://172.32.0.209:8834
+      - NESSUS_USERNAME=nessus
+      - NESSUS_PASSWORD=nessus
+    volumes:
+      # Hot reload: mount source code for development
+      - ../mcp-server/scanners:/app/scanners
+      - ../mcp-server/core:/app/core
+      - ../mcp-server/worker:/app/worker
+      - ../mcp-server/config:/app/config
+      # Data persistence (shared with mcp-api)
+      - ./data:/app/data
+      # Logs (writable)
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r=redis.from_url('redis://redis:6379'); r.ping()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
 volumes:
   redis_data_dev:
     driver: local
