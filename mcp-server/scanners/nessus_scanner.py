@@ -16,6 +16,7 @@ import httpx
 import logging
 from typing import Dict, Any, Optional, Callable, Awaitable, TypeVar
 from .base import ScannerInterface, ScanRequest
+from .api_token_fetcher import fetch_and_verify_token
 
 logger = logging.getLogger(__name__)
 
@@ -28,13 +29,11 @@ class NessusScanner(ScannerInterface):
 
     Features:
     - Web UI authentication (session tokens)
+    - Dynamic X-API-Token fetching (auto-adapts to Nessus rebuilds)
     - Bypasses scan_api: false restriction
     - Pure async/await (no subprocess calls)
     - Error handling for 412/403/404/409
     """
-
-    # Static API token (never changes) - from wrapper
-    STATIC_API_TOKEN = "af824aba-e642-4e63-a49b-0810542ad8a5"
 
     # Template UUID for Advanced Scan
     TEMPLATE_ADVANCED_SCAN = "ad629e16-03b6-8c1d-cef6-ef8c9dd3c658d24bd260ef5f9e66"
@@ -79,6 +78,7 @@ class NessusScanner(ScannerInterface):
         # HTTP session and tokens
         self._session: Optional[httpx.AsyncClient] = None
         self._session_token: Optional[str] = None
+        self._api_token: Optional[str] = None  # Dynamically fetched X-API-Token
 
     async def _get_session(self) -> httpx.AsyncClient:
         """Get or create async HTTP session."""
@@ -90,21 +90,51 @@ class NessusScanner(ScannerInterface):
             )
         return self._session
 
+    async def _fetch_api_token(self) -> None:
+        """
+        Fetch X-API-Token dynamically from Nessus Web UI.
+
+        The X-API-Token is hardcoded in /nessus6.js and changes when Nessus
+        is rebuilt/reinstalled. This method ensures we always have the current token.
+        """
+        if self._api_token:
+            return  # Already fetched
+
+        logger.info("Fetching X-API-Token from Nessus Web UI...")
+        token = await fetch_and_verify_token(
+            self.url,
+            self.username,
+            self.password,
+            self.verify_ssl
+        )
+
+        if not token:
+            raise ValueError(
+                "Failed to fetch X-API-Token from Nessus Web UI. "
+                "Ensure Nessus is accessible and nessus6.js is available."
+            )
+
+        self._api_token = token
+        logger.info(f"X-API-Token fetched successfully: {token}")
+
     async def _authenticate(self) -> None:
         """
         Authenticate with Nessus Web UI and get session token.
 
-        Pattern from: manage_scans.py:27-84
+        Pattern from: manage_scans.py:27-84 + dynamic token fetching
         """
         if self._session_token:
             return  # Already authenticated
+
+        # Ensure we have X-API-Token before authenticating
+        await self._fetch_api_token()
 
         client = await self._get_session()
 
         # Minimal headers for authentication
         headers = {
             'Content-Type': 'application/json',
-            'X-API-Token': self.STATIC_API_TOKEN
+            'X-API-Token': self._api_token
         }
 
         payload = {
@@ -125,6 +155,8 @@ class NessusScanner(ScannerInterface):
 
             if not self._session_token:
                 raise ValueError("No session token in response")
+
+            logger.info(f"Authentication successful for user: {self.username}")
 
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 401:
@@ -148,7 +180,7 @@ class NessusScanner(ScannerInterface):
 
         headers = {
             'Content-Type': 'application/json',
-            'X-API-Token': self.STATIC_API_TOKEN,
+            'X-API-Token': self._api_token,
             'X-Cookie': f'token={self._session_token}'
         }
 
@@ -556,6 +588,11 @@ class NessusScanner(ScannerInterface):
             if e.response.status_code == 404:
                 # Already deleted
                 return True
+            elif e.response.status_code == 409:
+                # Scan in transitional state (just stopped, being processed, etc.)
+                # This is expected behavior - scan will be deleted eventually
+                logger.warning(f"Scan {scan_id} in transitional state (HTTP 409), marked for deletion")
+                return True
             raise ValueError(f"Delete scan failed: HTTP {e.response.status_code}")
 
     async def close(self) -> None:
@@ -564,3 +601,4 @@ class NessusScanner(ScannerInterface):
             await self._session.aclose()
             self._session = None
             self._session_token = None
+            self._api_token = None
