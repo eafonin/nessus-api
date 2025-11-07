@@ -36,12 +36,33 @@ class IdempotencyManager:
         self.redis = redis_client
 
     def _hash_request(self, params: Dict[str, Any]) -> str:
-        """Generate SHA256 hash of normalized request parameters."""
-        # TODO: Implement request hashing
-        # 1. Sort keys
-        # 2. Normalize values (handle None, bool, numbers consistently)
-        # 3. SHA256 hash
-        pass
+        """
+        Generate SHA256 hash of normalized request parameters.
+
+        Normalization ensures consistent hashing:
+        - Keys sorted alphabetically
+        - None values handled explicitly
+        - Booleans converted to lowercase strings
+        - Numbers preserved as-is
+        """
+        # Sort keys for consistent ordering
+        sorted_params = {}
+        for key in sorted(params.keys()):
+            value = params[key]
+
+            # Normalize value for consistent hashing
+            if value is None:
+                sorted_params[key] = "null"
+            elif isinstance(value, bool):
+                sorted_params[key] = str(value).lower()
+            else:
+                sorted_params[key] = value
+
+        # Create deterministic JSON string (sorted keys)
+        normalized_json = json.dumps(sorted_params, sort_keys=True, separators=(',', ':'))
+
+        # Generate SHA256 hash
+        return hashlib.sha256(normalized_json.encode('utf-8')).hexdigest()
 
     async def check(self, idemp_key: str, request_params: Dict[str, Any]) -> Optional[str]:
         """
@@ -51,17 +72,28 @@ class IdempotencyManager:
         Raises ConflictError (409) if hash differs.
         Returns None if key not found.
         """
-        # TODO: Implement idempotency check
-        # key = f"idemp:{idemp_key}"
-        # stored_data = self.redis.get(key)
-        # if stored_data:
-        #     stored = json.loads(stored_data)
-        #     current_hash = self._hash_request(request_params)
-        #     if stored["request_hash"] != current_hash:
-        #         raise ConflictError("Idempotency key exists with different parameters")
-        #     return stored["task_id"]
-        # return None
-        pass
+        key = f"idemp:{idemp_key}"
+        stored_data = self.redis.get(key)
+
+        if not stored_data:
+            return None
+
+        # Parse stored data
+        stored = json.loads(stored_data)
+        stored_hash = stored.get("request_hash")
+        stored_task_id = stored.get("task_id")
+
+        # Compute hash of current request
+        current_hash = self._hash_request(request_params)
+
+        # Compare hashes
+        if stored_hash != current_hash:
+            raise ConflictError(
+                f"Idempotency key '{idemp_key}' exists with different request parameters. "
+                f"Use a different key or match the original request."
+            )
+
+        return stored_task_id
 
     async def store(self, idemp_key: str, task_id: str, request_params: Dict) -> bool:
         """
@@ -70,12 +102,19 @@ class IdempotencyManager:
         Returns True if newly stored, False if already existed.
         TTL: 48 hours.
         """
-        # TODO: Implement idempotency storage
-        # key = f"idemp:{idemp_key}"
-        # data = json.dumps({
-        #     "task_id": task_id,
-        #     "request_hash": self._hash_request(request_params),
-        #     "created_at": datetime.utcnow().isoformat()
-        # })
-        # return bool(self.redis.set(key, data, nx=True, ex=48*3600))
-        pass
+        key = f"idemp:{idemp_key}"
+
+        # Compute request hash
+        request_hash = self._hash_request(request_params)
+
+        # Prepare data to store
+        data = json.dumps({
+            "task_id": task_id,
+            "request_hash": request_hash,
+            "created_at": datetime.utcnow().isoformat()
+        })
+
+        # SETNX with TTL (atomic operation)
+        # Returns True if key was set, False if already existed
+        result = self.redis.set(key, data, nx=True, ex=48 * 3600)
+        return bool(result)

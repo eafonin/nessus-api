@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from core.task_manager import TaskManager, generate_task_id
 from core.types import Task, ScanState
 from core.queue import TaskQueue, get_queue_stats
+from core.idempotency import IdempotencyManager, ConflictError
 from scanners.registry import ScannerRegistry
 
 
@@ -23,6 +24,7 @@ SCANNER_CONFIG = os.getenv("SCANNER_CONFIG", "/app/config/scanners.yaml")
 task_manager = TaskManager(data_dir=DATA_DIR)
 task_queue = TaskQueue(redis_url=REDIS_URL)
 scanner_registry = ScannerRegistry(config_file=SCANNER_CONFIG)
+idempotency_manager = IdempotencyManager(redis_client=task_queue.redis_client)
 
 
 # =============================================================================
@@ -64,13 +66,40 @@ async def run_untrusted_scan(
     trace_id = str(uuid.uuid4())
     scanner_type = "nessus"
     scanner_instance = "local"  # Default instance
-    task_id = generate_task_id(scanner_type, scanner_instance)
 
-    # TODO: Implement idempotency check when Task 1.5 complete
-    # if idempotency_key:
-    #     existing_task_id = await idempotency_manager.check(idempotency_key, {...})
-    #     if existing_task_id:
-    #         return existing task info
+    # Check idempotency key if provided
+    if idempotency_key:
+        request_params = {
+            "targets": targets,
+            "name": name,
+            "description": description,
+            "schema_profile": schema_profile,
+            "scanner_type": scanner_type,
+            "scanner_instance": scanner_instance,
+        }
+
+        try:
+            existing_task_id = await idempotency_manager.check(idempotency_key, request_params)
+            if existing_task_id:
+                # Return existing task
+                existing_task = task_manager.get_task(existing_task_id)
+                return {
+                    "task_id": existing_task_id,
+                    "trace_id": existing_task.trace_id,
+                    "status": existing_task.status,
+                    "scanner_type": existing_task.scanner_type,
+                    "scanner_instance": existing_task.scanner_instance_id,
+                    "message": "Returning existing task (idempotency key matched)",
+                    "idempotent": True,
+                }
+        except ConflictError as e:
+            return {
+                "error": "Conflict",
+                "message": str(e),
+                "status_code": 409,
+            }
+
+    task_id = generate_task_id(scanner_type, scanner_instance)
 
     # Create task
     task = Task(
@@ -104,9 +133,9 @@ async def run_untrusted_scan(
 
     queue_depth = task_queue.enqueue(task_data)
 
-    # TODO: Store idempotency key when Task 1.5 complete
-    # if idempotency_key:
-    #     await idempotency_manager.store(idempotency_key, task_id, {...})
+    # Store idempotency key if provided
+    if idempotency_key:
+        await idempotency_manager.store(idempotency_key, task_id, request_params)
 
     return {
         "task_id": task_id,
