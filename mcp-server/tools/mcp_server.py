@@ -1,7 +1,9 @@
-"""FastMCP server with queue-based scan execution (Phase 1)."""
+"""FastMCP server with queue-based scan execution (Phase 1 + 2)."""
 import os
+import json
 import uuid
 from datetime import datetime
+from typing import List, Dict, Any, Optional
 
 from fastmcp import FastMCP
 from core.task_manager import TaskManager, generate_task_id
@@ -9,11 +11,20 @@ from core.types import Task, ScanState
 from core.queue import TaskQueue, get_queue_stats
 from core.idempotency import IdempotencyManager, ConflictError
 from scanners.registry import ScannerRegistry
+from schema.converter import NessusToJsonNL
+from core.metrics import metrics_response, record_tool_call, record_scan_submission
+from core.health import check_all_dependencies
+from core.logging_config import configure_logging, get_logger
+from starlette.responses import PlainTextResponse, JSONResponse
 
 
 # =============================================================================
 # FastMCP Server Configuration
 # =============================================================================
+# Configure structured logging
+configure_logging(log_level=os.getenv("LOG_LEVEL", "INFO"))
+logger = get_logger(__name__)
+
 mcp = FastMCP("Nessus MCP Server - Phase 1")
 
 # Initialize components
@@ -25,6 +36,8 @@ task_manager = TaskManager(data_dir=DATA_DIR)
 task_queue = TaskQueue(redis_url=REDIS_URL)
 scanner_registry = ScannerRegistry(config_file=SCANNER_CONFIG)
 idempotency_manager = IdempotencyManager(redis_client=task_queue.redis_client)
+
+logger.info("mcp_server_initialized", redis_url=REDIS_URL, data_dir=DATA_DIR, scanner_config=SCANNER_CONFIG)
 
 
 # =============================================================================
@@ -66,6 +79,15 @@ async def run_untrusted_scan(
     trace_id = str(uuid.uuid4())
     scanner_type = "nessus"
     scanner_instance = "local"  # Default instance
+
+    logger.info(
+        "tool_invocation",
+        tool="run_untrusted_scan",
+        trace_id=trace_id,
+        targets=targets,
+        name=name,
+        idempotency_key=idempotency_key
+    )
 
     # Check idempotency key if provided
     if idempotency_key:
@@ -136,6 +158,17 @@ async def run_untrusted_scan(
     # Store idempotency key if provided
     if idempotency_key:
         await idempotency_manager.store(idempotency_key, task_id, request_params)
+
+    # Record metrics and log success
+    record_tool_call("run_untrusted_scan", "success")
+    record_scan_submission("untrusted", "queued")
+
+    logger.info(
+        "scan_enqueued",
+        task_id=task_id,
+        trace_id=trace_id,
+        queue_position=queue_depth
+    )
 
     return {
         "task_id": task_id,
@@ -318,6 +351,110 @@ async def list_tasks(
         "tasks": tasks,
         "total": len(tasks)
     }
+
+
+@mcp.tool()
+async def get_scan_results(
+    task_id: str,
+    page: int = 1,
+    page_size: int = 40,
+    schema_profile: str = "brief",
+    custom_fields: Optional[List[str]] = None,
+    filters: Optional[Dict[str, Any]] = None
+) -> str:
+    """
+    Get scan results in paginated JSON-NL format (Phase 2).
+
+    Args:
+        task_id: Task ID from run_*_scan()
+        page: Page number (1-indexed), or 0 for ALL data
+        page_size: Lines per page (10-100, clamped automatically)
+        schema_profile: Predefined schema (minimal|summary|brief|full)
+        custom_fields: Custom field list (mutually exclusive with non-default schema_profile)
+        filters: Filter dict (e.g., {"severity": "4", "cvss_score": ">7.0"})
+
+    Returns:
+        JSON-NL string with schema, metadata, vulnerabilities, pagination
+    """
+    # Validate mutual exclusivity
+    if schema_profile != "brief" and custom_fields is not None:
+        return json.dumps({
+            "error": "Cannot specify both schema_profile and custom_fields"
+        })
+
+    # Get task
+    task = task_manager.get_task(task_id)
+    if not task:
+        return json.dumps({"error": f"Task {task_id} not found"})
+
+    if task.status != "completed":
+        return json.dumps({
+            "error": f"Scan not completed yet (status: {task.status})"
+        })
+
+    # Load .nessus file
+    nessus_file = task_manager.data_dir / task_id / "scan_native.nessus"
+    if not nessus_file.exists():
+        return json.dumps({"error": "Scan results not found"})
+
+    nessus_data = nessus_file.read_bytes()
+
+    # Convert to JSON-NL
+    converter = NessusToJsonNL()
+    try:
+        results = converter.convert(
+            nessus_data=nessus_data,
+            schema_profile=schema_profile,
+            custom_fields=custom_fields,
+            filters=filters,
+            page=page,
+            page_size=page_size
+        )
+        return results
+    except ValueError as e:
+        return json.dumps({"error": str(e)})
+
+
+# =============================================================================
+# Health & Metrics Endpoints
+# =============================================================================
+
+@mcp.get("/health")
+async def health():
+    """
+    Health check endpoint.
+
+    Checks:
+    - Redis connectivity (PING)
+    - Filesystem writability (touch test)
+
+    Returns:
+        200 OK if healthy, 503 Service Unavailable if unhealthy
+    """
+    health_status = check_all_dependencies(REDIS_URL, DATA_DIR)
+
+    if health_status["status"] == "healthy":
+        return JSONResponse(status_code=200, content=health_status)
+    else:
+        return JSONResponse(status_code=503, content=health_status)
+
+
+@mcp.get("/metrics")
+async def metrics():
+    """
+    Prometheus metrics endpoint.
+
+    Returns metrics in Prometheus text format:
+    - nessus_scans_total
+    - nessus_api_requests_total
+    - nessus_active_scans
+    - nessus_scanner_instances
+    - nessus_queue_depth
+    - nessus_dlq_size
+    - nessus_task_duration_seconds
+    - nessus_ttl_deletions_total
+    """
+    return PlainTextResponse(metrics_response())
 
 
 # =============================================================================

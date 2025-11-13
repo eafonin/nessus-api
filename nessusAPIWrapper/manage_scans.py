@@ -3,6 +3,7 @@ Create and delete Nessus scans via web UI simulation
 Bypasses API license restrictions by using direct HTTP requests
 """
 import sys
+from get_api_token import extract_api_token_from_js
 import urllib3
 import requests
 from tenable.nessus import Nessus
@@ -11,10 +12,14 @@ from tenable.nessus import Nessus
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Nessus configuration
-NESSUS_URL = 'https://localhost:8834'
-ACCESS_KEY = 'abc04cab03684de788ba0c4614eaba6302d3fe26852da06040eac3879547e405'
-SECRET_KEY = '06332ecfd4bc633667be4e20e139c9451a848c580da988c69679fde16ce9c837'
-STATIC_API_TOKEN = 'af824aba-e642-4e63-a49b-0810542ad8a5'
+NESSUS_URL = 'https://172.32.0.209:8834'
+ACCESS_KEY = '4a4538d310e4a0b1f4a9ed5765913cf60c25380e303aceaeda867e8dd3f57071'
+SECRET_KEY = 'fe25d148200608e2970944cde3b38862d8ecae9092950620d151b0a7f72041b9'
+# Fetch X-API-Token dynamically from Nessus Web UI
+STATIC_API_TOKEN = extract_api_token_from_js()
+if not STATIC_API_TOKEN:
+    print("Error: Failed to fetch X-API-Token from Nessus Web UI", file=sys.stderr)
+    sys.exit(1)
 
 # Credentials
 USERNAME = 'nessus'
@@ -43,9 +48,9 @@ def authenticate(username, password):
         'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
         'Connection': 'keep-alive',
         'Content-Type': 'application/json',
-        'Host': 'localhost:8834',
-        'Origin': 'https://localhost:8834',
-        'Referer': 'https://localhost:8834/',
+        'Host': '172.32.0.209:8834',
+        'Origin': 'https://172.32.0.209:8834',
+        'Referer': 'https://172.32.0.209:8834/',
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
         'Sec-Fetch-Site': 'same-origin',
@@ -104,8 +109,8 @@ def get_template_config(template_uuid, api_token, session_token):
         'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
         'Connection': 'keep-alive',
         'Content-Type': 'application/json',
-        'Host': 'localhost:8834',
-        'Referer': 'https://localhost:8834/',
+        'Host': '172.32.0.209:8834',
+        'Referer': 'https://172.32.0.209:8834/',
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
         'Sec-Fetch-Site': 'same-origin',
@@ -384,9 +389,9 @@ def create_scan(api_token, session_token, name, targets, description="", templat
         'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
         'Connection': 'keep-alive',
         'Content-Type': 'application/json',
-        'Host': 'localhost:8834',
-        'Origin': 'https://localhost:8834',
-        'Referer': 'https://localhost:8834/',
+        'Host': '172.32.0.209:8834',
+        'Origin': 'https://172.32.0.209:8834',
+        'Referer': 'https://172.32.0.209:8834/',
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
         'Sec-Fetch-Site': 'same-origin',
@@ -444,9 +449,9 @@ def move_to_trash(scan_id, api_token, session_token):
         'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
         'Connection': 'keep-alive',
         'Content-Type': 'application/json',
-        'Host': 'localhost:8834',
-        'Origin': 'https://localhost:8834',
-        'Referer': 'https://localhost:8834/',
+        'Host': '172.32.0.209:8834',
+        'Origin': 'https://172.32.0.209:8834',
+        'Referer': 'https://172.32.0.209:8834/',
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
         'Sec-Fetch-Site': 'same-origin',
@@ -517,9 +522,9 @@ def empty_trash(api_token, session_token):
         'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
         'Connection': 'keep-alive',
         'Content-Type': 'application/json',
-        'Host': 'localhost:8834',
-        'Origin': 'https://localhost:8834',
-        'Referer': 'https://localhost:8834/',
+        'Host': '172.32.0.209:8834',
+        'Origin': 'https://172.32.0.209:8834',
+        'Referer': 'https://172.32.0.209:8834/',
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
         'Sec-Fetch-Site': 'same-origin',
@@ -576,9 +581,9 @@ def delete_scan_permanent(scan_ids, api_token, session_token):
         'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
         'Connection': 'keep-alive',
         'Content-Type': 'application/json',
-        'Host': 'localhost:8834',
-        'Origin': 'https://localhost:8834',
-        'Referer': 'https://localhost:8834/',
+        'Host': '172.32.0.209:8834',
+        'Origin': 'https://172.32.0.209:8834',
+        'Referer': 'https://172.32.0.209:8834/',
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
         'Sec-Fetch-Site': 'same-origin',

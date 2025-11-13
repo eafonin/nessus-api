@@ -179,7 +179,39 @@ All scripts share common configuration:
 
 ---
 
-### 9. check_dropdown_options.py
+### 9. test_scanner_status.py
+**Purpose:** Test both Nessus scanners (Scanner 1 and Scanner 2) and display comprehensive license, plugin set, and feed status
+
+**Main Functions:**
+- `extract_x_api_token(url, timeout)` - Extracts X-API-Token from nessus6.js using regex pattern (MCP server pattern)
+- `authenticate(url, username, password, api_token, timeout)` - Authenticates with session endpoint and returns session token
+- `get_scanner_properties(url, session_token, api_token, timeout)` - Retrieves full scanner properties including license and plugin data
+- `parse_plugin_set_date(plugin_set)` - Converts plugin set timestamp (YYYYMMDDHHMMM) to human-readable date format (YYYY-MM-DD HH:MM)
+- `test_scanner(scanner_name, config)` - Tests single scanner and returns status data dictionary
+- `test_all_scanners(output_json)` - Tests all configured scanners and outputs results in specified format
+
+**Key Features:**
+- Tests both Scanner 1 (172.30.0.3:8834) and Scanner 2 (172.30.0.5:8834) via VPN network IPs
+- Dynamically extracts X-API-Token from nessus6.js (survives Nessus rebuilds)
+- Displays: License type, expiration date, plugin set with formatted date, activation code, licensed hosts, feed status
+- Dual output formats: Human-readable table and JSON
+- Per-scanner testing with `--scanner` flag
+- Validates scanner readiness and connectivity
+
+**Scanner Configuration:**
+- Scanner 1: 172.30.0.3:8834, Activation: 8WVN-N99G-LHTF-TQ4D-LTAX
+- Scanner 2: 172.30.0.5:8834, Activation: XS6C-BFB6-VUMK-Y5MU-AWNG
+- Default credentials: nessus/nessus
+
+**CLI Usage:**
+- Test both scanners (human-readable): `python test_scanner_status.py`
+- Test specific scanner: `python test_scanner_status.py --scanner 1` or `python test_scanner_status.py --scanner 2`
+- JSON output: `python test_scanner_status.py --json`
+- Combined: `python test_scanner_status.py --scanner 2 --json`
+
+---
+
+### 10. check_dropdown_options.py
 **Purpose:** Debug utility to examine SSH credential field structure and available options
 
 **Main Functions:**
@@ -193,7 +225,7 @@ All scripts share common configuration:
 
 ---
 
-### 10. scan_config.py
+### 11. scan_config.py
 **Purpose:** Display comprehensive scan configuration including credentials, targets, settings, and plugins
 
 **Main Functions:**
@@ -294,14 +326,15 @@ The credential template system:
 ## Quick Reference
 
 ### Scan Lifecycle
-1. Create: `manage_scans.py create`
-2. Configure credentials: `manage_credentials.py`
-3. Edit if needed: `edit_scan.py`
-4. Launch: `launch_scan.py launch`
-5. Monitor: `list_scans.py` or `check_status.py`
-6. Export results: `export_vulnerabilities.py` or `export_vulnerabilities_detailed.py`
-7. View config: `scan_config.py`
-8. Delete: `manage_scans.py delete`
+1. Check scanners: `test_scanner_status.py` (verify scanner readiness and plugin updates)
+2. Create: `manage_scans.py create`
+3. Configure credentials: `manage_credentials.py`
+4. Edit if needed: `edit_scan.py`
+5. Launch: `launch_scan.py launch`
+6. Monitor: `list_scans.py` or `check_status.py`
+7. Export results: `export_vulnerabilities.py` or `export_vulnerabilities_detailed.py`
+8. View config: `scan_config.py`
+9. Delete: `manage_scans.py delete`
 
 ### Common Scan IDs
 - Folder IDs: 2 (Trash), 3 (My Scans)

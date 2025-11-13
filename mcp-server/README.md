@@ -1,10 +1,12 @@
 # Nessus MCP Server - Implementation Tracker
 
 > **Status**: 🚧 In Development
-> **Current Phase**: Phase 1 - Real Nessus Integration + Queue
+> **Current Phase**: Phase 3 - Observability & Testing (~70% Complete)
 > **Phase 0**: ✅ Completed (2025-11-06)
-> **Phase 1A**: ✅ Completed (2025-11-07) - Scanner Rewrite
-> **Last Updated**: 2025-11-07
+> **Phase 1**: ✅ Completed (2025-11-07) - Real Nessus Integration + Queue
+> **Phase 2**: ✅ Completed (2025-11-07) - Schema System & Results
+> **Phase 3**: 🟡 In Progress (~70%) - Observability & Testing
+> **Last Updated**: 2025-11-10
 
 ---
 
@@ -29,14 +31,23 @@
 - [Docker Network Configuration](./docs/DOCKER_NETWORK_CONFIG.md) - Network topology and URL configuration guide
 
 ### Key Documents
-- **[Architecture v2.2](./ARCHITECTURE_v2.2.md)** ⭐ - Complete technical design (READ THIS for design decisions)
+- **[Architecture v2.2](./docs/ARCHITECTURE_v2.2.md)** ⭐ - Complete technical design (READ THIS for design decisions)
   - Section 2: Idempotency System (duplicate scan prevention)
   - Section 3: Trace ID System (per-request tracking)
   - Section 4: State Machine Enforcement (valid transitions)
   - Section 5: Native Async Nessus Scanner (no subprocess calls)
   - Section 9: JSON-NL Converter (LLM-friendly results format)
-- **[Requirements](./NESSUS_MCP_SERVER_REQUIREMENTS.md)** - Functional requirements and acceptance criteria
+- **[Requirements](./docs/NESSUS_MCP_SERVER_REQUIREMENTS.md)** - Functional requirements and acceptance criteria
+- **[Testing Guide](./docs/TESTING.md)** - Integration testing with real Nessus scanner (Docker-based)
+- **[Phase Status Tracking Guide](./phases/README.md)** - How to track and document implementation progress across phases
 - **[Archived Docs](./archive/)** - Previous architecture versions and superseded guides
+
+### FastMCP Client Documentation
+- **[FastMCP Client Requirement](./docs/FASTMCP_CLIENT_REQUIREMENT.md)** ⚠️ **MANDATORY** - All future development MUST use FastMCP client
+- **[FastMCP Client Architecture](./docs/FASTMCP_CLIENT_ARCHITECTURE.md)** - Complete architecture with detailed data flows
+- **[Client Implementation](./client/nessus_fastmcp_client.py)** - Source code with 10 high-level methods
+- **[Client Examples](./client/examples/README.md)** - 5 progressive examples from basic to full workflow
+- **[Client Tests](./tests/integration/test_fastmcp_client.py)** - Integration test suite (8 test classes)
 
 ### Related Resources
 - [Existing Nessus Scripts](../nessusAPIWrapper/) - Reference implementations (for comparison testing)
@@ -73,6 +84,18 @@ An **MCP (Model Context Protocol) server** that exposes Nessus vulnerability sca
 
 ## 📊 Overall Progress Tracker
 
+### Quick Status
+
+- ✅ **Phase 0**: Complete (2025-11-06) - Foundation & Mock Infrastructure
+- ✅ **Phase 1**: Complete (2025-11-07) - Real Nessus Integration + Queue
+- ✅ **Phase 2**: Complete (2025-11-07) - Schema System & Results (25/25 tests passing)
+- 🟡 **Phase 3**: ~70% Complete - Observability infrastructure done, tests need expansion
+- 🔴 **Phase 4**: Not Started - Production Hardening
+
+**See**: [phases/README.md](./phases/README.md) for detailed status tracking guide.
+
+---
+
 ### Phase Completion Status
 
 - [x] **Phase 0**: Foundation & Mock Infrastructure ✅ (Completed 2025-11-06)
@@ -85,32 +108,32 @@ An **MCP (Model Context Protocol) server** that exposes Nessus vulnerability sca
   - [x] 0.7: Simple Test Client
   - [x] 0.8: Phase 0 Integration Test
 
-- [ ] **Phase 1**: Real Nessus Integration + Queue (Week 1)
-  - [ ] 1.1: Native Async Nessus Scanner
-  - [ ] 1.2: Scanner Registry & Configuration
-  - [ ] 1.3: Redis Queue Implementation
-  - [ ] 1.4: Worker with State Machine
-  - [ ] 1.5: Idempotency System
-  - [ ] 1.6: Trace ID Middleware
-  - [ ] 1.7: Enhanced MCP Tools
-  - [ ] 1.8: Real Nessus Integration Tests
+- [x] **Phase 1**: Real Nessus Integration + Queue ✅ (Completed 2025-11-07)
+  - [x] 1.1: Native Async Nessus Scanner (scanners/nessus_scanner.py - 604 lines)
+  - [x] 1.2: Scanner Registry & Configuration (scanners/registry.py - 223 lines)
+  - [x] 1.3: Redis Queue Implementation (core/queue.py - 294 lines)
+  - [x] 1.4: Worker with State Machine (worker/scanner_worker.py - 392 lines)
+  - [x] 1.5: Idempotency System (core/idempotency.py - 120 lines) - SHA256 + Redis SETNX
+  - [x] 1.6: Trace ID Middleware (core/middleware.py - 25 lines)
+  - [x] 1.7: Enhanced MCP Tools (6 tools: run_untrusted_scan, get_scan_status, list_scanners, get_queue_status, list_tasks, get_scan_results)
+  - [x] 1.8: Real Nessus Integration Tests (test_phase0_phase1_real_nessus.py)
 
-- [ ] **Phase 2**: Schema System & Results (Week 2)
-  - [ ] 2.1: Schema Profiles Definition
-  - [ ] 2.2: Nessus XML Parser
-  - [ ] 2.3: JSON-NL Converter
-  - [ ] 2.4: Generic Filtering Engine
-  - [ ] 2.5: Pagination Logic
-  - [ ] 2.6: Results Retrieval Tool
-  - [ ] 2.7: Schema Tests
+- [x] **Phase 2**: Schema System & Results ✅ (Completed 2025-11-07)
+  - [x] 2.1: Schema Profiles Definition (4 profiles: minimal/summary/brief/full)
+  - [x] 2.2: Nessus XML Parser (schema/parser.py - 73 lines)
+  - [x] 2.3: JSON-NL Converter (schema/converter.py - 114 lines)
+  - [x] 2.4: Generic Filtering Engine (schema/filters.py - 72 lines)
+  - [x] 2.5: Pagination Logic (page=0 for all, or page_size chunks)
+  - [x] 2.6: Results Retrieval Tool (get_scan_results MCP tool)
+  - [x] 2.7: Schema Tests ✅ **25/25 PASSED**
 
 - [ ] **Phase 3**: Observability & Testing (Week 3)
-  - [ ] 3.1: Structured Logging (structlog)
-  - [ ] 3.2: Prometheus Metrics
-  - [ ] 3.3: Health Check Endpoints
+  - [x] 3.1: Structured Logging (structlog)
+  - [x] 3.2: Prometheus Metrics
+  - [x] 3.3: Health Check Endpoints
   - [ ] 3.4: Unit Test Suite
   - [ ] 3.5: Integration Test Suite
-  - [ ] 3.6: FastMCP SDK Client
+  - [x] 3.6: FastMCP SDK Client ✅ **COMPLETE** (NessusFastMCPClient + 5 examples + tests)
 
 - [ ] **Phase 4**: Production Hardening (Week 4)
   - [ ] 4.1: Production Docker Config
@@ -173,9 +196,16 @@ An **MCP (Model Context Protocol) server** that exposes Nessus vulnerability sca
 │   ├── worker/                # Background scanner worker
 │   │   └── scanner_worker.py  # Queue consumer (Phase 1)
 │   │
-│   ├── client/                # Test clients (Phase 0, 3)
-│   │   ├── test_client.py     # Simple HTTP client
-│   │   └── fastmcp_client.py  # FastMCP SDK client
+│   ├── client/                # FastMCP client (Phase 3)
+│   │   ├── nessus_fastmcp_client.py  # Production FastMCP client (MANDATORY)
+│   │   ├── examples/          # 5 progressive usage examples
+│   │   │   ├── 01_basic_usage.py
+│   │   │   ├── 02_wait_for_completion.py
+│   │   │   ├── 03_scan_and_wait.py
+│   │   │   ├── 04_get_critical_vulns.py
+│   │   │   ├── 05_full_workflow.py
+│   │   │   └── README.md
+│   │   └── test_client.py     # Legacy simple HTTP client (deprecated)
 │   │
 │   ├── tests/                 # Test suite
 │   │   ├── fixtures/          # Mock .nessus files
@@ -360,7 +390,32 @@ When starting a new coding session, use this checklist:
 
 ## 🧪 Testing Commands
 
+### ⚠️ MANDATORY: Use FastMCP Client
+
+**All future testing, debugging, and integration MUST use the FastMCP Client:**
+
+```python
+# ✅ CORRECT - Use FastMCP Client
+from client.nessus_fastmcp_client import NessusFastMCPClient
+
+async with NessusFastMCPClient("http://localhost:8835/mcp") as client:
+    task = await client.submit_scan(targets="192.168.1.1", scan_name="Test")
+    status = await client.get_status(task["task_id"])
+```
+
 ```bash
+# ✗ PROHIBITED - Do not use curl or manual HTTP
+curl -X POST http://localhost:8835/mcp -d '{"method": "tools/call", ...}'  # WRONG!
+```
+
+See [FASTMCP_CLIENT_REQUIREMENT.md](./FASTMCP_CLIENT_REQUIREMENT.md) for details.
+
+### Running Tests
+
+```bash
+# FastMCP client integration tests
+pytest tests/integration/test_fastmcp_client.py -v
+
 # Unit tests
 pytest tests/unit/ -v
 
@@ -378,6 +433,19 @@ import-linter
 
 # Type checking
 mypy mcp-server-source/
+```
+
+### Quick Examples
+
+```bash
+# Run basic client example
+python client/examples/01_basic_usage.py
+
+# Run full workflow example
+python client/examples/05_full_workflow.py
+
+# See all examples
+ls -l client/examples/
 ```
 
 ---

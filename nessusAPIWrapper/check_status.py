@@ -5,9 +5,9 @@ from tenable.nessus import Nessus
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 nessus = Nessus(
-    url='https://localhost:8834',
-    access_key='abc04cab03684de788ba0c4614eaba6302d3fe26852da06040eac3879547e405',
-    secret_key='06332ecfd4bc633667be4e20e139c9451a848c580da988c69679fde16ce9c837',
+    url='https://172.32.0.209:8834',
+    access_key='27f46c288d1b5d229f152128ed219cec3962a811a9090da0a3e8375c53389298',
+    secret_key='11a99860b2355d1dc1a91999c096853d1e2ff20a88e30fc5866de82c97005329',
     ssl_verify=False
 )
 

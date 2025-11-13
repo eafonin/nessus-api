@@ -16,17 +16,21 @@ This guide provides workflow-based documentation for Python developers building 
 
 **Understanding what the wrapper scripts actually use**:
 
-### Nessus REST API (Official, Documented)
-- **What**: Official Tenable-documented API
-- **Authentication**: Requires API keys (access_key/secret_key)
-- **Limitation**: Disabled in Nessus Essentials (`scan_api: false`)
-- **Status**: ❌ **NOT used by wrapper scripts**
+> **📖 Detailed Explanation**: See [README.md - Authentication Methods](./README.md#authentication-methods) for comprehensive documentation on when to use API vs Web UI endpoints, including setup requirements and use cases.
 
-### Nessus Web UI Endpoints (Internal, Undocumented)
+### Nessus REST API (Official, Documented) - READ Operations
+- **What**: Official Tenable-documented API
+- **Authentication**: Requires API keys (access_key/secret_key) - must be manually generated in Nessus Web UI
+- **Limitation**: Disabled for WRITE operations in Nessus Essentials (`scan_api: false`)
+- **Used For**: ✅ List scans, view configurations, check status, export results
+- **Status**: ✅ **Used for READ operations only**
+
+### Nessus Web UI Endpoints (Internal, Undocumented) - CHANGE Operations
 - **What**: Internal endpoints used by the web browser interface
-- **Authentication**: Session token-based (username/password → session token)
+- **Authentication**: Username/password + X-API-Token (dynamically fetched from nessus6.js)
 - **Advantage**: Works with Nessus Essentials (bypasses `scan_api` restriction)
-- **Status**: ✅ **What wrapper scripts use**
+- **Used For**: ✅ Create/launch/stop/edit/delete scans, manage credentials
+- **Status**: ✅ **Used for WRITE operations**
 
 ### Why "Wrapper"?
 
@@ -34,23 +38,28 @@ These scripts are called "wrappers" because they **wrap Nessus Web UI endpoints*
 
 **Authentication Flow (Web UI Endpoints)**:
 ```python
+# 0. Fetch X-API-Token dynamically (once per session)
+GET /nessus6.js
+→ Extract token via regex: getApiToken[^}]+return["']([A-F0-9-]+)["']
+→ Example: '778F4A9C-D797-4817-B110-EC427B724486'
+
 # 1. Authenticate via Web UI endpoint
 POST /session
-  Headers: {'X-API-Token': 'af824aba-e642-4e63-a49b-0810542ad8a5'}
+  Headers: {'X-API-Token': '{dynamically_fetched_token}'}
   Body: {'username': 'nessus', 'password': 'nessus'}
 → Returns session token
 
 # 2. Make authenticated requests
 GET /scans/11
   Headers: {
-    'X-API-Token': 'af824aba-e642-4e63-a49b-0810542ad8a5',
+    'X-API-Token': '{dynamically_fetched_token}',
     'X-Cookie': 'token={session_token}'
   }
 → Returns scan data
 ```
 
 **Key Headers (Web UI Simulation)**:
-- `X-API-Token`: Static token (constant: `af824aba-e642-4e63-a49b-0810542ad8a5`)
+- `X-API-Token`: Installation-specific token (dynamically fetched from nessus6.js at runtime)
 - `X-Cookie`: Dynamic session token from authentication
 - `X-KL-kfa-Ajax-Request`: Web UI marker for launch/stop operations
 
@@ -104,22 +113,25 @@ authenticate(username: str, password: str) -> tuple[str, str]
 - `password` - Nessus password (default: `"nessus"`)
 
 **Outputs**:
-- `api_token` - Static X-API-Token for headers (constant: `af824aba-e642-4e63-a49b-0810542ad8a5`)
+- `api_token` - Installation-specific X-API-Token (dynamically fetched from nessus6.js)
 - `session_token` - Dynamic session token from `/session` endpoint
 - Returns `(None, None)` on failure
 
 **Usage Pattern**:
 ```python
+# Token is fetched automatically within authenticate()
 api_token, session_token = authenticate("nessus", "nessus")
 if not api_token:
-    # Handle authentication failure
+    # Handle authentication failure (includes token fetch failure)
 ```
 
 **Headers Required**:
-- `X-API-Token: {api_token}`
-- `X-Cookie: token={session_token}`
+- `X-API-Token: {api_token}` - Fetched from nessus6.js at runtime
+- `X-Cookie: token={session_token}` - From authentication response
 
-**Session Lifecycle**: Tokens expire after inactivity; re-authenticate as needed
+**Session Lifecycle**:
+- Session tokens expire after inactivity; re-authenticate as needed
+- X-API-Token remains constant per Nessus installation (changes only after rebuild/reinstall)
 
 ### Alternative: API Keys (Read-Only Operations)
 
@@ -127,12 +139,14 @@ if not api_token:
 
 ```python
 nessus = Nessus(
-    url='https://localhost:8834',
-    access_key='abc04cab...',  # API access key
-    secret_key='06332ecf...',  # API secret key
+    url='https://172.32.0.209:8834',
+    access_key='27f46c28...',  # API access key (manually generated)
+    secret_key='11a99860...',  # API secret key (manually generated)
     ssl_verify=False
 )
 ```
+
+**Setup Required**: Generate keys manually in Nessus Web UI → Settings → API Keys → Generate
 
 **Limitation**: API keys work for **read-only** operations (list scans, export results) but fail for write operations (create, launch, delete) on Nessus Essentials.
 
@@ -631,17 +645,23 @@ Nessus operations are inherently **synchronous HTTP requests**. For MCP server:
 
 **Default Values** (hardcoded in wrapper scripts):
 ```python
-NESSUS_URL = 'https://localhost:8834'
+NESSUS_URL = 'https://172.32.0.209:8834'
 USERNAME = 'nessus'
 PASSWORD = 'nessus'
-STATIC_API_TOKEN = 'af824aba-e642-4e63-a49b-0810542ad8a5'
+# STATIC_API_TOKEN - Dynamically fetched from nessus6.js (not hardcoded)
 ```
 
-**API Keys** (for read-only operations):
+**API Keys** (for read-only operations - manually generated in Nessus Web UI):
 ```python
-ACCESS_KEY = 'abc04cab03684de788ba0c4614eaba6302d3fe26852da06040eac3879547e405'
-SECRET_KEY = '06332ecfd4bc633667be4e20e139c9451a848c580da988c69679fde16ce9c837'
+ACCESS_KEY = '27f46c288d1b5d229f152128ed219cec3962a811a9090da0a3e8375c53389298'
+SECRET_KEY = '11a99860b2355d1dc1a91999c096853d1e2ff20a88e30fc5866de82c97005329'
 ```
+
+**X-API-Token** (for Web UI operations - automatically fetched):
+- Dynamically extracted from `/nessus6.js` at runtime
+- Installation-specific (changes after Nessus rebuild)
+- No manual configuration needed
+- See [X-API-TOKEN_EXPLAINED.md](./X-API-TOKEN_EXPLAINED.md) for details
 
 **Security Note**: For production MCP server, move credentials to:
 - Environment variables

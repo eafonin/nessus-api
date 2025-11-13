@@ -47,6 +47,7 @@ These scripts use official Nessus API with access/secret keys. Work with `api: t
 | `list_scans.py` | List all scans | Status, folder, timestamps |
 | `scan_config.py` | View scan configuration | Targets, credentials (masked), settings |
 | `check_status.py` | Server health check | Status, plugin feed, database |
+| `test_scanner_status.py` | Scanner status test | License, plugin set, activation code, feed status |
 | `export_vulnerabilities.py` | Quick export | Summary data, multiple formats |
 | `export_vulnerabilities_detailed.py` | Full export | Complete plugin details, CVEs, CVSS |
 
@@ -66,11 +67,46 @@ These scripts simulate browser requests to bypass `scan_api: false` restriction.
 
 ## Authentication Methods
 
+### Critical Distinction: API vs Web UI Endpoints
+
+**Understanding when to use each authentication method:**
+
+#### Nessus API (Official) - READ Operations
+- **What**: Official Tenable-documented REST API
+- **Authentication**: API keys (access_key/secret_key)
+- **Key Generation**: Manual creation required in Nessus Web UI (Settings → API Keys → Generate)
+- **Essentials Limitation**: Only READ operations allowed (`scan_api: false`)
+- **Use Cases**:
+  - ✅ List scans (`list_scans.py`)
+  - ✅ View scan configuration (`scan_config.py`)
+  - ✅ Check server status (`check_status.py`)
+  - ✅ Export results (`export_*.py`)
+  - ❌ Create/launch/edit/delete scans (HTTP 412 error)
+
+#### Web UI Endpoints (Internal) - CHANGE Operations
+- **What**: Internal endpoints used by browser interface (undocumented)
+- **Authentication**: Username/password + X-API-Token (dynamically fetched)
+- **Token Source**: Extracted from `nessus6.js` at runtime (installation-specific)
+- **Essentials Support**: Full WRITE operations (bypasses `scan_api` restriction)
+- **Use Cases**:
+  - ✅ Create scans (`manage_scans.py`)
+  - ✅ Launch/stop scans (`launch_scan.py`)
+  - ✅ Edit scan parameters (`edit_scan.py`)
+  - ✅ Manage credentials (`manage_credentials.py`)
+  - ✅ Delete scans (`manage_scans.py`)
+
+**Why This Matters**:
+- API keys work for reading data but fail for write operations on Nessus Essentials
+- Web UI simulation bypasses Essentials restrictions by mimicking browser behavior
+- Both authentication methods can coexist (use API for reads, Web UI for writes)
+
 ### API Authentication (Read-Only)
 ```python
 access_key = 'abc04cab...'
 secret_key = '06332ecf...'
 ```
+
+**Manual Setup Required**: Generate keys in Nessus Web UI → Settings → API Keys
 
 Used by: `list_scans.py`, `scan_config.py`, `check_status.py`, `export_*.py`
 
@@ -79,10 +115,35 @@ Used by: `list_scans.py`, `scan_config.py`, `check_status.py`, `export_*.py`
 username = 'nessus'
 password = 'nessus'
 # Generates session token via POST /session
-# Uses static X-API-Token header
+# X-API-Token fetched dynamically from nessus6.js
 ```
 
 Used by: `launch_scan.py`, `edit_scan.py`, `manage_credentials.py`, `manage_scans.py`
+
+### X-API-Token Requirement
+
+Web UI simulation scripts require a special `X-API-Token` header that is:
+
+- **Hardcoded in Nessus Web UI** (`/nessus6.js`)
+- **Required for all write operations** (launch, stop, edit, create, delete scans)
+- **NOT returned in authentication responses**
+- **Changes when Nessus is rebuilt/reinstalled**
+
+**Solution**: Scripts automatically fetch the current X-API-Token at runtime from `nessus6.js` using the `get_api_token.py` utility. This ensures scripts continue working after Nessus rebuilds without manual updates.
+
+```python
+# Automatic in all Web UI scripts
+from get_api_token import extract_api_token_from_js
+
+STATIC_API_TOKEN = extract_api_token_from_js()
+if not STATIC_API_TOKEN:
+    print("Error: Failed to fetch X-API-Token from Nessus Web UI")
+    sys.exit(1)
+```
+
+**Note**: If scripts fail after Nessus rebuild, the X-API-Token has changed. The scripts will automatically fetch the new token on next run.
+
+For detailed technical explanation, see [X-API-TOKEN_EXPLAINED.md](./X-API-TOKEN_EXPLAINED.md).
 
 ---
 
@@ -122,6 +183,12 @@ python nessusAPIWrapper/export_vulnerabilities_detailed.py 30
 ### Workflow 2: Quick Scan Status Check
 
 ```bash
+# Test scanner status (both scanners)
+python nessusAPIWrapper/test_scanner_status.py
+
+# Test specific scanner (JSON output)
+python nessusAPIWrapper/test_scanner_status.py --scanner 2 --json
+
 # List all scans with status
 python nessusAPIWrapper/list_scans.py
 
@@ -171,7 +238,7 @@ All scripts are configured with hardcoded values (not production-ready for secur
 
 ```python
 # In all scripts
-NESSUS_URL = 'https://localhost:8834'
+NESSUS_URL = 'https://172.32.0.209:8834'
 
 # API scripts
 ACCESS_KEY = 'abc04cab...'
@@ -180,10 +247,13 @@ SECRET_KEY = '06332ecf...'
 # Web UI scripts
 USERNAME = 'nessus'
 PASSWORD = 'nessus'
-STATIC_API_TOKEN = 'af824aba-e642-4e63-a49b-0810542ad8a5'
+# STATIC_API_TOKEN - Auto-fetched from nessus6.js (no hardcoding needed)
 ```
 
-**Note**: Session tokens expire and are regenerated per script execution.
+**Notes**:
+- Session tokens expire and are regenerated per script execution
+- X-API-Token is dynamically fetched at runtime using `get_api_token.py`
+- After Nessus rebuild, scripts automatically adapt to new X-API-Token
 
 ---
 
@@ -252,6 +322,7 @@ nessusAPIWrapper/
 │   ├── list_scans.py
 │   ├── scan_config.py
 │   ├── check_status.py
+│   ├── test_scanner_status.py         # NEW: Scanner status test (both scanners)
 │   ├── export_vulnerabilities.py
 │   └── export_vulnerabilities_detailed.py
 │
@@ -268,6 +339,7 @@ nessusAPIWrapper/
 ## Related Documentation
 
 - [CODEBASE_INDEX.md](./CODEBASE_INDEX.md) - Detailed script documentation with examples
+- [X-API-TOKEN_EXPLAINED.md](./X-API-TOKEN_EXPLAINED.md) - X-API-Token technical details and troubleshooting
 - [../README.md](../README.md) - Project overview and architecture
 - [../PROJECT_SETUP.md](../PROJECT_SETUP.md) - Development conventions and setup
 - [../docs/DOCKER_SETUP.md](../docs/DOCKER_SETUP.md) - Nessus Docker configuration

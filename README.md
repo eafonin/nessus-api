@@ -576,7 +576,9 @@ Nessus runs in Docker at `/home/nessus/docker/nessus/` with:
 - VPN Gateway: WireGuard (Gluetun)
 - Network: 172.32.0.0/24
 
-See [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) for Docker configuration details.
+**Documentation**:
+- [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) - Docker configuration details
+- [/home/nessus/DOCUMENTATION_INDEX.md](../../DOCUMENTATION_INDEX.md) - **VPN infrastructure documentation** (read when troubleshooting scanner connectivity, VPN routing, or dual-VPN setup)
 
 ---
 
@@ -694,12 +696,18 @@ From `GET /server/properties`:
 ## Additional Resources
 
 ### Documentation
+
+**Project Documentation**:
 - [PROJECT_SETUP.md](PROJECT_SETUP.md) - Project conventions, directory structure, Claude Code guidelines
-- [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) - Docker setup, networking, maintenance, troubleshooting
 - [nessusAPIWrapper/CODEBASE_INDEX.md](nessusAPIWrapper/CODEBASE_INDEX.md) - Complete script inventory and details
 - [mcp-server/](mcp-server/) - MCP server architecture and requirements (planning phase)
 - [docs/NESSUS_ESSENTIALS_LIMITATIONS.md](docs/NESSUS_ESSENTIALS_LIMITATIONS.md) - API restrictions and workarounds
 - [docs/nessus_automation_prompt.md](docs/nessus_automation_prompt.md) - LLM usage template
+
+**Infrastructure Documentation**:
+- [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) - Docker setup, networking, maintenance, troubleshooting
+- [/home/nessus/DOCUMENTATION_INDEX.md](../../DOCUMENTATION_INDEX.md) - **VPN infrastructure master index** (dual-VPN setup, scanner routing, SSH preservation)
+  - Read when: Troubleshooting scanner connectivity, understanding VPN routing, or configuring dual-VPN coexistence
 
 ### External Resources
 - **Tenable pyTenable Documentation**: https://pytenable.readthedocs.io

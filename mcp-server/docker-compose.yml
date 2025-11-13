@@ -18,7 +18,7 @@ services:
   mcp-api:
     build:
       context: .
-      dockerfile: Dockerfile.api
+      dockerfile: docker/Dockerfile.api
     container_name: nessus-mcp-api
     ports:
       - "8000:8000"
@@ -46,7 +46,7 @@ services:
   scanner-worker:
     build:
       context: .
-      dockerfile: Dockerfile.worker
+      dockerfile: docker/Dockerfile.worker
     container_name: nessus-mcp-worker
     environment:
       - REDIS_URL=redis://redis:6379
