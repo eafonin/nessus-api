@@ -480,7 +480,10 @@ async def metrics(request):
 # The app is imported by run_server.py and served via uvicorn directly.
 # Path "/mcp" is the endpoint where MCP clients connect.
 # =============================================================================
-app = mcp.sse_app(path="/mcp")
+# Using http_app with streamable-http transport (modern FastMCP 2.13+ API)
+# streamable-http uses /messages POST endpoint for bidirectional communication
+# This replaces the deprecated sse_app() method
+app = mcp.http_app(path="/mcp", transport="streamable-http")
 
 # =============================================================================
 # Register HTTP Endpoints
