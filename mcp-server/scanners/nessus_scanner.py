@@ -421,31 +421,42 @@ class NessusScanner(ScannerInterface):
         await self._authenticate()
         client = await self._get_session()
 
-        try:
-            response = await client.get(
-                f"{self.url}/scans/{scan_id}",
-                headers=self._build_headers()
-            )
-            response.raise_for_status()
+        # Retry logic for session expiration
+        for attempt in range(2):
+            try:
+                response = await client.get(
+                    f"{self.url}/scans/{scan_id}",
+                    headers=self._build_headers()
+                )
+                response.raise_for_status()
 
-            data = response.json()
-            info = data.get("info", {})
+                data = response.json()
+                info = data.get("info", {})
 
-            # Map Nessus status to MCP status
-            nessus_status = info.get("status", "unknown")
-            mapped_status = self.STATUS_MAP.get(nessus_status, "unknown")
+                # Map Nessus status to MCP status
+                nessus_status = info.get("status", "unknown")
+                mapped_status = self.STATUS_MAP.get(nessus_status, "unknown")
 
-            return {
-                "status": mapped_status,
-                "progress": info.get("progress", 0),
-                "uuid": info.get("uuid", ""),
-                "info": info  # Full response for debugging
-            }
+                return {
+                    "status": mapped_status,
+                    "progress": info.get("progress", 0),
+                    "uuid": info.get("uuid", ""),
+                    "info": info  # Full response for debugging
+                }
 
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
-                raise ValueError(f"Scan {scan_id} not found")
-            raise ValueError(f"Status check failed: HTTP {e.response.status_code}")
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 401 and attempt == 0:
+                    # Session expired - clear tokens and retry with fresh authentication
+                    logger.warning(f"Session expired for scan {scan_id}, re-authenticating...")
+                    self._session_token = None
+                    self._api_token = None
+                    await self._authenticate()
+                    continue  # Retry
+                elif e.response.status_code == 404:
+                    raise ValueError(f"Scan {scan_id} not found")
+                raise ValueError(f"Status check failed: HTTP {e.response.status_code}")
+
+        raise ValueError(f"Status check failed after retry")
 
     async def export_results(self, scan_id: int) -> bytes:
         """

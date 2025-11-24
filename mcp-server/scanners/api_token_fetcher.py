@@ -45,7 +45,8 @@ async def extract_api_token(nessus_url: str, verify_ssl: bool = False) -> Option
 
             # Search for the getApiToken function
             # Pattern: {key:"getApiToken",value:function(){return"<TOKEN>"}}
-            pattern = r'getApiToken[^}]+return["\']([A-F0-9-]+)["\']'
+            # Note: UUIDs can contain lowercase letters (a-f)
+            pattern = r'getApiToken[^}]+return["\']([A-Fa-f0-9-]+)["\']'
             match = re.search(pattern, response.text)
 
             if match:

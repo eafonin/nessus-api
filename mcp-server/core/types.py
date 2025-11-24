@@ -16,7 +16,7 @@ class ScanState(Enum):
 # Valid state transitions
 VALID_TRANSITIONS: Dict[ScanState, set[ScanState]] = {
     ScanState.QUEUED: {ScanState.RUNNING, ScanState.FAILED},
-    ScanState.RUNNING: {ScanState.COMPLETED, ScanState.FAILED, ScanState.TIMEOUT},
+    ScanState.RUNNING: {ScanState.RUNNING, ScanState.COMPLETED, ScanState.FAILED, ScanState.TIMEOUT},  # Allow RUNNING→RUNNING for metadata updates
     ScanState.COMPLETED: set(),  # Terminal state
     ScanState.FAILED: set(),     # Terminal state
     ScanState.TIMEOUT: set(),    # Terminal state

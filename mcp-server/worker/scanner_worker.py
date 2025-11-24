@@ -95,7 +95,8 @@ class ScannerWorker:
                     continue
 
                 # Dequeue task (blocking with 5s timeout)
-                task_data = self.queue.dequeue(timeout=5)
+                # Run blocking Redis call in thread pool to avoid blocking event loop
+                task_data = await asyncio.to_thread(self.queue.dequeue, timeout=5)
 
                 if not task_data:
                     # Timeout - no tasks available

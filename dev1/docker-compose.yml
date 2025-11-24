@@ -49,6 +49,7 @@ services:
       - ENVIRONMENT=development
       # Scanner URLs - MCP connects via internal bridge network
       # These are the default URLs; can be overridden by scanner config
+      - NESSUS_URL=https://172.30.0.3:8834
       - SCANNER_1_URL=https://172.30.0.3:8834
       - SCANNER_2_URL=https://172.30.0.4:8834
       # Default scanner credentials (can be overridden per-scanner)
@@ -88,9 +89,10 @@ services:
       - REDIS_URL=redis://redis:6379
       - DATA_DIR=/app/data/tasks
       - SCANNER_CONFIG=/app/config/scanners.yaml
-      - LOG_LEVEL=INFO
+      - LOG_LEVEL=DEBUG
       - MAX_CONCURRENT_SCANS=3
       # Scanner URLs - Worker connects via internal bridge network
+      - NESSUS_URL=https://172.30.0.3:8834
       - SCANNER_1_URL=https://172.30.0.3:8834
       - SCANNER_2_URL=https://172.30.0.4:8834
       # Default scanner credentials
