@@ -1,0 +1,10 @@
+# Test: Old working configuration with network_mode: service
+services:
+  vpn-gateway:
+    ports:
+      - "8834:8834"  # Add port forwarding to VPN gateway
+      
+  nessus-pro-1:
+    network_mode: "service:vpn-gateway"  # Share VPN gateway's network
+    ports: !reset []  # Remove individual port forwarding
+    networks: !reset {}  # Remove network config (inherited from vpn-gateway)

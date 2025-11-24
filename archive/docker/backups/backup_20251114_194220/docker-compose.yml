@@ -1,0 +1,162 @@
+# =============================================================================
+# Nessus Scanner Deployment - PRODUCTION MODE
+# =============================================================================
+# Version: 3.1
+# Date: 2025-11-13
+# Status: PRODUCTION (simplified, clean configuration)
+#
+# Production Configuration:
+# - VPN for internet (updates, plugin downloads via NAT)
+#   NOTE: Run ./fix-vpn-nat.sh after starting containers
+# - LAN scanning enabled (172.32.0.0/24 → direct routing)
+# - MCP server access via internal IPs (172.30.0.3, 172.30.0.4)
+# - Web UI access from host OS (localhost:8834, localhost:8835)
+# - Port mappings DO NOT interfere with custom routing
+#
+# Scanner Access URLs:
+#   Scanner 1 Web UI: https://localhost:8834
+#   Scanner 2 Web UI: https://localhost:8835
+#   Scanner 1 Internal: https://172.30.0.3:8834 (for MCP)
+#   Scanner 2 Internal: https://172.30.0.4:8834 (for MCP)
+#
+# See NETWORK_ARCHITECTURE.md for complete design rationale
+# =============================================================================
+
+networks:
+  vpn_net:
+    driver: bridge
+    enable_ipv6: false
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+          gateway: 172.30.0.1
+
+volumes:
+  # PRESERVED: Existing volume names - no data loss
+  nessus_data_1:
+    external: true
+    name: nessus_data  # Reuse existing activated scanner volume
+  nessus_data_2:
+    external: true
+    name: nessus_data_2  # Fresh volume for second scanner
+
+services:
+  # ==========================================================================
+  # Shared VPN Gateway - Routes scanner internet traffic through VPN
+  # ==========================================================================
+  vpn-gateway:
+    image: qmcgaw/gluetun:latest
+    container_name: vpn-gateway-shared
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      - TZ=Europe/Amsterdam
+      # Allow NAT for scanner network + all LAN subnets
+      # Add more LAN subnets here as needed (comma-separated)
+      - FIREWALL_OUTBOUND_SUBNETS=172.30.0.0/24,172.32.0.0/24
+      - FIREWALL_VPN_INPUT_PORTS=
+      - FIREWALL_INPUT_PORTS=
+      - FIREWALL=on  # Enable firewall to configure NAT for scanners
+      # HTTP proxy (optional - disable if not needed)
+      - HTTPPROXY=on
+      - HTTPPROXY_LOG=on
+    volumes:
+      - ./wg/wg0.conf:/gluetun/wireguard/wg0.conf:ro
+    networks:
+      vpn_net:
+        ipv4_address: 172.30.0.2
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv4.ip_forward=1  # Enable forwarding for containers
+    labels:
+      - autoheal=true
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Nessus Scanner 1 - NORMAL mode: Default routing for localhost access
+  # ==========================================================================
+  nessus-pro-1:
+    image: tenable/nessus:latest-ubuntu
+    container_name: nessus-pro-1
+    depends_on:
+      - vpn-gateway
+    volumes:
+      - nessus_data_1:/opt/nessus
+    environment:
+      - ACTIVATION_CODE=8WVN-N99G-LHTF-TQ4D-LTAX
+      - USERNAME=nessus
+      - PASSWORD=nessus
+    ports:
+      - "8834:8834"  # Web UI access from host (localhost:8834)
+    networks:
+      vpn_net:
+        ipv4_address: 172.30.0.3
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Nessus Scanner 2 - NORMAL mode: Default routing for localhost access
+  # ==========================================================================
+  nessus-pro-2:
+    image: tenable/nessus:latest-ubuntu
+    container_name: nessus-pro-2
+    depends_on:
+      - vpn-gateway
+    volumes:
+      - nessus_data_2:/opt/nessus
+    environment:
+      - ACTIVATION_CODE=XS6C-BFB6-VUMK-Y5MU-AWNG
+      - USERNAME=nessus
+      - PASSWORD=nessus
+    ports:
+      - "8835:8834"  # Web UI access from host (localhost:8835)
+    networks:
+      vpn_net:
+        ipv4_address: 172.30.0.4
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Debug Scanner - Troubleshooting container with networking tools
+  # ==========================================================================
+  debug-scanner:
+    image: alpine:latest
+    container_name: debug-scanner
+    depends_on:
+      - vpn-gateway
+    networks:
+      - vpn_net
+    command: >
+      sh -c "
+      echo 'Installing debug tools...' &&
+      apk add --no-cache curl wget bind-tools nmap tcpdump iproute2 >/dev/null 2>&1 &&
+      echo 'Debug scanner ready!' &&
+      tail -f /dev/null
+      "
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Autoheal - Automatically restart unhealthy containers
+  # ==========================================================================
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: autoheal-shared
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=autoheal
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    network_mode: none
+    restart: unless-stopped
+
+# =============================================================================
+# OBSOLETE CONFIGURATION (REMOVED):
+# - macvlan network (nessus_lan) - No longer needed
+# - Scanner macvlan IPs (192.168.100.9, 192.168.100.10) - Use localhost ports
+# - Scanner routing via macvlan gateway - Use split routing instead
+# - parent: ens160 dependency - No longer needed
+#
+# See docker-compose.yml.obsolete for previous configuration
+# =============================================================================

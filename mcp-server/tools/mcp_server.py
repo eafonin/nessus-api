@@ -416,11 +416,12 @@ async def get_scan_results(
 
 
 # =============================================================================
-# Health & Metrics Endpoints
+# Health & Metrics Endpoint Functions
 # =============================================================================
+# NOTE: These functions are defined here but registered to the Starlette app
+# after it's created below (see "Register HTTP endpoints" section)
 
-@mcp.get("/health")
-async def health():
+async def health(request):
     """
     Health check endpoint.
 
@@ -439,8 +440,7 @@ async def health():
         return JSONResponse(status_code=503, content=health_status)
 
 
-@mcp.get("/metrics")
-async def metrics():
+async def metrics(request):
     """
     Prometheus metrics endpoint.
 
@@ -481,3 +481,13 @@ async def metrics():
 # Path "/mcp" is the endpoint where MCP clients connect.
 # =============================================================================
 app = mcp.sse_app(path="/mcp")
+
+# =============================================================================
+# Register HTTP Endpoints
+# =============================================================================
+# Add health and metrics endpoints to the Starlette app
+# These need to be added after the app is created above
+from starlette.routing import Route
+
+app.routes.append(Route("/health", endpoint=health, methods=["GET"]))
+app.routes.append(Route("/metrics", endpoint=metrics, methods=["GET"]))

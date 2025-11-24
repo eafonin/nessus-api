@@ -1,0 +1,132 @@
+# =============================================================================
+# Nessus Scanner Deployment - UPDATE MODE OVERRIDE
+# =============================================================================
+# Purpose: Override configuration to enable VPN plugin updates
+#
+# Problem: Port forwarding (8834:8834, 8835:8834) creates Docker NAT rules
+#          that interfere with VPN routing, breaking plugin updates
+#
+# Solution: This override REMOVES port forwarding to allow clean VPN routing
+#          for plugin updates from Tenable servers
+#
+# Usage:
+#   Switch to UPDATE mode:
+#     docker compose -f docker-compose.yml -f docker-compose.update-mode.yml up -d --force-recreate nessus-pro-1 nessus-pro-2
+#
+#   Switch back to NORMAL mode:
+#     docker compose up -d --force-recreate nessus-pro-1 nessus-pro-2
+#
+# Or use the helper script:
+#   ./switch-mode.sh update   # Enable update mode
+#   ./switch-mode.sh normal   # Enable normal mode
+#   ./switch-mode.sh status   # Check current mode
+#
+# =============================================================================
+
+services:
+  # ==========================================================================
+  # Nessus Scanner 1 - UPDATE MODE (VPN Split Routing)
+  # ==========================================================================
+  nessus-pro-1:
+    # Override ports to remove port forwarding
+    # Use !reset to clear inherited port mappings
+    ports: !reset []
+    # DNS via VPN gateway
+    dns:
+      - 172.30.0.2
+    # Extra hosts for VPN awareness
+    extra_hosts:
+      - "host.docker.internal:172.30.0.2"
+    # NET_ADMIN capability for routing changes
+    cap_add:
+      - NET_ADMIN
+    # Apply VPN split routing in UPDATE mode
+    command: >
+      sh -c "
+      echo 'UPDATE MODE: Configuring VPN split routing for Scanner 1' &&
+
+      echo '  - Removing Docker default route' &&
+      ip route del default &&
+
+      echo '  - LAN route: 172.32.0.0/24 via bridge (172.30.0.1)' &&
+      ip route add 172.32.0.0/24 via 172.30.0.1 dev eth0 &&
+
+      echo '  - Default route: Internet via VPN (172.30.0.2)' &&
+      ip route add default via 172.30.0.2 dev eth0 &&
+
+      echo 'Routing table configured:' &&
+      ip route show &&
+
+      echo 'Starting Nessus service...' &&
+      exec /opt/nessus/sbin/nessus-service
+      "
+    # Disable IP forwarding for security
+    sysctls:
+      - net.ipv4.ip_forward=0
+    # Label to track mode
+    labels:
+      - "nessus.mode=update"
+      - "nessus.mode.timestamp=${MODE_SWITCH_TIMESTAMP:-unknown}"
+
+  # ==========================================================================
+  # Nessus Scanner 2 - UPDATE MODE (VPN Split Routing)
+  # ==========================================================================
+  nessus-pro-2:
+    # Override ports to remove port forwarding
+    # Use !reset to clear inherited port mappings
+    ports: !reset []
+    # DNS via VPN gateway
+    dns:
+      - 172.30.0.2
+    # Extra hosts for VPN awareness
+    extra_hosts:
+      - "host.docker.internal:172.30.0.2"
+    # NET_ADMIN capability for routing changes
+    cap_add:
+      - NET_ADMIN
+    # Apply VPN split routing in UPDATE mode
+    command: >
+      sh -c "
+      echo 'UPDATE MODE: Configuring VPN split routing for Scanner 2' &&
+
+      echo '  - Removing Docker default route' &&
+      ip route del default &&
+
+      echo '  - LAN route: 172.32.0.0/24 via bridge (172.30.0.1)' &&
+      ip route add 172.32.0.0/24 via 172.30.0.1 dev eth0 &&
+
+      echo '  - Default route: Internet via VPN (172.30.0.2)' &&
+      ip route add default via 172.30.0.2 dev eth0 &&
+
+      echo 'Routing table configured:' &&
+      ip route show &&
+
+      echo 'Starting Nessus service...' &&
+      exec /opt/nessus/sbin/nessus-service
+      "
+    # Disable IP forwarding for security
+    sysctls:
+      - net.ipv4.ip_forward=0
+    # Label to track mode
+    labels:
+      - "nessus.mode=update"
+      - "nessus.mode.timestamp=${MODE_SWITCH_TIMESTAMP:-unknown}"
+
+# =============================================================================
+# What changes in UPDATE mode:
+#
+# REMOVED:
+#   - Port forwarding (8834:8834, 8835:8834)
+#   - WebUI access from host OS
+#
+# ENABLED:
+#   - Clean VPN routing for plugin updates
+#   - LAN scanning still works (split routing unchanged)
+#   - MCP worker access still works (internal IPs unchanged)
+#
+# ACCESS:
+#   - WebUI: NOT accessible from host OS during update mode
+#   - MCP: Still accessible via 172.30.0.3:8834, 172.30.0.4:8834
+#   - Plugin updates: Will work via VPN without NAT interference
+#
+# =============================================================================

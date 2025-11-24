@@ -571,14 +571,25 @@ pip install -r requirements.txt
 
 ### Nessus Instance
 
-Nessus runs in Docker at `/home/nessus/docker/nessus/` with:
-- Web UI: https://localhost:8834
-- VPN Gateway: WireGuard (Gluetun)
-- Network: 172.32.0.0/24
+**Dual-scanner unified mode deployment** at `/home/nessus/docker/nessus-shared/`:
+- **Scanner 1 Web UI:** https://172.32.0.209:8443/
+- **Scanner 2 Web UI:** https://172.32.0.209:8444/
+- **Documentation Server:** http://172.32.0.209:8080/
+- **VPN Gateway:** WireGuard (Gluetun) with automatic split routing
+- **Docker Network:** 172.30.0.0/24 (bridge)
+- **LAN Network:** 172.32.0.0/24 (direct access)
 
-**Documentation**:
-- [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) - Docker configuration details
-- [/home/nessus/DOCUMENTATION_INDEX.md](../../DOCUMENTATION_INDEX.md) - **VPN infrastructure documentation** (read when troubleshooting scanner connectivity, VPN routing, or dual-VPN setup)
+**⚠️ IMPORTANT:** Use LAN IP (172.32.0.209), NOT localhost (Docker hairpin NAT issue)
+
+**MCP Server Access (Internal):**
+- Scanner 1 API: `https://172.30.0.3:8834` (container-to-container)
+- Scanner 2 API: `https://172.30.0.4:8834` (container-to-container)
+
+**Documentation:**
+- **[/home/nessus/docker/nessus-shared/README.md](../../docker/nessus-shared/README.md)** - Quick start guide and common commands
+- **[/home/nessus/docker/nessus-shared/ARCHITECTURE.md](../../docker/nessus-shared/ARCHITECTURE.md)** - Complete technical architecture
+- [QUICK_ACCESS_GUIDE.md](QUICK_ACCESS_GUIDE.md) - Access URLs and troubleshooting
+- [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) - Legacy Docker configuration (outdated)
 
 ---
 

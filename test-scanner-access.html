@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Nessus Scanner Access Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .scanner-box {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-link {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .test-link:hover {
+            background: #0056b3;
+        }
+        .info {
+            background: #e7f3ff;
+            padding: 15px;
+            border-left: 4px solid #007bff;
+            margin: 20px 0;
+        }
+        .warning {
+            background: #fff3cd;
+            padding: 15px;
+            border-left: 4px solid #ffc107;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Nessus Scanner Access Test</h1>
+
+    <div class="info">
+        <strong>Instructions:</strong>
+        <ol>
+            <li>Click on the links below to test access to each scanner</li>
+            <li>Your browser will warn about the self-signed certificate - this is normal</li>
+            <li>Click "Advanced" and then "Proceed" (or similar depending on your browser)</li>
+            <li>If you see the Nessus login page, the scanner is accessible!</li>
+        </ol>
+    </div>
+
+    <div class="scanner-box">
+        <h2>Scanner 1</h2>
+        <p><strong>Internal IP:</strong> 172.30.0.3:8834</p>
+        <a href="https://172.30.0.3:8834" target="_blank" class="test-link">
+            Open Scanner 1 WebUI
+        </a>
+        <br>
+        <a href="https://172.30.0.3:8834/server/status" target="_blank" class="test-link">
+            Test Scanner 1 API Endpoint
+        </a>
+    </div>
+
+    <div class="scanner-box">
+        <h2>Scanner 2</h2>
+        <p><strong>Internal IP:</strong> 172.30.0.4:8834</p>
+        <a href="https://172.30.0.4:8834" target="_blank" class="test-link">
+            Open Scanner 2 WebUI
+        </a>
+        <br>
+        <a href="https://172.30.0.4:8834/server/status" target="_blank" class="test-link">
+            Test Scanner 2 API Endpoint
+        </a>
+    </div>
+
+    <div class="warning">
+        <strong>Note:</strong> If the links don't work, it means the host machine cannot route to the Docker bridge network (172.30.0.0/24). In that case, you'll need to use SSH port forwarding or access the scanners from within a Docker container.
+    </div>
+
+    <div class="scanner-box">
+        <h2>Localhost Access (via Docker Port Forwarding)</h2>
+        <p><strong>Status:</strong> Known to fail due to TLS handshake issues with Docker NAT</p>
+        <p>These links are provided for comparison - they likely will not work:</p>
+        <a href="https://localhost:8834" target="_blank" class="test-link" style="background: #6c757d;">
+            Localhost Scanner 1 (8834) - Expected to Fail
+        </a>
+        <br>
+        <a href="https://localhost:8835" target="_blank" class="test-link" style="background: #6c757d;">
+            Localhost Scanner 2 (8835) - Expected to Fail
+        </a>
+    </div>
+
+    <div class="info">
+        <h3>Test Results Summary:</h3>
+        <ul>
+            <li>✅ If internal IPs work: Use these for WebUI access</li>
+            <li>❌ If internal IPs don't work: Need SSH tunnel or alternative solution</li>
+            <li>📝 MCP automation already uses internal IPs and works correctly</li>
+        </ul>
+    </div>
+
+</body>
+</html>

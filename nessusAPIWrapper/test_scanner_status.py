@@ -26,7 +26,7 @@ SCANNERS = {
         'password': 'nessus'
     },
     'Scanner 2': {
-        'url': 'https://172.30.0.5:8834',
+        'url': 'https://172.30.0.4:8834',
         'activation_code': 'XS6C-BFB6-VUMK-Y5MU-AWNG',
         'username': 'nessus',
         'password': 'nessus'

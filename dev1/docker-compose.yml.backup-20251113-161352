@@ -1,20 +1,8 @@
 # =============================================================================
 # Nessus MCP Server - Development Environment
 # =============================================================================
-# Version: 2.0
-# Date: 2025-11-13
-# Status: PROPOSED (planning phase)
-#
-# Changes from previous version:
-# - FIXED: Network connectivity - now connects to nessus-shared_vpn_net
-# - REMOVED: Hardcoded NESSUS_URL (use scanner discovery instead)
-# - ADDED: Support for multiple scanners via internal bridge
-#
-# Scanner Access:
-# - Scanner 1: https://172.30.0.3:8834 (internal bridge)
-# - Scanner 2: https://172.30.0.4:8834 (internal bridge)
-#
-# See /home/nessus/docker/nessus-shared/NETWORK_ARCHITECTURE.md for details
+# Note: 'version' key removed - obsolete in Docker Compose v2+
+# Modern Compose infers format from file structure
 # =============================================================================
 
 services:
@@ -36,27 +24,24 @@ services:
   mcp-api:
     build:
       context: ../mcp-server
-      dockerfile: docker/Dockerfile.api
+      dockerfile: Dockerfile.api
     container_name: nessus-mcp-api-dev
     ports:
-      # Host port 8836 maps to container port 8000
-      # MCP clients connect to: http://localhost:8836/mcp
-      - "8836:8000"
+      # Host port 8835 maps to container port 8000
+      # MCP clients connect to: http://localhost:8835/mcp
+      - "8835:8000"
     environment:
       - REDIS_URL=redis://redis:6379
       - DATA_DIR=/app/data/tasks
       - LOG_LEVEL=DEBUG
       - ENVIRONMENT=development
-      # Scanner URLs - MCP connects via internal bridge network
-      # These are the default URLs; can be overridden by scanner config
-      - SCANNER_1_URL=https://172.30.0.3:8834
-      - SCANNER_2_URL=https://172.30.0.4:8834
-      # Default scanner credentials (can be overridden per-scanner)
+      # Nessus scanner URL for tests
+      - NESSUS_URL=https://vpn-gateway:8834
       - NESSUS_USERNAME=nessus
       - NESSUS_PASSWORD=nessus
     networks:
-      - default           # Internal network for Redis connectivity
-      - scanner_bridge    # External network for scanner connectivity
+      - default
+      - nessus_net
     volumes:
       # Hot reload: mount source code for development
       # Changes to these files take effect without rebuild
@@ -82,7 +67,7 @@ services:
   scanner-worker:
     build:
       context: ../mcp-server
-      dockerfile: docker/Dockerfile.worker
+      dockerfile: Dockerfile.worker
     container_name: nessus-mcp-worker-dev
     environment:
       - REDIS_URL=redis://redis:6379
@@ -90,15 +75,13 @@ services:
       - SCANNER_CONFIG=/app/config/scanners.yaml
       - LOG_LEVEL=INFO
       - MAX_CONCURRENT_SCANS=3
-      # Scanner URLs - Worker connects via internal bridge network
-      - SCANNER_1_URL=https://172.30.0.3:8834
-      - SCANNER_2_URL=https://172.30.0.4:8834
-      # Default scanner credentials
+      # Nessus credentials - connect via vpn-gateway on nessus_net
+      - NESSUS_URL=https://vpn-gateway:8834
       - NESSUS_USERNAME=nessus
       - NESSUS_PASSWORD=nessus
     networks:
-      - default           # Internal network for Redis connectivity
-      - scanner_bridge    # External network for scanner connectivity
+      - default
+      - nessus_net
     volumes:
       # Hot reload: mount source code for development
       - ../mcp-server/scanners:/app/scanners
@@ -130,20 +113,7 @@ networks:
     driver: bridge
 
   # External network for Nessus scanner connectivity
-  # Connects to the scanner VPN network in /home/nessus/docker/nessus-shared/
-  scanner_bridge:
+  # Connects to vpn-gateway container in /home/nessus/docker/nessus
+  nessus_net:
     external: true
-    name: nessus-shared_vpn_net
-
-# =============================================================================
-# OBSOLETE CONFIGURATION (REMOVED):
-# - Old network name: nessus_nessus_net (incorrect)
-# - Hardcoded NESSUS_URL: https://vpn-gateway:8834 (incorrect - not accessible)
-#
-# CORRECT CONFIGURATION:
-# - Network: nessus-shared_vpn_net (scanner bridge)
-# - Scanner 1: https://172.30.0.3:8834 (internal bridge IP)
-# - Scanner 2: https://172.30.0.5:8834 (internal bridge IP)
-#
-# See docker-compose.yml.obsolete for previous configuration
-# =============================================================================
+    name: nessus_nessus_net
