@@ -26,21 +26,24 @@ class TestMetricsDefinitions:
     def test_scans_total_counter_exists(self):
         """Test that scans_total counter is defined."""
         assert scans_total is not None
-        assert scans_total._name == "nessus_scans_total"
+        # Note: Prometheus client strips _total suffix from Counter names internally
+        assert scans_total._name == "nessus_scans"
         assert "scan_type" in scans_total._labelnames
         assert "status" in scans_total._labelnames
 
     def test_api_requests_total_counter_exists(self):
         """Test that api_requests_total counter is defined."""
         assert api_requests_total is not None
-        assert api_requests_total._name == "nessus_api_requests_total"
+        # Note: Prometheus client strips _total suffix from Counter names internally
+        assert api_requests_total._name == "nessus_api_requests"
         assert "tool" in api_requests_total._labelnames
         assert "status" in api_requests_total._labelnames
 
     def test_ttl_deletions_total_counter_exists(self):
         """Test that ttl_deletions_total counter is defined."""
         assert ttl_deletions_total is not None
-        assert ttl_deletions_total._name == "nessus_ttl_deletions_total"
+        # Note: Prometheus client strips _total suffix from Counter names internally
+        assert ttl_deletions_total._name == "nessus_ttl_deletions"
 
     def test_active_scans_gauge_exists(self):
         """Test that active_scans gauge is defined."""
