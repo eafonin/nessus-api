@@ -242,9 +242,10 @@ class NessusFastMCPClient:
         """
         tool_name = f"run_{scan_type}_scan"
 
+        # Note: MCP tool parameter is 'name', not 'scan_name'
         arguments = {
             "targets": targets,
-            "scan_name": scan_name
+            "name": scan_name
         }
 
         if description:

@@ -43,7 +43,8 @@ from client.nessus_fastmcp_client import NessusFastMCPClient
 # ============================================================================
 
 # MCP Server URL
-MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8835/mcp")
+# Inside Docker: use service name, outside Docker: use localhost
+MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://mcp-api:8000/mcp")
 
 # Test target (safe internal host for scanning)
 # Default: Internal Docker network host
