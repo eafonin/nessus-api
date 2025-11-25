@@ -238,7 +238,7 @@ All scripts are configured with hardcoded values (not production-ready for secur
 
 ```python
 # In all scripts
-NESSUS_URL = 'https://172.32.0.209:8834'
+NESSUS_URL = 'https://172.30.0.3:8834'
 
 # API scripts
 ACCESS_KEY = 'abc04cab...'

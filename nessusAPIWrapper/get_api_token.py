@@ -19,7 +19,7 @@ import requests
 # Disable SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-NESSUS_URL = 'https://172.32.0.209:8834'
+NESSUS_URL = 'https://172.30.0.3:8834'
 
 
 def extract_api_token_from_js():
@@ -43,7 +43,7 @@ def extract_api_token_from_js():
 
         # Search for the getApiToken function
         # Pattern: {key:"getApiToken",value:function(){return"<TOKEN>"}}
-        pattern = r'getApiToken[^}]+return["\']([A-F0-9-]+)["\']'
+        pattern = r'getApiToken[^}]+return["\']([a-fA-F0-9-]+)["\']'
         match = re.search(pattern, response.text)
 
         if match:

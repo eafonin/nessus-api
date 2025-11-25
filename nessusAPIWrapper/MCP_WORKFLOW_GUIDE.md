@@ -139,7 +139,7 @@ if not api_token:
 
 ```python
 nessus = Nessus(
-    url='https://172.32.0.209:8834',
+    url='https://172.30.0.3:8834',
     access_key='27f46c28...',  # API access key (manually generated)
     secret_key='11a99860...',  # API secret key (manually generated)
     ssl_verify=False
@@ -645,7 +645,7 @@ Nessus operations are inherently **synchronous HTTP requests**. For MCP server:
 
 **Default Values** (hardcoded in wrapper scripts):
 ```python
-NESSUS_URL = 'https://172.32.0.209:8834'
+NESSUS_URL = 'https://172.30.0.3:8834'
 USERNAME = 'nessus'
 PASSWORD = 'nessus'
 # STATIC_API_TOKEN - Dynamically fetched from nessus6.js (not hardcoded)
@@ -746,6 +746,82 @@ print(f"Results saved to: {results_file}")
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: 2025-01-07
+---
+
+## Appendix: Validated Test Results (2025-11-25)
+
+### Authenticated Scan Test
+
+A complete authenticated scan workflow was tested and validated:
+
+**Test Configuration:**
+- Target: 172.32.0.215
+- Credentials: `randy` / `randylovesgoldfish1998`
+- Scan Type: SSH password authentication (no privilege escalation)
+- Scanner: 172.30.0.3:8834 (Scanner 1)
+
+**Workflow Executed:**
+```bash
+# Create scan
+python manage_scans.py create "Auth_Scan_Test" "172.32.0.215" "Test"
+# → Scan ID: 120
+
+# Configure credentials
+python manage_credentials.py 120 scan_creds.json
+# → [SUCCESS] SSH credentials updated
+
+# Launch and monitor
+python launch_scan.py launch 120
+# → Completed in ~8 minutes
+
+# Export results
+python export_vulnerabilities.py 120
+```
+
+**Results:**
+```
+Authentication: SUCCESS
+hosts_summary.credential: "true"
+
+Vulnerabilities:
+  Critical: 0
+  High: 1 (Ubuntu Perl USN-5033-1)
+  Medium: 2 (SSH Terrapin, mDNS)
+  Low: 2 (ICMP Timestamp, Ubuntu SEoL)
+  Info: 59 (SSH enumeration plugins)
+```
+
+**Authentication Confirmation Plugins Found:**
+- Plugin 141118: "Valid Credentials Provided" ✓
+- Plugin 22869: "Software Enumeration (SSH)" ✓
+- Plugin 97993: "OS Identification over SSH v2" ✓
+- Plugin 95928: "Linux User List Enumeration" ✓
+
+### Credential Template Example
+
+```json
+{
+  "auth_method": "password",
+  "username": "randy",
+  "password": "randylovesgoldfish1998",
+  "elevate_privileges_with": "Nothing"
+}
+```
+
+### Privileged Scan Template (sudo)
+
+```json
+{
+  "auth_method": "password",
+  "username": "nessus",
+  "password": "nessus",
+  "elevate_privileges_with": "sudo",
+  "escalation_password": "nessus"
+}
+```
+
+---
+
+**Document Version**: 1.1
+**Last Updated**: 2025-11-25
 **Maintained By**: Nessus API Wrapper Project

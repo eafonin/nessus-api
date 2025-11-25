@@ -1,12 +1,14 @@
 """Generate new Nessus API keys using username/password authentication"""
+import sys
 import urllib3
 import requests
 import json
+from get_api_token import extract_api_token_from_js
 
 # Disable SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-NESSUS_URL = 'https://172.32.0.209:8834'
+NESSUS_URL = 'https://172.30.0.3:8834'
 USERNAME = 'nessus'
 PASSWORD = 'nessus'
 # Fetch X-API-Token dynamically from Nessus Web UI

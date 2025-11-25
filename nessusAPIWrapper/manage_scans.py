@@ -12,9 +12,9 @@ from tenable.nessus import Nessus
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Nessus configuration
-NESSUS_URL = 'https://172.32.0.209:8834'
-ACCESS_KEY = '4a4538d310e4a0b1f4a9ed5765913cf60c25380e303aceaeda867e8dd3f57071'
-SECRET_KEY = 'fe25d148200608e2970944cde3b38862d8ecae9092950620d151b0a7f72041b9'
+NESSUS_URL = 'https://172.30.0.3:8834'
+ACCESS_KEY = 'dca6c2f38119ba7eb2f40ddec670f680d7d1fb3cf8cf1f93ffdc7f8d7165b044'
+SECRET_KEY = '45b6a702ceb4005b933cee1bd9b09cea96a82a1da68977cf4982c31ea8c83d79'
 # Fetch X-API-Token dynamically from Nessus Web UI
 STATIC_API_TOKEN = extract_api_token_from_js()
 if not STATIC_API_TOKEN:
@@ -48,9 +48,9 @@ def authenticate(username, password):
         'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
         'Connection': 'keep-alive',
         'Content-Type': 'application/json',
-        'Host': '172.32.0.209:8834',
-        'Origin': 'https://172.32.0.209:8834',
-        'Referer': 'https://172.32.0.209:8834/',
+        'Host': '172.30.0.3:8834',
+        'Origin': 'https://172.30.0.3:8834',
+        'Referer': 'https://172.30.0.3:8834/',
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
         'Sec-Fetch-Site': 'same-origin',
@@ -109,8 +109,8 @@ def get_template_config(template_uuid, api_token, session_token):
         'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
         'Connection': 'keep-alive',
         'Content-Type': 'application/json',
-        'Host': '172.32.0.209:8834',
-        'Referer': 'https://172.32.0.209:8834/',
+        'Host': '172.30.0.3:8834',
+        'Referer': 'https://172.30.0.3:8834/',
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
         'Sec-Fetch-Site': 'same-origin',
@@ -389,9 +389,9 @@ def create_scan(api_token, session_token, name, targets, description="", templat
         'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
         'Connection': 'keep-alive',
         'Content-Type': 'application/json',
-        'Host': '172.32.0.209:8834',
-        'Origin': 'https://172.32.0.209:8834',
-        'Referer': 'https://172.32.0.209:8834/',
+        'Host': '172.30.0.3:8834',
+        'Origin': 'https://172.30.0.3:8834',
+        'Referer': 'https://172.30.0.3:8834/',
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
         'Sec-Fetch-Site': 'same-origin',
@@ -449,9 +449,9 @@ def move_to_trash(scan_id, api_token, session_token):
         'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
         'Connection': 'keep-alive',
         'Content-Type': 'application/json',
-        'Host': '172.32.0.209:8834',
-        'Origin': 'https://172.32.0.209:8834',
-        'Referer': 'https://172.32.0.209:8834/',
+        'Host': '172.30.0.3:8834',
+        'Origin': 'https://172.30.0.3:8834',
+        'Referer': 'https://172.30.0.3:8834/',
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
         'Sec-Fetch-Site': 'same-origin',
@@ -522,9 +522,9 @@ def empty_trash(api_token, session_token):
         'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
         'Connection': 'keep-alive',
         'Content-Type': 'application/json',
-        'Host': '172.32.0.209:8834',
-        'Origin': 'https://172.32.0.209:8834',
-        'Referer': 'https://172.32.0.209:8834/',
+        'Host': '172.30.0.3:8834',
+        'Origin': 'https://172.30.0.3:8834',
+        'Referer': 'https://172.30.0.3:8834/',
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
         'Sec-Fetch-Site': 'same-origin',
@@ -581,9 +581,9 @@ def delete_scan_permanent(scan_ids, api_token, session_token):
         'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
         'Connection': 'keep-alive',
         'Content-Type': 'application/json',
-        'Host': '172.32.0.209:8834',
-        'Origin': 'https://172.32.0.209:8834',
-        'Referer': 'https://172.32.0.209:8834/',
+        'Host': '172.30.0.3:8834',
+        'Origin': 'https://172.30.0.3:8834',
+        'Referer': 'https://172.30.0.3:8834/',
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
         'Sec-Fetch-Site': 'same-origin',

@@ -10,11 +10,23 @@ This project provides Python automation scripts for managing Nessus vulnerabilit
 
 ## Configuration Constants
 All scripts share common configuration:
-- **NESSUS_URL:** `https://localhost:8834`
-- **ACCESS_KEY:** API access key for Nessus authentication
+- **NESSUS_URL:** `https://172.30.0.3:8834` (Docker network IP for Scanner 1)
+- **ACCESS_KEY:** API access key for Nessus authentication (regenerate via `generate_api_keys.py`)
 - **SECRET_KEY:** API secret key for Nessus authentication
-- **STATIC_API_TOKEN:** Static token for web UI simulation
+- **X-API-TOKEN:** Dynamically fetched from `/nessus6.js` (see `get_api_token.py`)
 - **USERNAME/PASSWORD:** Nessus login credentials (`nessus`/`nessus`)
+
+### Network Configuration
+| Scanner | Docker IP | Host IP | Purpose |
+|---------|-----------|---------|---------|
+| Scanner 1 | 172.30.0.3:8834 | 172.32.0.209 | Primary scanner |
+| Scanner 2 | 172.30.0.4:8834 | - | Secondary scanner |
+
+### Test Targets
+| IP | Credentials | Notes |
+|----|-------------|-------|
+| 172.32.0.215 | `randy` / `randylovesgoldfish1998` | Primary test target (root SSH) |
+| 172.32.0.209 | `nessus` / `nessus` + sudo | Docker host |
 
 ---
 
@@ -335,6 +347,68 @@ The credential template system:
 7. Export results: `export_vulnerabilities.py` or `export_vulnerabilities_detailed.py`
 8. View config: `scan_config.py`
 9. Delete: `manage_scans.py delete`
+
+### Authenticated Scan Workflow (Validated 2025-11-25)
+
+Complete workflow for SSH-authenticated vulnerability scanning:
+
+```bash
+# 1. Create scan with placeholder credentials
+python manage_scans.py create "Auth_Scan" "172.32.0.215" "Authenticated scan"
+# Output: Scan ID: 120
+
+# 2. Export credential template
+python manage_credentials.py 120
+# Output: scan_120_ssh_credentials.json
+
+# 3. Fill credential template
+cat > scan_120_creds.json << 'EOF'
+{
+  "auth_method": "password",
+  "username": "randy",
+  "password": "randylovesgoldfish1998",
+  "elevate_privileges_with": "Nothing"
+}
+EOF
+
+# 4. Import credentials
+python manage_credentials.py 120 scan_120_creds.json
+# Output: [SUCCESS] SSH credentials updated
+
+# 5. Verify credentials saved
+python scan_config.py 120
+# Shows: User: randy, Auth method: password
+
+# 6. Launch scan
+python launch_scan.py launch 120
+# Output: [SUCCESS] Scan launched
+
+# 7. Monitor until completion (~8 minutes)
+python list_scans.py
+# Status: running → completed
+
+# 8. Export results
+python export_vulnerabilities.py 120
+python export_vulnerabilities_detailed.py 120
+```
+
+### Detecting Authentication Success
+
+After scan completion, authentication success can be verified via:
+
+| Indicator | Location | Success Value |
+|-----------|----------|---------------|
+| `hosts_summary.credential` | JSON export | `"true"` |
+| Plugin 141118 | Vulnerabilities | Present = success |
+| Plugin 110385 | Vulnerabilities | Present = insufficient privilege |
+| Plugin 19506 output | Scan info | `"Credentialed checks : yes"` |
+
+**Key SSH enumeration plugins** (presence confirms auth worked):
+- 22869: Software Enumeration (SSH)
+- 97993: OS Identification over SSH v2
+- 95928: Linux User List Enumeration
+- 66334: Patch Report
+- 179139: Package Manager Packages Report
 
 ### Common Scan IDs
 - Folder IDs: 2 (Trash), 3 (My Scans)
