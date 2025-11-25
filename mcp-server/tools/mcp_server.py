@@ -51,11 +51,13 @@ async def run_untrusted_scan(
     description: str = "",
     schema_profile: str = "brief",
     idempotency_key: str | None = None,
+    scanner_instance: str | None = None,
 ) -> dict:
     """
     Run network-only vulnerability scan (no credentials).
 
     Phase 1: Enqueues scan to Redis queue for async worker processing.
+    Phase 4: Supports scanner pool with load-based selection.
 
     Args:
         targets: IP addresses or CIDR ranges (e.g., "192.168.1.0/24")
@@ -63,6 +65,8 @@ async def run_untrusted_scan(
         description: Optional scan description
         schema_profile: Output schema (minimal|summary|brief|full)
         idempotency_key: Optional key for idempotent retries
+        scanner_instance: Optional scanner instance ID (e.g., "scanner1").
+                         If not specified, selects least loaded scanner.
 
     Returns:
         {
@@ -70,7 +74,7 @@ async def run_untrusted_scan(
             "trace_id": "...",
             "status": "queued",
             "scanner_type": "nessus",
-            "scanner_instance": "local",
+            "scanner_instance": "scanner1",
             "queue_position": 1,
             "message": "Scan enqueued successfully"
         }
@@ -78,7 +82,23 @@ async def run_untrusted_scan(
     # Generate IDs
     trace_id = str(uuid.uuid4())
     scanner_type = "nessus"
-    scanner_instance = "local"  # Default instance
+
+    # Select scanner: use specified or get least loaded
+    try:
+        if scanner_instance:
+            # Validate scanner exists
+            _ = scanner_registry.get_instance(scanner_type, scanner_instance)
+            selected_instance = scanner_instance
+        else:
+            # Get least loaded scanner
+            _, instance_key = scanner_registry.get_available_scanner(scanner_type)
+            selected_instance = instance_key.split(":")[-1]  # Extract instance ID from key
+    except ValueError as e:
+        return {
+            "error": "Scanner not found",
+            "message": str(e),
+            "status_code": 404,
+        }
 
     logger.info(
         "tool_invocation",
@@ -86,7 +106,8 @@ async def run_untrusted_scan(
         trace_id=trace_id,
         targets=targets,
         name=name,
-        idempotency_key=idempotency_key
+        idempotency_key=idempotency_key,
+        scanner_instance=selected_instance,
     )
 
     # Check idempotency key if provided
@@ -97,7 +118,7 @@ async def run_untrusted_scan(
             "description": description,
             "schema_profile": schema_profile,
             "scanner_type": scanner_type,
-            "scanner_instance": scanner_instance,
+            "scanner_instance": selected_instance,
         }
 
         try:
@@ -121,7 +142,7 @@ async def run_untrusted_scan(
                 "status_code": 409,
             }
 
-    task_id = generate_task_id(scanner_type, scanner_instance)
+    task_id = generate_task_id(scanner_type, selected_instance)
 
     # Create task
     task = Task(
@@ -129,7 +150,7 @@ async def run_untrusted_scan(
         trace_id=trace_id,
         scan_type="untrusted",
         scanner_type=scanner_type,
-        scanner_instance_id=scanner_instance,
+        scanner_instance_id=selected_instance,
         status=ScanState.QUEUED.value,
         payload={
             "targets": targets,
@@ -149,7 +170,7 @@ async def run_untrusted_scan(
         "trace_id": trace_id,
         "scan_type": "untrusted",
         "scanner_type": scanner_type,
-        "scanner_instance_id": scanner_instance,
+        "scanner_instance_id": selected_instance,
         "payload": task.payload,
     }
 
@@ -175,7 +196,7 @@ async def run_untrusted_scan(
         "trace_id": trace_id,
         "status": "queued",
         "scanner_type": scanner_type,
-        "scanner_instance": scanner_instance,
+        "scanner_instance": selected_instance,
         "queue_position": queue_depth,
         "message": "Scan enqueued successfully. Worker will process asynchronously."
     }
@@ -245,29 +266,66 @@ async def get_scan_status(task_id: str) -> dict:
 @mcp.tool()
 async def list_scanners() -> dict:
     """
-    List all registered scanner instances and their status.
+    List all registered scanner instances with load information.
+
+    Phase 4: Includes active scan counts and capacity.
 
     Returns:
         {
             "scanners": [
                 {
                     "scanner_type": "nessus",
-                    "instance_id": "local",
-                    "name": "Local Nessus Scanner",
-                    "url": "https://172.32.0.209:8834",
-                    "enabled": true
+                    "instance_id": "scanner1",
+                    "instance_key": "nessus:scanner1",
+                    "name": "Nessus Scanner 1",
+                    "url": "https://172.30.0.3:8834",
+                    "enabled": true,
+                    "max_concurrent_scans": 5,
+                    "active_scans": 2,
+                    "available_capacity": 3,
+                    "utilization_pct": 40.0
                 },
                 ...
             ],
-            "total": 1
+            "total": 2
         }
     """
-    scanners = scanner_registry.list_instances(enabled_only=True)
+    scanners = scanner_registry.list_instances(enabled_only=True, include_load=True)
 
     return {
         "scanners": scanners,
         "total": len(scanners)
     }
+
+
+@mcp.tool()
+async def get_pool_status() -> dict:
+    """
+    Get scanner pool status with overall capacity and utilization.
+
+    Phase 4: Shows aggregate pool metrics and per-scanner breakdown.
+
+    Returns:
+        {
+            "scanner_type": "nessus",
+            "total_scanners": 2,
+            "total_capacity": 10,
+            "total_active": 3,
+            "available_capacity": 7,
+            "utilization_pct": 30.0,
+            "scanners": [
+                {
+                    "instance_key": "nessus:scanner1",
+                    "active_scans": 2,
+                    "max_concurrent_scans": 5,
+                    "utilization_pct": 40.0,
+                    "available_capacity": 3
+                },
+                ...
+            ]
+        }
+    """
+    return scanner_registry.get_pool_status("nessus")
 
 
 @mcp.tool()
