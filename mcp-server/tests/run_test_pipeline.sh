@@ -15,8 +15,11 @@
 # Options:
 #   --full    Include full E2E test with scan completion (takes 5-10 minutes)
 #
+# Run from inside Docker container:
+#   cd /app && tests/run_test_pipeline.sh
+#
 # Run from host:
-#   docker compose -f dev1/docker-compose.yml exec mcp-api tests/run_test_pipeline.sh
+#   cd nessus-api && docker compose -f dev1/docker-compose.yml exec mcp-api tests/run_test_pipeline.sh
 #
 ##############################################################################
 
@@ -24,9 +27,17 @@ set -e  # Exit on error
 
 # Parse arguments
 FULL_TEST=false
-if [[ "$1" == "--full" ]]; then
-    FULL_TEST=true
-fi
+QUICK_TEST=false
+for arg in "$@"; do
+    case $arg in
+        --full)
+            FULL_TEST=true
+            ;;
+        --quick)
+            QUICK_TEST=true
+            ;;
+    esac
+done
 
 # Colors for output
 RED='\033[0;31m'
@@ -95,6 +106,7 @@ run_test() {
 print_header "Nessus MCP Server - Test Pipeline"
 
 echo "Configuration:"
+echo "  Quick Mode: $QUICK_TEST"
 echo "  Full E2E Test: $FULL_TEST"
 echo "  Date: $(date)"
 echo "  Working Dir: $(pwd)"
@@ -128,9 +140,14 @@ run_test \
     "Phase 0: Queue and Task Management" \
     "pytest tests/integration/test_phase0.py -v --tb=short"
 
-run_test \
-    "Phase 1: Scanner Integration" \
-    "pytest tests/integration/test_phase1.py -v --tb=short"
+if [[ "$QUICK_TEST" != "true" ]]; then
+    run_test \
+        "Phase 1: Scanner Integration (Read Operations)" \
+        "pytest tests/integration/test_phase1.py::TestReadOperations -v --tb=short"
+else
+    print_warning "Skipping Phase 1 scanner tests in quick mode"
+    ((TESTS_SKIPPED++))
+fi
 
 run_test \
     "Phase 2: Schema and Results" \

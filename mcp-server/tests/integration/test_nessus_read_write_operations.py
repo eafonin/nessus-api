@@ -295,7 +295,8 @@ class TestErrorHandling:
         )
 
         try:
-            with pytest.raises(ValueError, match="Authentication failed"):
+            # Auth can fail at token fetch (401) or login (invalid creds)
+            with pytest.raises(ValueError, match="(Authentication failed|Failed to fetch X-API-Token)"):
                 await scanner._authenticate()
             print("\n✓ Invalid credentials correctly rejected")
         finally:

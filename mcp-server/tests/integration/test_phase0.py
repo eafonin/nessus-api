@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 # Import existing Phase 0 tests
 from tests.integration.test_queue import *
 from tests.integration.test_idempotency import *
-from tests.integration.test_phase0_integration import *
+from tests.test_phase0_integration import *
 
 
 @pytest.mark.phase0

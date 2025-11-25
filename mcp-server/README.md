@@ -38,7 +38,7 @@
   - Section 5: Native Async Nessus Scanner (no subprocess calls)
   - Section 9: JSON-NL Converter (LLM-friendly results format)
 - **[Requirements](./docs/NESSUS_MCP_SERVER_REQUIREMENTS.md)** - Functional requirements and acceptance criteria
-- **[Testing Guide](./docs/TESTING.md)** - Integration testing with real Nessus scanner (Docker-based)
+- **[Test Suite](./tests/README.md)** ⭐ - Layered test architecture (unit → integration → E2E)
 - **[Phase Status Tracking Guide](./phases/README.md)** - How to track and document implementation progress across phases
 - **[Archived Docs](./archive/)** - Previous architecture versions and superseded guides
 
@@ -208,9 +208,12 @@ An **MCP (Model Context Protocol) server** that exposes Nessus vulnerability sca
 │   │   └── test_client.py     # Legacy simple HTTP client (deprecated)
 │   │
 │   ├── tests/                 # Test suite
+│   │   ├── README.md          # ⭐ Test documentation (START HERE for testing)
+│   │   ├── run_test_pipeline.sh  # Automated test runner
+│   │   ├── conftest.py        # Shared pytest fixtures
 │   │   ├── fixtures/          # Mock .nessus files
-│   │   ├── unit/              # Unit tests (Phase 3)
-│   │   └── integration/       # Integration tests (Phase 3)
+│   │   ├── unit/              # Layer 1: Unit tests (49 tests)
+│   │   └── integration/       # Layers 2-4: Integration + E2E tests
 │   │
 │   ├── config/                # Configuration files
 │   │   └── scanners.yaml      # Scanner instances (Phase 1)
@@ -388,11 +391,36 @@ When starting a new coding session, use this checklist:
 
 ---
 
-## 🧪 Testing Commands
+## 🧪 Testing
+
+> **Full documentation**: [Test Suite README](./tests/README.md)
+
+### Quick Test Commands
+
+```bash
+# Quick validation (~20 seconds, 103 tests)
+docker compose exec mcp-api pytest tests/unit/ tests/integration/test_phase0.py \
+  tests/integration/test_phase2.py tests/integration/test_fastmcp_client_smoke.py -q
+
+# Run test pipeline
+docker compose exec mcp-api tests/run_test_pipeline.sh --quick
+
+# Full pipeline with E2E (5-10 minutes)
+docker compose exec mcp-api tests/run_test_pipeline.sh --full
+```
+
+### Test Layers
+
+| Layer | Tests | Time | Command |
+|-------|-------|------|---------|
+| Unit | 49 | <1s | `pytest tests/unit/ -v` |
+| Infrastructure | 28 | ~5s | `pytest tests/integration/test_phase0.py -v` |
+| Integration | 42 | ~2m | `pytest tests/integration/test_phase1.py tests/integration/test_phase2.py -v` |
+| E2E | 2 | ~10m | `pytest tests/integration/test_fastmcp_client_e2e.py -v` |
 
 ### ⚠️ MANDATORY: Use FastMCP Client
 
-**All future testing, debugging, and integration MUST use the FastMCP Client:**
+**All testing MUST use the FastMCP Client:**
 
 ```python
 # ✅ CORRECT - Use FastMCP Client
@@ -403,37 +431,7 @@ async with NessusFastMCPClient("http://localhost:8835/mcp") as client:
     status = await client.get_status(task["task_id"])
 ```
 
-```bash
-# ✗ PROHIBITED - Do not use curl or manual HTTP
-curl -X POST http://localhost:8835/mcp -d '{"method": "tools/call", ...}'  # WRONG!
-```
-
-See [FASTMCP_CLIENT_REQUIREMENT.md](./FASTMCP_CLIENT_REQUIREMENT.md) for details.
-
-### Running Tests
-
-```bash
-# FastMCP client integration tests
-pytest tests/integration/test_fastmcp_client.py -v
-
-# Unit tests
-pytest tests/unit/ -v
-
-# Integration tests (requires Docker)
-pytest tests/integration/ -v
-
-# Specific phase tests
-pytest tests/test_phase0_integration.py -v
-
-# With coverage
-pytest --cov=. --cov-report=html
-
-# Import linting
-import-linter
-
-# Type checking
-mypy mcp-server-source/
-```
+See [FASTMCP_CLIENT_REQUIREMENT.md](./docs/FASTMCP_CLIENT_REQUIREMENT.md) for details.
 
 ### Quick Examples
 

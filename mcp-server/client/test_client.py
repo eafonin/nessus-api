@@ -8,8 +8,7 @@ from typing import Dict, Any
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "venv" / "lib" / "python3.12" / "site-packages"))
 
 try:
-    from fastmcp.client import Client
-    from fastmcp.client.transports import SSETransport  # Using SSE due to StreamableHTTP bug
+    from fastmcp import Client
 except ImportError as e:
     print(f"Error: FastMCP client not installed. Please install with: pip install fastmcp")
     print(f"Details: {e}")
@@ -21,19 +20,19 @@ class NessusMCPClient:
 
     def __init__(self, base_url: str = None):
         # Auto-detect environment:
-        # - Inside Docker container: connect to localhost:8000
-        # - Outside Docker (host): connect to localhost:8835
+        # - Inside Docker container: connect to mcp-api:8000 (Docker service name)
+        # - Outside Docker (host): connect to localhost:8835 (mapped port)
         import os
         if base_url is None:
             if os.path.exists('/.dockerenv') or os.environ.get('CONTAINER'):
-                base_url = "http://localhost:8000"  # Inside container
+                base_url = "http://mcp-api:8000"  # Inside container, use Docker service name
             else:
                 base_url = "http://localhost:8835"  # On host
 
         self.base_url = base_url.rstrip("/")
-        # Using SSE transport as workaround for StreamableHTTP task group initialization bug
-        self.transport = SSETransport(f"{self.base_url}/mcp")
-        self.client = Client(transport=self.transport)
+        # Use URL-based initialization (FastMCP auto-detects transport)
+        self.url = f"{self.base_url}/mcp"
+        self.client = Client(self.url)
         self._context_entered = False
 
     async def __aenter__(self):

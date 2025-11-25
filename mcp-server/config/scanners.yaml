@@ -2,28 +2,30 @@
 #
 # Environment variable substitution supported using ${VAR_NAME} syntax
 #
-# IMPORTANT: Nessus runs through VPN gateway (network_mode: service)
-# - Containers connect via vpn-gateway hostname on nessus_net network
-# - vpn-gateway exposes Nessus on port 8834
-# - nessus-pro container shares network with vpn-gateway
+# Both scanners are accessed via internal Docker network (nessus-shared_vpn_net):
+# - nessus-pro-1: 172.30.0.3:8834 (Scanner 1)
+# - nessus-pro-2: 172.30.0.4:8834 (Scanner 2)
+#
+# Web UI credentials: nessus / nessus (same for both)
 
 nessus:
-  - instance_id: local
-    name: "Local Nessus Scanner"
-    url: ${NESSUS_URL:-https://vpn-gateway:8834}
+  # Scanner 1 - Primary scanner (nessus-pro-1)
+  - instance_id: scanner1
+    name: "Nessus Scanner 1"
+    url: ${NESSUS_URL:-https://172.30.0.3:8834}
     username: ${NESSUS_USERNAME:-nessus}
     password: ${NESSUS_PASSWORD:-nessus}
     enabled: true
-    max_concurrent_scans: 10
+    max_concurrent_scans: 5
 
-  # Example: Additional Nessus instance
-  # - instance_id: remote
-  #   name: "Remote Nessus Scanner"
-  #   url: ${NESSUS_URL_2:-https://nessus-remote:8834}
-  #   username: ${NESSUS_USERNAME_2}
-  #   password: ${NESSUS_PASSWORD_2}
-  #   enabled: false
-  #   max_concurrent_scans: 5
+  # Scanner 2 - Secondary scanner (nessus-pro-2)
+  - instance_id: scanner2
+    name: "Nessus Scanner 2"
+    url: ${NESSUS_URL_2:-https://172.30.0.4:8834}
+    username: ${NESSUS_USERNAME_2:-nessus}
+    password: ${NESSUS_PASSWORD_2:-nessus}
+    enabled: true
+    max_concurrent_scans: 5
 
 # Future: OpenVAS scanner support
 # openvas:
