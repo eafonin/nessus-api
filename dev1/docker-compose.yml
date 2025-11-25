@@ -47,6 +47,8 @@ services:
       - DATA_DIR=/app/data/tasks
       - LOG_LEVEL=DEBUG
       - ENVIRONMENT=development
+      # MCP Server URL for client connections inside container
+      - MCP_SERVER_URL=http://mcp-api:8000/mcp
       # Scanner URLs - MCP connects via internal bridge network
       # These are the default URLs; can be overridden by scanner config
       - NESSUS_URL=https://172.30.0.3:8834

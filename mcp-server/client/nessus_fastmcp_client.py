@@ -12,8 +12,12 @@ This client provides:
 
 Reference: @docs/fastMCPServer for FastMCP client documentation
 
+Environment Variables:
+    MCP_SERVER_URL: MCP server URL (default: http://localhost:8835/mcp)
+                    Inside Docker: http://mcp-api:8000/mcp
+
 Usage:
-    async with NessusFastMCPClient("http://localhost:8835/mcp") as client:
+    async with NessusFastMCPClient() as client:  # Uses MCP_SERVER_URL env var
         # Run a scan
         task = await client.submit_scan(targets="192.168.1.1", scan_name="Quick Scan")
         task_id = task["task_id"]
@@ -28,11 +32,15 @@ Usage:
 
 import asyncio
 import json
+import os
 import time
 from typing import Any, Dict, List, Optional, Callable
 from datetime import datetime
 
 from fastmcp import Client
+
+# Default URL - uses environment variable if set
+DEFAULT_MCP_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8835/mcp")
 
 
 class NessusFastMCPClient:
@@ -58,7 +66,7 @@ class NessusFastMCPClient:
 
     def __init__(
         self,
-        url: str = "http://localhost:8835/mcp",
+        url: Optional[str] = None,
         timeout: float = 30.0,
         log_handler: Optional[Callable] = None,
         progress_handler: Optional[Callable] = None,
@@ -68,26 +76,31 @@ class NessusFastMCPClient:
         Initialize Nessus FastMCP Client.
 
         Args:
-            url: MCP server HTTP endpoint
+            url: MCP server HTTP endpoint. Defaults to MCP_SERVER_URL env var
+                 or http://localhost:8835/mcp if not set.
             timeout: Default timeout for requests (seconds)
             log_handler: Optional callback for server log messages
             progress_handler: Optional callback for progress updates
             debug: Enable debug logging
 
         Example:
+            # Uses MCP_SERVER_URL env var or default
+            client = NessusFastMCPClient()
+
+            # Or specify URL explicitly
             client = NessusFastMCPClient(
-                url="http://localhost:8835/mcp",
+                url="http://mcp-api:8000/mcp",
                 timeout=60.0,
                 debug=True
             )
         """
-        self.url = url
+        self.url = url or DEFAULT_MCP_URL
         self.timeout = timeout
         self.debug = debug
 
         # Create underlying FastMCP client
         self.client = Client(
-            url,
+            self.url,  # Use resolved URL (with env var default)
             log_handler=log_handler or self._default_log_handler,
             progress_handler=progress_handler or self._default_progress_handler,
             timeout=timeout
@@ -217,6 +230,7 @@ class NessusFastMCPClient:
         scan_name: str,
         description: Optional[str] = None,
         scan_type: str = "untrusted",
+        idempotency_key: Optional[str] = None,
         timeout: Optional[float] = None
     ) -> Dict[str, Any]:
         """
@@ -227,6 +241,7 @@ class NessusFastMCPClient:
             scan_name: Human-readable scan name
             description: Optional scan description
             scan_type: "untrusted" or "trusted" (default: "untrusted")
+            idempotency_key: Optional key to prevent duplicate submissions
             timeout: Optional timeout override
 
         Returns:
@@ -236,7 +251,8 @@ class NessusFastMCPClient:
             task = await client.submit_scan(
                 targets="192.168.1.1,192.168.1.10-20",
                 scan_name="Weekly Vulnerability Scan",
-                description="Automated weekly scan"
+                description="Automated weekly scan",
+                idempotency_key="weekly-scan-2025-01-01"
             )
             print(f"Task ID: {task['task_id']}")
         """
@@ -250,6 +266,9 @@ class NessusFastMCPClient:
 
         if description:
             arguments["description"] = description
+
+        if idempotency_key:
+            arguments["idempotency_key"] = idempotency_key
 
         result = await self.call_tool(tool_name, arguments, timeout=timeout)
 
@@ -421,7 +440,7 @@ class NessusFastMCPClient:
         """
         arguments = {"limit": limit}
         if status:
-            arguments["status"] = status
+            arguments["status_filter"] = status  # Server expects status_filter
 
         result = await self.call_tool("list_tasks", arguments, timeout=timeout)
 
