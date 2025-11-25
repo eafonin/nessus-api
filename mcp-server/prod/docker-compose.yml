@@ -1,0 +1,129 @@
+# Production Docker Compose for Nessus MCP Server
+# Usage: docker compose -f prod/docker-compose.yml up -d
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: nessus-mcp-redis-prod
+    volumes:
+      - redis_data:/data
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    networks:
+      - mcp-network
+
+  mcp-api:
+    build:
+      context: ..
+      dockerfile: prod/Dockerfile.api
+    image: nessus-mcp-api:prod
+    container_name: nessus-mcp-api-prod
+    ports:
+      - "${MCP_PORT:-8836}:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATA_DIR=/app/data/tasks
+      - SCANNER_CONFIG=/app/config/scanners.yaml
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - MCP_SERVER_URL=http://mcp-api:8000/mcp
+    volumes:
+      - ../data:/app/data
+      - ../config:/app/config:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    networks:
+      - mcp-network
+
+  worker-main:
+    build:
+      context: ..
+      dockerfile: prod/Dockerfile.worker
+    image: nessus-mcp-worker:prod
+    container_name: nessus-mcp-worker-main
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATA_DIR=/app/data/tasks
+      - SCANNER_CONFIG=/app/config/scanners.yaml
+      - WORKER_POOLS=nessus
+      - MAX_CONCURRENT_SCANS=${MAX_CONCURRENT_SCANS:-5}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ../data:/app/data
+      - ../config:/app/config:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      mcp-api:
+        condition: service_healthy
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+    networks:
+      - mcp-network
+
+  # Optional: Additional worker for DMZ pool
+  # Uncomment to enable
+  # worker-dmz:
+  #   build:
+  #     context: ..
+  #     dockerfile: prod/Dockerfile.worker
+  #   image: nessus-mcp-worker:prod
+  #   container_name: nessus-mcp-worker-dmz
+  #   environment:
+  #     - REDIS_URL=redis://redis:6379
+  #     - DATA_DIR=/app/data/tasks
+  #     - SCANNER_CONFIG=/app/config/scanners.yaml
+  #     - WORKER_POOLS=nessus_dmz
+  #     - MAX_CONCURRENT_SCANS=${MAX_CONCURRENT_SCANS:-5}
+  #     - LOG_LEVEL=${LOG_LEVEL:-INFO}
+  #   volumes:
+  #     - ../data:/app/data
+  #     - ../config:/app/config:ro
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #   restart: always
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '2.0'
+  #         memory: 2G
+  #   networks:
+  #     - mcp-network
+
+networks:
+  mcp-network:
+    driver: bridge
+
+volumes:
+  redis_data:

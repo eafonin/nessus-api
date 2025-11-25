@@ -243,3 +243,215 @@ class TestMetricsLabels:
 
         assert nessus_enabled == 2
         assert openvas_enabled == 1
+
+
+# =============================================================================
+# Phase 4.8: Per-Scanner and Validation Metrics Tests
+# =============================================================================
+
+from core.metrics import (
+    pool_queue_depth,
+    pool_dlq_depth,
+    validation_total,
+    validation_failures,
+    auth_failures,
+    update_pool_queue_depth,
+    update_pool_dlq_depth,
+    update_all_pool_queue_metrics,
+    record_validation_result,
+    record_validation_failure,
+    record_auth_failure,
+    scanner_active_scans,
+    scanner_capacity,
+    scanner_utilization,
+    update_scanner_metrics,
+    update_all_scanner_metrics,
+)
+
+
+class TestPhase4PoolQueueMetrics:
+    """Test Phase 4.8 pool queue depth metrics."""
+
+    def test_pool_queue_depth_gauge_exists(self):
+        """Test that pool_queue_depth gauge is defined."""
+        assert pool_queue_depth is not None
+        assert pool_queue_depth._name == "nessus_pool_queue_depth"
+        assert "pool" in pool_queue_depth._labelnames
+
+    def test_pool_dlq_depth_gauge_exists(self):
+        """Test that pool_dlq_depth gauge is defined."""
+        assert pool_dlq_depth is not None
+        assert pool_dlq_depth._name == "nessus_pool_dlq_depth"
+        assert "pool" in pool_dlq_depth._labelnames
+
+    def test_update_pool_queue_depth_sets_gauge(self):
+        """Test update_pool_queue_depth sets the gauge correctly."""
+        update_pool_queue_depth("nessus", 10)
+        assert pool_queue_depth.labels(pool="nessus")._value.get() == 10
+
+        update_pool_queue_depth("nessus_dmz", 5)
+        assert pool_queue_depth.labels(pool="nessus_dmz")._value.get() == 5
+
+    def test_update_pool_dlq_depth_sets_gauge(self):
+        """Test update_pool_dlq_depth sets the gauge correctly."""
+        update_pool_dlq_depth("nessus", 3)
+        assert pool_dlq_depth.labels(pool="nessus")._value.get() == 3
+
+    def test_update_all_pool_queue_metrics(self):
+        """Test update_all_pool_queue_metrics updates all pools."""
+        pool_stats = [
+            {"pool": "test_pool_1", "queue_depth": 8, "dlq_size": 2},
+            {"pool": "test_pool_2", "queue_depth": 12, "dlq_size": 0},
+        ]
+        update_all_pool_queue_metrics(pool_stats)
+
+        assert pool_queue_depth.labels(pool="test_pool_1")._value.get() == 8
+        assert pool_dlq_depth.labels(pool="test_pool_1")._value.get() == 2
+        assert pool_queue_depth.labels(pool="test_pool_2")._value.get() == 12
+        assert pool_dlq_depth.labels(pool="test_pool_2")._value.get() == 0
+
+
+class TestPhase4ValidationMetrics:
+    """Test Phase 4.8 validation metrics."""
+
+    def test_validation_total_counter_exists(self):
+        """Test that validation_total counter is defined."""
+        assert validation_total is not None
+        assert validation_total._name == "nessus_validation"
+        assert "pool" in validation_total._labelnames
+        assert "result" in validation_total._labelnames
+
+    def test_validation_failures_counter_exists(self):
+        """Test that validation_failures counter is defined."""
+        assert validation_failures is not None
+        assert validation_failures._name == "nessus_validation_failures"
+        assert "pool" in validation_failures._labelnames
+        assert "reason" in validation_failures._labelnames
+
+    def test_auth_failures_counter_exists(self):
+        """Test that auth_failures counter is defined."""
+        assert auth_failures is not None
+        assert auth_failures._name == "nessus_auth_failures"
+        assert "pool" in auth_failures._labelnames
+        assert "scan_type" in auth_failures._labelnames
+
+    def test_record_validation_result_success(self):
+        """Test record_validation_result increments success counter."""
+        initial = validation_total.labels(pool="val_test", result="success")._value.get()
+        record_validation_result("val_test", is_valid=True)
+        final = validation_total.labels(pool="val_test", result="success")._value.get()
+        assert final == initial + 1
+
+    def test_record_validation_result_failure(self):
+        """Test record_validation_result increments failure counter."""
+        initial = validation_total.labels(pool="val_test", result="failed")._value.get()
+        record_validation_result("val_test", is_valid=False)
+        final = validation_total.labels(pool="val_test", result="failed")._value.get()
+        assert final == initial + 1
+
+    def test_record_validation_failure_reason(self):
+        """Test record_validation_failure increments counter by reason."""
+        initial = validation_failures.labels(pool="fail_test", reason="auth_failed")._value.get()
+        record_validation_failure("fail_test", "auth_failed")
+        final = validation_failures.labels(pool="fail_test", reason="auth_failed")._value.get()
+        assert final == initial + 1
+
+    def test_record_validation_failure_different_reasons(self):
+        """Test different failure reasons are tracked separately."""
+        # Test different reasons
+        reasons = ["auth_failed", "xml_invalid", "empty_scan", "file_not_found", "other"]
+        for reason in reasons:
+            initial = validation_failures.labels(pool="reason_test", reason=reason)._value.get()
+            record_validation_failure("reason_test", reason)
+            final = validation_failures.labels(pool="reason_test", reason=reason)._value.get()
+            assert final == initial + 1
+
+    def test_record_auth_failure(self):
+        """Test record_auth_failure increments counter."""
+        initial = auth_failures.labels(pool="auth_test", scan_type="trusted_basic")._value.get()
+        record_auth_failure("auth_test", "trusted_basic")
+        final = auth_failures.labels(pool="auth_test", scan_type="trusted_basic")._value.get()
+        assert final == initial + 1
+
+    def test_record_auth_failure_different_scan_types(self):
+        """Test auth failures tracked separately by scan type."""
+        scan_types = ["trusted_basic", "trusted_privileged"]
+        for scan_type in scan_types:
+            initial = auth_failures.labels(pool="type_test", scan_type=scan_type)._value.get()
+            record_auth_failure("type_test", scan_type)
+            final = auth_failures.labels(pool="type_test", scan_type=scan_type)._value.get()
+            assert final == initial + 1
+
+
+class TestPhase4PerScannerMetrics:
+    """Test Phase 4 per-scanner metrics."""
+
+    def test_scanner_active_scans_gauge_exists(self):
+        """Test that scanner_active_scans gauge is defined."""
+        assert scanner_active_scans is not None
+        assert scanner_active_scans._name == "nessus_scanner_active_scans"
+        assert "scanner_instance" in scanner_active_scans._labelnames
+
+    def test_scanner_capacity_gauge_exists(self):
+        """Test that scanner_capacity gauge is defined."""
+        assert scanner_capacity is not None
+        assert scanner_capacity._name == "nessus_scanner_capacity"
+        assert "scanner_instance" in scanner_capacity._labelnames
+
+    def test_scanner_utilization_gauge_exists(self):
+        """Test that scanner_utilization gauge is defined."""
+        assert scanner_utilization is not None
+        assert scanner_utilization._name == "nessus_scanner_utilization_pct"
+        assert "scanner_instance" in scanner_utilization._labelnames
+
+    def test_update_scanner_metrics(self):
+        """Test update_scanner_metrics sets all scanner gauges."""
+        update_scanner_metrics("nessus:scanner1", active=3, capacity=10)
+
+        assert scanner_active_scans.labels(scanner_instance="nessus:scanner1")._value.get() == 3
+        assert scanner_capacity.labels(scanner_instance="nessus:scanner1")._value.get() == 10
+        assert scanner_utilization.labels(scanner_instance="nessus:scanner1")._value.get() == 30.0
+
+    def test_update_scanner_metrics_full_capacity(self):
+        """Test utilization at full capacity."""
+        update_scanner_metrics("nessus:scanner2", active=5, capacity=5)
+        assert scanner_utilization.labels(scanner_instance="nessus:scanner2")._value.get() == 100.0
+
+    def test_update_scanner_metrics_zero_capacity(self):
+        """Test zero capacity handling."""
+        update_scanner_metrics("nessus:scanner3", active=0, capacity=0)
+        assert scanner_utilization.labels(scanner_instance="nessus:scanner3")._value.get() == 0.0
+
+    def test_update_all_scanner_metrics(self):
+        """Test update_all_scanner_metrics updates all scanners."""
+        scanner_list = [
+            {"instance_key": "nessus:s1", "active_scans": 2, "max_concurrent_scans": 10},
+            {"instance_key": "nessus:s2", "active_scans": 5, "max_concurrent_scans": 10},
+        ]
+        update_all_scanner_metrics(scanner_list)
+
+        assert scanner_active_scans.labels(scanner_instance="nessus:s1")._value.get() == 2
+        assert scanner_active_scans.labels(scanner_instance="nessus:s2")._value.get() == 5
+
+
+class TestPhase4MetricsInResponse:
+    """Test Phase 4.8 metrics appear in metrics response."""
+
+    def test_metrics_response_contains_phase4_metrics(self):
+        """Test that metrics_response includes Phase 4.8 metrics."""
+        response = metrics_response()
+        text = response.decode('utf-8')
+
+        # Pool queue metrics
+        assert "nessus_pool_queue_depth" in text
+        assert "nessus_pool_dlq_depth" in text
+
+        # Validation metrics
+        assert "nessus_validation_total" in text
+        assert "nessus_validation_failures_total" in text
+        assert "nessus_auth_failures_total" in text
+
+        # Per-scanner metrics
+        assert "nessus_scanner_active_scans" in text
+        assert "nessus_scanner_capacity" in text
+        assert "nessus_scanner_utilization_pct" in text

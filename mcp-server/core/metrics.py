@@ -79,6 +79,38 @@ pool_total_active = Gauge(
     "Total active scans across all scanners"
 )
 
+# Phase 4: Pool-level queue metrics
+pool_queue_depth = Gauge(
+    "nessus_pool_queue_depth",
+    "Number of tasks queued for pool",
+    ["pool"]
+)
+
+pool_dlq_depth = Gauge(
+    "nessus_pool_dlq_depth",
+    "Number of tasks in dead letter queue for pool",
+    ["pool"]
+)
+
+# Phase 4: Validation metrics
+validation_total = Counter(
+    "nessus_validation_total",
+    "Total validations performed",
+    ["pool", "result"]  # result: success, failed
+)
+
+validation_failures = Counter(
+    "nessus_validation_failures_total",
+    "Validation failures by reason",
+    ["pool", "reason"]  # reason: auth_failed, xml_invalid, empty_scan, file_not_found, other
+)
+
+auth_failures = Counter(
+    "nessus_auth_failures_total",
+    "Authentication failures for trusted scans",
+    ["pool", "scan_type"]
+)
+
 
 # =============================================================================
 # Histograms (distribution of values)
@@ -226,3 +258,80 @@ def update_all_scanner_metrics(scanner_list: list):
         total_capacity += capacity
 
     update_pool_metrics(total_active, total_capacity)
+
+
+# =============================================================================
+# Phase 4: Pool Queue Metric Helpers
+# =============================================================================
+
+def update_pool_queue_depth(pool: str, depth: int):
+    """
+    Update queue depth metric for a pool.
+
+    Args:
+        pool: Pool name (e.g., "nessus", "nessus_dmz")
+        depth: Number of tasks in queue
+    """
+    pool_queue_depth.labels(pool=pool).set(depth)
+
+
+def update_pool_dlq_depth(pool: str, depth: int):
+    """
+    Update DLQ depth metric for a pool.
+
+    Args:
+        pool: Pool name (e.g., "nessus", "nessus_dmz")
+        depth: Number of tasks in DLQ
+    """
+    pool_dlq_depth.labels(pool=pool).set(depth)
+
+
+def update_all_pool_queue_metrics(pool_stats: list):
+    """
+    Update queue metrics for all pools.
+
+    Args:
+        pool_stats: List of dicts with pool, queue_depth, dlq_size keys
+    """
+    for stat in pool_stats:
+        pool = stat.get("pool", "unknown")
+        update_pool_queue_depth(pool, stat.get("queue_depth", 0))
+        update_pool_dlq_depth(pool, stat.get("dlq_size", 0))
+
+
+# =============================================================================
+# Phase 4: Validation Metric Helpers
+# =============================================================================
+
+def record_validation_result(pool: str, is_valid: bool):
+    """
+    Record validation result.
+
+    Args:
+        pool: Scanner pool name
+        is_valid: Whether validation passed
+    """
+    result = "success" if is_valid else "failed"
+    validation_total.labels(pool=pool, result=result).inc()
+
+
+def record_validation_failure(pool: str, reason: str):
+    """
+    Record validation failure with reason.
+
+    Args:
+        pool: Scanner pool name
+        reason: Failure reason (auth_failed, xml_invalid, empty_scan, file_not_found, other)
+    """
+    validation_failures.labels(pool=pool, reason=reason).inc()
+
+
+def record_auth_failure(pool: str, scan_type: str):
+    """
+    Record authentication failure for trusted scans.
+
+    Args:
+        pool: Scanner pool name
+        scan_type: Scan type (trusted_basic, trusted_privileged)
+    """
+    auth_failures.labels(pool=pool, scan_type=scan_type).inc()

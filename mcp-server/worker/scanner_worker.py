@@ -13,9 +13,18 @@ from pathlib import Path
 from core.queue import TaskQueue
 from core.task_manager import TaskManager
 from core.types import ScanState
+from core.metrics import (
+    record_validation_result,
+    record_validation_failure,
+    record_auth_failure,
+    update_pool_queue_depth,
+    update_pool_dlq_depth,
+    update_all_scanner_metrics,
+)
 from scanners.registry import ScannerRegistry
 from scanners.base import ScanRequest
 from scanners.nessus_validator import validate_scan_results
+from core.housekeeping import run_periodic_cleanup
 
 # Configure logging
 logging.basicConfig(
@@ -107,10 +116,36 @@ class ScannerWorker:
         finally:
             await self._cleanup()
 
+    def _update_metrics(self) -> None:
+        """Update Prometheus metrics for pools and scanners."""
+        try:
+            # Update queue metrics for each pool
+            for pool in self.pools:
+                depth = self.queue.get_queue_depth(pool=pool)
+                dlq_depth = self.queue.get_dlq_size(pool=pool)
+                update_pool_queue_depth(pool, depth)
+                update_pool_dlq_depth(pool, dlq_depth)
+
+            # Update scanner metrics
+            scanner_list = self.scanner_registry.list_instances(include_load=True)
+            update_all_scanner_metrics(scanner_list)
+        except Exception as e:
+            logger.error(f"Error updating metrics: {e}")
+
     async def _worker_loop(self) -> None:
         """Main worker loop - poll pool queues and process tasks."""
+        import time
+        metrics_interval = 30  # Update metrics every 30 seconds
+        last_metrics_update = 0
+
         while self.running:
             try:
+                # Periodic metrics update
+                now = time.time()
+                if now - last_metrics_update >= metrics_interval:
+                    self._update_metrics()
+                    last_metrics_update = now
+
                 # Check if at capacity
                 if len(self.active_tasks) >= self.max_concurrent_scans:
                     logger.debug(f"At capacity ({len(self.active_tasks)}/{self.max_concurrent_scans}), waiting...")
@@ -217,6 +252,7 @@ class ScannerWorker:
                 task_id=task_id,
                 scanner=scanner,
                 scan_id=scan_id,
+                scanner_pool=scanner_pool,
                 timeout_seconds=24 * 3600  # 24 hours
             )
 
@@ -250,6 +286,7 @@ class ScannerWorker:
         task_id: str,
         scanner,
         scan_id: int,
+        scanner_pool: str = "nessus",
         timeout_seconds: int = 86400  # 24 hours
     ) -> None:
         """
@@ -259,6 +296,7 @@ class ScannerWorker:
             task_id: Task ID for logging
             scanner: Scanner instance
             scan_id: Nessus scan ID
+            scanner_pool: Scanner pool name for metrics
             timeout_seconds: Maximum time to wait (default: 24h)
 
         Raises:
@@ -314,6 +352,8 @@ class ScannerWorker:
                             validation_warnings=validation.warnings,
                             authentication_status=validation.authentication_status
                         )
+                        # Record validation success metric
+                        record_validation_result(scanner_pool, is_valid=True)
                         logger.info(
                             f"[{task_id}] Task completed successfully "
                             f"(auth_status={validation.authentication_status}, "
@@ -328,6 +368,22 @@ class ScannerWorker:
                             validation_stats=validation.stats,
                             authentication_status=validation.authentication_status
                         )
+                        # Record validation failure metrics
+                        record_validation_result(scanner_pool, is_valid=False)
+
+                        # Categorize and record failure reason
+                        if validation.authentication_status == "failed":
+                            record_validation_failure(scanner_pool, "auth_failed")
+                            record_auth_failure(scanner_pool, scan_type)
+                        elif "XML" in str(validation.error or ""):
+                            record_validation_failure(scanner_pool, "xml_invalid")
+                        elif "empty" in str(validation.error or "").lower():
+                            record_validation_failure(scanner_pool, "empty_scan")
+                        elif "not found" in str(validation.error or "").lower():
+                            record_validation_failure(scanner_pool, "file_not_found")
+                        else:
+                            record_validation_failure(scanner_pool, "other")
+
                         logger.warning(
                             f"[{task_id}] Scan validation failed: {validation.error} "
                             f"(auth_status={validation.authentication_status})"
@@ -423,6 +479,12 @@ async def main():
     pools_env = os.getenv("WORKER_POOLS", "")
     pools = [p.strip() for p in pools_env.split(",") if p.strip()] if pools_env else None
 
+    # Housekeeping configuration
+    housekeeping_enabled = os.getenv("HOUSEKEEPING_ENABLED", "true").lower() == "true"
+    housekeeping_interval_hours = int(os.getenv("HOUSEKEEPING_INTERVAL_HOURS", "1"))
+    completed_ttl_days = int(os.getenv("COMPLETED_TTL_DAYS", "7"))
+    failed_ttl_days = int(os.getenv("FAILED_TTL_DAYS", "30"))
+
     # Configure logging
     logging.getLogger().setLevel(log_level)
 
@@ -459,6 +521,22 @@ async def main():
         max_concurrent_scans=max_concurrent
     )
 
+    # Start housekeeping background task if enabled
+    housekeeping_task = None
+    if housekeeping_enabled:
+        logger.info(
+            f"Housekeeping enabled: interval={housekeeping_interval_hours}h, "
+            f"completed_ttl={completed_ttl_days}d, failed_ttl={failed_ttl_days}d"
+        )
+        housekeeping_task = asyncio.create_task(
+            run_periodic_cleanup(
+                data_dir=data_dir,
+                interval_hours=housekeeping_interval_hours,
+                completed_ttl_days=completed_ttl_days,
+                failed_ttl_days=failed_ttl_days
+            )
+        )
+
     try:
         await worker.start()
         return 0
@@ -466,6 +544,14 @@ async def main():
         logger.error(f"Worker error: {e}", exc_info=True)
         return 1
     finally:
+        # Cancel housekeeping task
+        if housekeeping_task:
+            housekeeping_task.cancel()
+            try:
+                await housekeeping_task
+            except asyncio.CancelledError:
+                pass
+
         queue.close()
         logger.info("Worker stopped")
 

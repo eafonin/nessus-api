@@ -355,6 +355,77 @@ class TaskQueue:
             logger.error(f"Failed to get DLQ tasks for pool {target_pool}: {e}")
             return []
 
+    def get_dlq_task(
+        self,
+        task_id: str,
+        pool: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get a specific task from DLQ by task_id.
+
+        Args:
+            task_id: Task ID to find
+            pool: Pool name. If None, uses default_pool.
+
+        Returns:
+            Task dictionary if found, None otherwise
+        """
+        target_pool = pool or self.default_pool
+        dlq_key = self._dlq_key(target_pool)
+
+        try:
+            # Scan all DLQ entries to find matching task_id
+            task_jsons = self.redis_client.zrange(dlq_key, 0, -1)
+            for tj in task_jsons:
+                task = json.loads(tj)
+                if task.get("task_id") == task_id:
+                    return task
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get DLQ task {task_id} for pool {target_pool}: {e}")
+            return None
+
+    def retry_dlq_task(
+        self,
+        task_id: str,
+        pool: Optional[str] = None
+    ) -> bool:
+        """
+        Move a task from DLQ back to main queue for retry.
+
+        Args:
+            task_id: Task ID to retry
+            pool: Pool name. If None, uses default_pool.
+
+        Returns:
+            True if task was found and moved, False otherwise
+        """
+        target_pool = pool or self.default_pool
+        dlq_key = self._dlq_key(target_pool)
+
+        try:
+            # Find the task in DLQ
+            task_jsons = self.redis_client.zrange(dlq_key, 0, -1, withscores=True)
+            for tj, score in task_jsons:
+                task = json.loads(tj)
+                if task.get("task_id") == task_id:
+                    # Remove from DLQ
+                    self.redis_client.zrem(dlq_key, tj)
+
+                    # Clear error metadata and re-queue
+                    task.pop("error", None)
+                    task.pop("failed_at", None)
+                    self.enqueue(task, pool=target_pool)
+
+                    logger.info(f"Retried task {task_id} from DLQ for pool {target_pool}")
+                    return True
+
+            logger.warning(f"Task {task_id} not found in DLQ for pool {target_pool}")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to retry DLQ task {task_id} for pool {target_pool}: {e}")
+            return False
+
     def clear_dlq(
         self,
         before_timestamp: Optional[float] = None,
