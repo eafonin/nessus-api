@@ -474,6 +474,44 @@ class ScannerRegistry:
 
         return results
 
+    def get_instance_info(
+        self,
+        pool: str,
+        instance_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Get info dict for a specific scanner instance.
+
+        Args:
+            pool: Pool name (e.g., "nessus", "nessus_dmz")
+            instance_id: Scanner instance ID
+
+        Returns:
+            Dict with instance info or None if not found
+        """
+        key = f"{pool}:{instance_id}"
+        if key not in self._instances:
+            return None
+
+        data = self._instances[key]
+        config = data["config"]
+        max_concurrent = data["max_concurrent_scans"]
+        active = data["active_scans"]
+        utilization = (active / max_concurrent * 100) if max_concurrent > 0 else 0
+
+        return {
+            "scanner_type": data["type"],
+            "pool": data.get("pool", data["type"]),
+            "instance_id": config["instance_id"],
+            "instance_key": key,
+            "name": config.get("name", config["instance_id"]),
+            "url": config.get("url", "N/A"),
+            "enabled": config.get("enabled", True),
+            "max_concurrent_scans": max_concurrent,
+            "active_scans": active,
+            "available_capacity": max_concurrent - active,
+            "utilization_pct": round(utilization, 1),
+        }
+
     def get_scanner_count(self, scanner_type: Optional[str] = None, pool: Optional[str] = None) -> int:
         """Get count of registered scanners.
 

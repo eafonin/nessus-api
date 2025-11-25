@@ -1,7 +1,7 @@
 """Core type definitions."""
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 
 class ScanState(Enum):
@@ -44,3 +44,7 @@ class Task:
     completed_at: Optional[str] = None
     nessus_scan_id: Optional[int] = None
     error_message: Optional[str] = None
+    # Phase 4: Validation results
+    validation_stats: Optional[Dict[str, Any]] = None
+    validation_warnings: Optional[List[str]] = None
+    authentication_status: Optional[str] = None  # "success"|"failed"|"partial"|"not_applicable"

@@ -189,6 +189,13 @@ async def run_untrusted_scan(
     record_tool_call("run_untrusted_scan", "success")
     record_scan_submission("untrusted", "queued")
 
+    # Get scanner URL for transparency
+    scanner_info = scanner_registry.get_instance_info(pool=target_pool, instance_id=selected_instance)
+    scanner_url = scanner_info.get("url", "unknown") if scanner_info else "unknown"
+
+    # Estimate wait time (rough: queue_position * 15 minutes average scan time)
+    estimated_wait_minutes = queue_depth * 15
+
     logger.info(
         "scan_enqueued",
         task_id=task_id,
@@ -203,7 +210,9 @@ async def run_untrusted_scan(
         "status": "queued",
         "scanner_pool": target_pool,
         "scanner_instance": selected_instance,
+        "scanner_url": scanner_url,
         "queue_position": queue_depth,
+        "estimated_wait_minutes": estimated_wait_minutes,
         "message": "Scan enqueued successfully. Worker will process asynchronously."
     }
 
@@ -211,7 +220,7 @@ async def run_untrusted_scan(
 @mcp.tool()
 async def get_scan_status(task_id: str) -> dict:
     """
-    Get current status of scan task.
+    Get current status of scan task with validation results (Phase 4).
 
     Args:
         task_id: Task ID from run_untrusted_scan()
@@ -228,7 +237,11 @@ async def get_scan_status(task_id: str) -> dict:
             "created_at": "...",
             "started_at": "...",
             "completed_at": "...",
-            "error_message": "..." (if failed)
+            "error_message": "..." (if failed),
+            "authentication_status": "success|failed|partial|not_applicable" (Phase 4),
+            "validation_warnings": [...] (Phase 4),
+            "results_summary": {...} (if completed, Phase 4),
+            "troubleshooting": {...} (if auth failed, Phase 4)
         }
     """
     task = task_manager.get_task(task_id)
@@ -241,6 +254,7 @@ async def get_scan_status(task_id: str) -> dict:
         "task_id": task.task_id,
         "trace_id": task.trace_id,
         "status": task.status,
+        "scan_type": task.scan_type,
         "scanner_pool": task.scanner_pool or task.scanner_type,  # Backward compat
         "scanner_type": task.scanner_type,
         "scanner_instance": task.scanner_instance_id,
@@ -249,7 +263,33 @@ async def get_scan_status(task_id: str) -> dict:
         "started_at": task.started_at,
         "completed_at": task.completed_at,
         "error_message": task.error_message,
+        # Phase 4: Validation fields
+        "authentication_status": task.authentication_status,
+        "validation_warnings": task.validation_warnings,
     }
+
+    # Add results_summary for completed tasks with validation stats
+    if task.status == "completed" and task.validation_stats:
+        response["results_summary"] = {
+            "hosts_scanned": task.validation_stats.get("hosts_scanned", 0),
+            "total_vulnerabilities": task.validation_stats.get("total_vulnerabilities", 0),
+            "severity_breakdown": task.validation_stats.get("severity_counts", {}),
+            "file_size_kb": round(task.validation_stats.get("file_size_bytes", 0) / 1024, 1),
+            "auth_plugins_found": task.validation_stats.get("auth_plugins_found", 0),
+        }
+
+    # Add troubleshooting for failed auth
+    if task.authentication_status == "failed":
+        response["troubleshooting"] = {
+            "likely_cause": "Credentials rejected or inaccessible target",
+            "next_steps": [
+                "Verify credentials in scanner configuration",
+                "Check target allows SSH/WinRM from scanner IP",
+                "Verify target firewall rules",
+                "Check credential permissions on target",
+                "Review scan logs for specific error"
+            ]
+        }
 
     # Get live progress from scanner if running
     if task.status == "running" and task.nessus_scan_id:

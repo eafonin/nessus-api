@@ -15,6 +15,7 @@ from core.task_manager import TaskManager
 from core.types import ScanState
 from scanners.registry import ScannerRegistry
 from scanners.base import ScanRequest
+from scanners.nessus_validator import validate_scan_results
 
 # Configure logging
 logging.basicConfig(
@@ -237,6 +238,13 @@ class ScannerWorker:
                 except Exception as e:
                     logger.error(f"[{task_id}] Error closing scanner: {e}")
 
+    def _get_scan_type_from_task(self, task_id: str) -> str:
+        """Get scan_type from task metadata."""
+        task = self.task_manager.get_task(task_id)
+        if task:
+            return task.scan_type
+        return "untrusted"
+
     async def _poll_until_complete(
         self,
         task_id: str,
@@ -291,13 +299,40 @@ class ScannerWorker:
                         f"({len(results)} bytes)"
                     )
 
-                    # Transition to COMPLETED
-                    self.task_manager.update_status(
-                        task_id,
-                        ScanState.COMPLETED
+                    # Phase 4: Validate scan results
+                    scan_type = self._get_scan_type_from_task(task_id)
+                    validation = validate_scan_results(
+                        nessus_file=results_file,
+                        scan_type=scan_type
                     )
 
-                    logger.info(f"[{task_id}] Task completed successfully")
+                    if validation.is_valid:
+                        # Success - mark completed with validation data
+                        self.task_manager.mark_completed_with_validation(
+                            task_id,
+                            validation_stats=validation.stats,
+                            validation_warnings=validation.warnings,
+                            authentication_status=validation.authentication_status
+                        )
+                        logger.info(
+                            f"[{task_id}] Task completed successfully "
+                            f"(auth_status={validation.authentication_status}, "
+                            f"hosts={validation.stats.get('hosts_scanned', 0)}, "
+                            f"vulns={validation.stats.get('total_vulnerabilities', 0)})"
+                        )
+                    else:
+                        # Validation failed (e.g., auth failure)
+                        self.task_manager.mark_failed_with_validation(
+                            task_id,
+                            error_message=validation.error,
+                            validation_stats=validation.stats,
+                            authentication_status=validation.authentication_status
+                        )
+                        logger.warning(
+                            f"[{task_id}] Scan validation failed: {validation.error} "
+                            f"(auth_status={validation.authentication_status})"
+                        )
+
                     return
 
                 elif scanner_status == "failed":

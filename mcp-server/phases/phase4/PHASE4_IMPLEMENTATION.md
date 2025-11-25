@@ -2,7 +2,7 @@
 
 > **Living Document** - Update checkboxes as tasks are completed
 > **Last Updated**: 2025-11-25
-> **Status**: In Progress (~40% complete)
+> **Status**: In Progress (~70% complete) - Phase 4A Complete
 
 ---
 
@@ -11,15 +11,15 @@
 | Task | Description | Status | Blocked By |
 |------|-------------|--------|------------|
 | 4.1 | Pool Architecture | ✅ DONE | - |
-| 4.3 | Enhanced MCP Tools | ⚠️ 70% | - |
-| 4.5 | Worker Enhancement | ⚠️ 50% | 4.6 |
-| 4.6 | Enhanced Task Metadata | 🔴 TODO | - |
-| 4.7 | Enhanced Status API | 🔴 TODO | 4.6 |
+| 4.3 | Enhanced MCP Tools | ✅ DONE | - |
+| 4.5 | Worker Enhancement | ✅ DONE | - |
+| 4.6 | Enhanced Task Metadata | ✅ DONE | - |
+| 4.7 | Enhanced Status API | ✅ DONE | - |
 | 4.8 | Per-Scanner Metrics | 🔴 TODO | - |
 | 4.9 | Production Docker | 🔴 TODO | - |
 | 4.10 | TTL Housekeeping | 🔴 TODO | - |
 | 4.11 | DLQ Handler CLI | 🔴 TODO | - |
-| 4.12 | Circuit Breaker | 🔴 TODO | 4.5 |
+| 4.12 | Circuit Breaker | 🔴 TODO | - |
 
 ---
 
@@ -71,9 +71,10 @@ START
 
 ## Task 4.6: Enhanced Task Metadata
 
-**Status**: 🔴 NOT STARTED
+**Status**: ✅ COMPLETE
 **Priority**: HIGH (blocks 4.5, 4.7)
 **Effort**: ~2 hours
+**Completed**: 2025-11-25
 
 ### Goal
 
@@ -244,10 +245,11 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
 ## Task 4.5: Worker Enhancement for Scanner Pool
 
-**Status**: ⚠️ 50% DONE
+**Status**: ✅ COMPLETE
 **Priority**: HIGH
 **Effort**: ~3 hours
 **Depends On**: Task 4.6
+**Completed**: 2025-11-25
 
 ### Goal
 
@@ -624,9 +626,10 @@ for f in list(test_file)[:1]:
 
 ## Task 4.3: Enhanced MCP Tools (Finish)
 
-**Status**: ⚠️ 70% DONE
+**Status**: ✅ COMPLETE
 **Priority**: MEDIUM
 **Effort**: ~2 hours
+**Completed**: 2025-11-25
 
 ### Current State
 
@@ -699,10 +702,11 @@ def get_estimated_wait_time(queue_depth: int, avg_scan_minutes: int = 15) -> int
 
 ## Task 4.7: Enhanced Status API
 
-**Status**: 🔴 NOT STARTED
+**Status**: ✅ COMPLETE
 **Priority**: MEDIUM
 **Effort**: ~2 hours
 **Depends On**: Task 4.6
+**Completed**: 2025-11-25
 
 ### Goal
 
@@ -1746,17 +1750,19 @@ When ending a session, update this section:
 ### Current Session Status
 
 **Date**: 2025-11-25
-**Session Focus**: Planning and documentation
+**Session Focus**: Phase 4A Core Enhancement Implementation
 **Completed This Session**:
-- [x] Committed pool architecture (b9e1ef9)
-- [x] Created detailed implementation plan
-- [x] Documented all remaining tasks
+- [x] Task 4.6: Enhanced Task Metadata (validation fields in Task dataclass)
+- [x] Task 4.5: Worker Enhancement (NessusValidator + integration)
+- [x] Task 4.3: Enhanced MCP Tools (scanner_url, estimated_wait_minutes)
+- [x] Task 4.7: Enhanced Status API (results_summary, troubleshooting)
+- [x] 121 unit tests passing (34 new tests added)
 
 ### Next Session Should
 
-1. Start with Task 4.6 (Enhanced Task Metadata)
-2. Then Task 4.5 (Worker Enhancement)
-3. Run tests after each task
+1. Task 4.8: Per-Scanner Prometheus Metrics
+2. Task 4.9: Production Docker Configuration
+3. Task 4.10: TTL Housekeeping
 
 ### Quick Start Commands
 
@@ -1766,7 +1772,7 @@ cd /home/nessus/projects/nessus-api/mcp-server
 docker compose up -d
 
 # Run tests
-docker compose exec mcp-api pytest tests/unit/ -v
+docker exec nessus-mcp-api-dev pytest /app/tests/unit/ -v
 
 # Check health
 curl http://localhost:8836/health
@@ -1775,12 +1781,16 @@ curl http://localhost:8836/health
 docker compose logs -f worker
 ```
 
-### Files to Edit (Next Session)
+### Files Modified This Session
 
-1. `core/types.py` - Add validation fields to Task
-2. `core/task_manager.py` - Add validation helper methods
-3. `scanners/nessus_validator.py` - Create (NEW)
-4. `worker/scanner_worker.py` - Integrate validator
+1. `core/types.py` - Added validation_stats, validation_warnings, authentication_status
+2. `core/task_manager.py` - Added mark_completed_with_validation(), mark_failed_with_validation()
+3. `scanners/nessus_validator.py` - NEW: NessusValidator with auth detection
+4. `scanners/registry.py` - Added get_instance_info()
+5. `worker/scanner_worker.py` - Integrated validator after export
+6. `tools/mcp_server.py` - Enhanced responses with validation data
+7. `tests/unit/test_task_manager.py` - NEW: 16 tests
+8. `tests/unit/test_nessus_validator.py` - NEW: 18 tests
 
 ---
 

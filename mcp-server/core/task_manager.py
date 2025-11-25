@@ -92,8 +92,63 @@ class TaskManager:
             "status": task.status,
             "payload": task.payload,
             "created_at": task.created_at,
+            "scanner_pool": task.scanner_pool,
             "started_at": task.started_at,
             "completed_at": task.completed_at,
             "nessus_scan_id": task.nessus_scan_id,
             "error_message": task.error_message,
+            # Phase 4: Validation fields
+            "validation_stats": task.validation_stats,
+            "validation_warnings": task.validation_warnings,
+            "authentication_status": task.authentication_status,
         }
+
+    def mark_completed_with_validation(
+        self,
+        task_id: str,
+        validation_stats: dict = None,
+        validation_warnings: list = None,
+        authentication_status: str = None
+    ) -> None:
+        """
+        Mark task as completed with validation results.
+
+        Args:
+            task_id: Task ID
+            validation_stats: Dict with hosts_scanned, vuln_counts, etc.
+            validation_warnings: List of warning messages
+            authentication_status: "success"|"failed"|"partial"|"not_applicable"
+        """
+        self.update_status(
+            task_id,
+            ScanState.COMPLETED,
+            validation_stats=validation_stats,
+            validation_warnings=validation_warnings,
+            authentication_status=authentication_status
+        )
+
+    def mark_failed_with_validation(
+        self,
+        task_id: str,
+        error_message: str,
+        validation_stats: dict = None,
+        authentication_status: str = None
+    ) -> None:
+        """
+        Mark task as failed with validation context.
+
+        Useful for auth failures where we have partial results.
+
+        Args:
+            task_id: Task ID
+            error_message: Error description
+            validation_stats: Dict with partial results info
+            authentication_status: "success"|"failed"|"partial"|"not_applicable"
+        """
+        self.update_status(
+            task_id,
+            ScanState.FAILED,
+            error_message=error_message,
+            validation_stats=validation_stats,
+            authentication_status=authentication_status
+        )
