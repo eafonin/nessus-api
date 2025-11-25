@@ -26,3 +26,5 @@ scan_config_debug.json
 .DS_Store
 Thumbs.db
 credentials.md
+SCANNER_API_KEYS.md
+dev1/data/
