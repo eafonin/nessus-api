@@ -39,6 +39,7 @@ class Task:
     status: str
     payload: Dict[str, Any]
     created_at: str
+    scanner_pool: Optional[str] = None  # Pool name (e.g., "nessus", "nessus_dmz")
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
     nessus_scan_id: Optional[int] = None

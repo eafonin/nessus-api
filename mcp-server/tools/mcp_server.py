@@ -51,13 +51,14 @@ async def run_untrusted_scan(
     description: str = "",
     schema_profile: str = "brief",
     idempotency_key: str | None = None,
+    scanner_pool: str | None = None,
     scanner_instance: str | None = None,
 ) -> dict:
     """
     Run network-only vulnerability scan (no credentials).
 
     Phase 1: Enqueues scan to Redis queue for async worker processing.
-    Phase 4: Supports scanner pool with load-based selection.
+    Phase 4: Supports scanner pools with load-based selection.
 
     Args:
         targets: IP addresses or CIDR ranges (e.g., "192.168.1.0/24")
@@ -65,15 +66,17 @@ async def run_untrusted_scan(
         description: Optional scan description
         schema_profile: Output schema (minimal|summary|brief|full)
         idempotency_key: Optional key for idempotent retries
+        scanner_pool: Scanner pool (e.g., "nessus", "nessus_dmz").
+                     Defaults to "nessus" pool.
         scanner_instance: Optional scanner instance ID (e.g., "scanner1").
-                         If not specified, selects least loaded scanner.
+                         If not specified, selects least loaded scanner in pool.
 
     Returns:
         {
             "task_id": "...",
             "trace_id": "...",
             "status": "queued",
-            "scanner_type": "nessus",
+            "scanner_pool": "nessus",
             "scanner_instance": "scanner1",
             "queue_position": 1,
             "message": "Scan enqueued successfully"
@@ -81,17 +84,17 @@ async def run_untrusted_scan(
     """
     # Generate IDs
     trace_id = str(uuid.uuid4())
-    scanner_type = "nessus"
+    target_pool = scanner_pool or scanner_registry.get_default_pool()
 
-    # Select scanner: use specified or get least loaded
+    # Select scanner: use specified or get least loaded in pool
     try:
         if scanner_instance:
             # Validate scanner exists
-            _ = scanner_registry.get_instance(scanner_type, scanner_instance)
+            _ = scanner_registry.get_instance(pool=target_pool, instance_id=scanner_instance)
             selected_instance = scanner_instance
         else:
-            # Get least loaded scanner
-            _, instance_key = scanner_registry.get_available_scanner(scanner_type)
+            # Get least loaded scanner in pool
+            _, instance_key = scanner_registry.get_available_scanner(pool=target_pool)
             selected_instance = instance_key.split(":")[-1]  # Extract instance ID from key
     except ValueError as e:
         return {
@@ -107,6 +110,7 @@ async def run_untrusted_scan(
         targets=targets,
         name=name,
         idempotency_key=idempotency_key,
+        scanner_pool=target_pool,
         scanner_instance=selected_instance,
     )
 
@@ -117,7 +121,7 @@ async def run_untrusted_scan(
             "name": name,
             "description": description,
             "schema_profile": schema_profile,
-            "scanner_type": scanner_type,
+            "scanner_pool": target_pool,
             "scanner_instance": selected_instance,
         }
 
@@ -130,7 +134,7 @@ async def run_untrusted_scan(
                     "task_id": existing_task_id,
                     "trace_id": existing_task.trace_id,
                     "status": existing_task.status,
-                    "scanner_type": existing_task.scanner_type,
+                    "scanner_pool": existing_task.scanner_pool,
                     "scanner_instance": existing_task.scanner_instance_id,
                     "message": "Returning existing task (idempotency key matched)",
                     "idempotent": True,
@@ -142,14 +146,15 @@ async def run_untrusted_scan(
                 "status_code": 409,
             }
 
-    task_id = generate_task_id(scanner_type, selected_instance)
+    task_id = generate_task_id(target_pool, selected_instance)
 
     # Create task
     task = Task(
         task_id=task_id,
         trace_id=trace_id,
         scan_type="untrusted",
-        scanner_type=scanner_type,
+        scanner_type=target_pool.split("_")[0],  # nessus_dmz -> nessus
+        scanner_pool=target_pool,
         scanner_instance_id=selected_instance,
         status=ScanState.QUEUED.value,
         payload={
@@ -164,17 +169,17 @@ async def run_untrusted_scan(
     # Store task metadata
     task_manager.create_task(task)
 
-    # Enqueue task for worker processing
+    # Enqueue task for worker processing (to pool-specific queue)
     task_data = {
         "task_id": task_id,
         "trace_id": trace_id,
         "scan_type": "untrusted",
-        "scanner_type": scanner_type,
+        "scanner_pool": target_pool,
         "scanner_instance_id": selected_instance,
         "payload": task.payload,
     }
 
-    queue_depth = task_queue.enqueue(task_data)
+    queue_depth = task_queue.enqueue(task_data, pool=target_pool)
 
     # Store idempotency key if provided
     if idempotency_key:
@@ -188,6 +193,7 @@ async def run_untrusted_scan(
         "scan_enqueued",
         task_id=task_id,
         trace_id=trace_id,
+        scanner_pool=target_pool,
         queue_position=queue_depth
     )
 
@@ -195,7 +201,7 @@ async def run_untrusted_scan(
         "task_id": task_id,
         "trace_id": trace_id,
         "status": "queued",
-        "scanner_type": scanner_type,
+        "scanner_pool": target_pool,
         "scanner_instance": selected_instance,
         "queue_position": queue_depth,
         "message": "Scan enqueued successfully. Worker will process asynchronously."
@@ -216,8 +222,8 @@ async def get_scan_status(task_id: str) -> dict:
             "trace_id": "...",
             "status": "queued|running|completed|failed|timeout",
             "progress": 0-100 (if available from scanner),
-            "scanner_type": "nessus",
-            "scanner_instance": "local",
+            "scanner_pool": "nessus",
+            "scanner_instance": "scanner1",
             "nessus_scan_id": ... (if scan created),
             "created_at": "...",
             "started_at": "...",
@@ -235,6 +241,7 @@ async def get_scan_status(task_id: str) -> dict:
         "task_id": task.task_id,
         "trace_id": task.trace_id,
         "status": task.status,
+        "scanner_pool": task.scanner_pool or task.scanner_type,  # Backward compat
         "scanner_type": task.scanner_type,
         "scanner_instance": task.scanner_instance_id,
         "nessus_scan_id": task.nessus_scan_id,
@@ -247,8 +254,10 @@ async def get_scan_status(task_id: str) -> dict:
     # Get live progress from scanner if running
     if task.status == "running" and task.nessus_scan_id:
         try:
+            # Use pool for scanner lookup
+            pool = task.scanner_pool or task.scanner_type
             scanner = scanner_registry.get_instance(
-                scanner_type=task.scanner_type,
+                pool=pool,
                 instance_id=task.scanner_instance_id
             )
 
@@ -264,17 +273,21 @@ async def get_scan_status(task_id: str) -> dict:
 
 
 @mcp.tool()
-async def list_scanners() -> dict:
+async def list_scanners(scanner_pool: str | None = None) -> dict:
     """
     List all registered scanner instances with load information.
 
-    Phase 4: Includes active scan counts and capacity.
+    Phase 4: Includes active scan counts, capacity, and pool information.
+
+    Args:
+        scanner_pool: Optional pool filter (e.g., "nessus", "nessus_dmz")
 
     Returns:
         {
             "scanners": [
                 {
                     "scanner_type": "nessus",
+                    "pool": "nessus",
                     "instance_id": "scanner1",
                     "instance_key": "nessus:scanner1",
                     "name": "Nessus Scanner 1",
@@ -287,26 +300,54 @@ async def list_scanners() -> dict:
                 },
                 ...
             ],
-            "total": 2
+            "total": 2,
+            "pools": ["nessus"]
         }
     """
-    scanners = scanner_registry.list_instances(enabled_only=True, include_load=True)
+    scanners = scanner_registry.list_instances(
+        enabled_only=True,
+        include_load=True,
+        pool=scanner_pool
+    )
 
     return {
         "scanners": scanners,
-        "total": len(scanners)
+        "total": len(scanners),
+        "pools": scanner_registry.list_pools()
     }
 
 
 @mcp.tool()
-async def get_pool_status() -> dict:
+async def list_pools() -> dict:
+    """
+    List all available scanner pools.
+
+    Returns:
+        {
+            "pools": ["nessus", "nessus_dmz"],
+            "default_pool": "nessus"
+        }
+    """
+    return {
+        "pools": scanner_registry.list_pools(),
+        "default_pool": scanner_registry.get_default_pool()
+    }
+
+
+@mcp.tool()
+async def get_pool_status(scanner_pool: str | None = None) -> dict:
     """
     Get scanner pool status with overall capacity and utilization.
 
     Phase 4: Shows aggregate pool metrics and per-scanner breakdown.
 
+    Args:
+        scanner_pool: Pool name (e.g., "nessus", "nessus_dmz").
+                     Defaults to "nessus" pool.
+
     Returns:
         {
+            "pool": "nessus",
             "scanner_type": "nessus",
             "total_scanners": 2,
             "total_capacity": 10,
@@ -325,30 +366,38 @@ async def get_pool_status() -> dict:
             ]
         }
     """
-    return scanner_registry.get_pool_status("nessus")
+    target_pool = scanner_pool or scanner_registry.get_default_pool()
+    return scanner_registry.get_pool_status(pool=target_pool)
 
 
 @mcp.tool()
-async def get_queue_status() -> dict:
+async def get_queue_status(scanner_pool: str | None = None) -> dict:
     """
-    Get current Redis queue status and metrics.
+    Get current Redis queue status and metrics for a pool.
+
+    Args:
+        scanner_pool: Pool name (e.g., "nessus", "nessus_dmz").
+                     Defaults to "nessus" pool.
 
     Returns:
         {
+            "pool": "nessus",
             "queue_depth": 0,
             "dlq_size": 0,
             "next_tasks": [...],
             "timestamp": "..."
         }
     """
-    stats = get_queue_stats(task_queue)
+    target_pool = scanner_pool or scanner_registry.get_default_pool()
+    stats = get_queue_stats(task_queue, pool=target_pool)
     return stats
 
 
 @mcp.tool()
 async def list_tasks(
     limit: int = 10,
-    status_filter: str | None = None
+    status_filter: str | None = None,
+    scanner_pool: str | None = None
 ) -> dict:
     """
     List recent tasks from task manager.
@@ -356,6 +405,7 @@ async def list_tasks(
     Args:
         limit: Maximum number of tasks to return (default: 10)
         status_filter: Optional filter by status (queued|running|completed|failed|timeout)
+        scanner_pool: Optional filter by pool (e.g., "nessus", "nessus_dmz")
 
     Returns:
         {
@@ -363,6 +413,7 @@ async def list_tasks(
                 {
                     "task_id": "...",
                     "status": "...",
+                    "scanner_pool": "nessus",
                     "created_at": "...",
                     ...
                 },
@@ -387,11 +438,17 @@ async def list_tasks(
                 if status_filter and task.status != status_filter:
                     continue
 
+                # Apply pool filter if provided
+                task_pool = task.scanner_pool or task.scanner_type
+                if scanner_pool and task_pool != scanner_pool:
+                    continue
+
                 tasks.append({
                     "task_id": task.task_id,
                     "trace_id": task.trace_id,
                     "status": task.status,
                     "scan_type": task.scan_type,
+                    "scanner_pool": task_pool,
                     "scanner_type": task.scanner_type,
                     "scanner_instance": task.scanner_instance_id,
                     "created_at": task.created_at,

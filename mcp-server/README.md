@@ -39,6 +39,7 @@
   - Section 9: JSON-NL Converter (LLM-friendly results format)
 - **[Requirements](./docs/NESSUS_MCP_SERVER_REQUIREMENTS.md)** - Functional requirements and acceptance criteria
 - **[Test Suite](./tests/README.md)** ⭐ - Layered test architecture (unit → integration → E2E)
+- **[Scanner Pools](./docs/SCANNER_POOLS.md)** - Pool-based scanner grouping, queue isolation, and load balancing
 - **[Phase Status Tracking Guide](./phases/README.md)** - How to track and document implementation progress across phases
 - **[Archived Docs](./archive/)** - Previous architecture versions and superseded guides
 
@@ -136,6 +137,7 @@ An **MCP (Model Context Protocol) server** that exposes Nessus vulnerability sca
   - [x] 3.6: FastMCP SDK Client ✅ **COMPLETE** (NessusFastMCPClient + 5 examples + tests)
 
 - [ ] **Phase 4**: Production Hardening (Week 4)
+  - [x] 4.0: Scanner Pools ✅ - Pool-based queue isolation, load balancing ([docs](./docs/SCANNER_POOLS.md))
   - [ ] 4.1: Production Docker Config
   - [ ] 4.2: TTL Housekeeping
   - [ ] 4.3: Dead Letter Queue Handler
@@ -295,9 +297,9 @@ Agent → MCP Tool → Redis Queue → Worker → Scanner → Results
      Response                   Processing  Polling
 ```
 
-**Redis Keys**:
-- `nessus:queue` - Pending tasks (LPUSH/BRPOP)
-- `nessus:queue:dead` - Failed tasks (sorted set)
+**Redis Keys** (pool-based, see [Scanner Pools](./docs/SCANNER_POOLS.md)):
+- `{pool}:queue` - Pending tasks per pool (LPUSH/BRPOP) e.g., `nessus:queue`, `nessus_dmz:queue`
+- `{pool}:queue:dead` - Failed tasks per pool (sorted set)
 - `idemp:{key}` - Idempotency mappings (48h TTL)
 
 ### 4. JSON-NL Result Format

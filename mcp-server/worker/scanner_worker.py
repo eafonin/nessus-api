@@ -1,10 +1,13 @@
-"""Background worker for processing scan tasks from Redis queue."""
+"""Background worker for processing scan tasks from Redis queue.
+
+Phase 4: Supports pool-based queue consumption.
+"""
 
 import asyncio
 import signal
 import os
 import logging
-from typing import Optional
+from typing import Optional, List
 from pathlib import Path
 
 from core.queue import TaskQueue
@@ -25,8 +28,13 @@ class ScannerWorker:
     """
     Background worker that processes scan tasks from Redis queue.
 
+    Phase 4 Enhancements:
+    - Pool-based queue consumption (consumes from specific pool queues)
+    - Load-based scanner selection within pools
+    - Per-scanner active scan tracking
+
     Features:
-    - Consumes tasks from Redis queue (BRPOP)
+    - Consumes tasks from pool-specific Redis queues (BRPOP)
     - Executes scans via scanner registry
     - Updates task state machine
     - Error handling with Dead Letter Queue
@@ -39,6 +47,7 @@ class ScannerWorker:
         queue: TaskQueue,
         task_manager: TaskManager,
         scanner_registry: ScannerRegistry,
+        pools: Optional[List[str]] = None,
         max_concurrent_scans: int = 5
     ):
         """
@@ -48,6 +57,8 @@ class ScannerWorker:
             queue: TaskQueue instance for consuming tasks
             task_manager: TaskManager for updating task state
             scanner_registry: ScannerRegistry for getting scanner instances
+            pools: List of pool names to consume from (e.g., ["nessus", "nessus_dmz"]).
+                  If None, uses all registered pools from scanner_registry.
             max_concurrent_scans: Maximum parallel scans (default: 5)
         """
         self.queue = queue
@@ -57,6 +68,16 @@ class ScannerWorker:
         self.running = False
         self.active_tasks: set[asyncio.Task] = set()
         self._shutdown_event = asyncio.Event()
+
+        # Determine pools to consume from
+        if pools:
+            self.pools = pools
+        else:
+            # Use all registered pools from scanner_registry
+            self.pools = scanner_registry.list_pools()
+            if not self.pools:
+                # Fallback to default pool
+                self.pools = [scanner_registry.get_default_pool()]
 
         # Register signal handlers
         signal.signal(signal.SIGTERM, self._handle_shutdown)
@@ -72,10 +93,13 @@ class ScannerWorker:
         """
         Start worker loop with graceful shutdown handling.
 
-        Continuously polls queue and spawns task processors.
+        Continuously polls pool queues and spawns task processors.
         """
         self.running = True
-        logger.info(f"Worker started (max_concurrent_scans={self.max_concurrent_scans})")
+        logger.info(
+            f"Worker started (max_concurrent_scans={self.max_concurrent_scans}, "
+            f"pools={self.pools})"
+        )
 
         try:
             await self._worker_loop()
@@ -83,7 +107,7 @@ class ScannerWorker:
             await self._cleanup()
 
     async def _worker_loop(self) -> None:
-        """Main worker loop - poll queue and process tasks."""
+        """Main worker loop - poll pool queues and process tasks."""
         while self.running:
             try:
                 # Check if at capacity
@@ -94,9 +118,13 @@ class ScannerWorker:
                     self.active_tasks = {t for t in self.active_tasks if not t.done()}
                     continue
 
-                # Dequeue task (blocking with 5s timeout)
+                # Dequeue task from any pool (blocking with 5s timeout)
                 # Run blocking Redis call in thread pool to avoid blocking event loop
-                task_data = await asyncio.to_thread(self.queue.dequeue, timeout=5)
+                task_data = await asyncio.to_thread(
+                    self.queue.dequeue_any,
+                    pools=self.pools,
+                    timeout=5
+                )
 
                 if not task_data:
                     # Timeout - no tasks available
@@ -120,34 +148,39 @@ class ScannerWorker:
         Process single scan task through full lifecycle.
 
         Workflow:
-        1. Transition to RUNNING
-        2. Get scanner instance
+        1. Acquire scanner from pool (increments active_scans)
+        2. Transition to RUNNING
         3. Create scan
         4. Launch scan
         5. Poll until completion (with timeout)
         6. Export results
-        7. Transition to COMPLETED/FAILED/TIMEOUT
+        7. Release scanner (decrements active_scans)
+        8. Transition to COMPLETED/FAILED/TIMEOUT
 
         Args:
             task_data: Task dictionary from queue
         """
         task_id = task_data.get("task_id", "unknown")
         trace_id = task_data.get("trace_id", "unknown")
+        scanner_pool = task_data.get("scanner_pool") or task_data.get("scanner_type", "nessus")
+        scanner_instance_id = task_data.get("scanner_instance_id")
 
-        logger.info(f"Processing task: {task_id}, trace_id: {trace_id}")
+        logger.info(f"Processing task: {task_id}, trace_id: {trace_id}, pool: {scanner_pool}")
 
         scanner = None
+        instance_key = None
         try:
+            # Acquire scanner from pool (increments active_scans)
+            scanner, instance_key = await self.scanner_registry.acquire_scanner(
+                pool=scanner_pool,
+                instance_id=scanner_instance_id
+            )
+            logger.info(f"[{task_id}] Acquired scanner: {instance_key}")
+
             # Transition to RUNNING
             self.task_manager.update_status(
                 task_id,
                 ScanState.RUNNING
-            )
-
-            # Get scanner instance
-            scanner = self.scanner_registry.get_instance(
-                scanner_type=task_data.get("scanner_type", "nessus"),
-                instance_id=task_data.get("scanner_instance_id")
             )
 
             # Create scan request
@@ -191,6 +224,11 @@ class ScannerWorker:
             await self._handle_error(task_data, e)
 
         finally:
+            # Release scanner (decrements active_scans)
+            if instance_key:
+                await self.scanner_registry.release_scanner(instance_key)
+                logger.debug(f"[{task_id}] Released scanner: {instance_key}")
+
             # Cleanup scanner resources
             if scanner:
                 try:
@@ -301,9 +339,10 @@ class ScannerWorker:
             error: Exception that occurred
         """
         task_id = task_data.get("task_id", "unknown")
+        scanner_pool = task_data.get("scanner_pool") or task_data.get("scanner_type", "nessus")
         error_msg = f"{error.__class__.__name__}: {str(error)}"
 
-        logger.error(f"[{task_id}] Moving to DLQ: {error_msg}")
+        logger.error(f"[{task_id}] Moving to DLQ (pool={scanner_pool}): {error_msg}")
 
         # Update task state to FAILED
         try:
@@ -315,8 +354,8 @@ class ScannerWorker:
         except Exception as e:
             logger.error(f"[{task_id}] Failed to update task state: {e}")
 
-        # Move to Dead Letter Queue
-        self.queue.move_to_dlq(task_data, error_msg)
+        # Move to pool-specific Dead Letter Queue
+        self.queue.move_to_dlq(task_data, error_msg, pool=scanner_pool)
 
     async def _cleanup(self) -> None:
         """Clean up resources and wait for active tasks."""
@@ -344,6 +383,11 @@ async def main():
     max_concurrent = int(os.getenv("MAX_CONCURRENT_SCANS", "5"))
     log_level = os.getenv("LOG_LEVEL", "INFO")
 
+    # Pool configuration (comma-separated list or empty for all pools)
+    # Example: WORKER_POOLS=nessus,nessus_dmz
+    pools_env = os.getenv("WORKER_POOLS", "")
+    pools = [p.strip() for p in pools_env.split(",") if p.strip()] if pools_env else None
+
     # Configure logging
     logging.getLogger().setLevel(log_level)
 
@@ -354,6 +398,7 @@ async def main():
     logger.info(f"Data directory: {data_dir}")
     logger.info(f"Scanner config: {scanner_config}")
     logger.info(f"Max concurrent scans: {max_concurrent}")
+    logger.info(f"Pools: {pools or 'all'}")
     logger.info(f"Log level: {log_level}")
     logger.info("=" * 60)
 
@@ -364,6 +409,7 @@ async def main():
         scanner_registry = ScannerRegistry(config_file=scanner_config)
 
         logger.info("✅ Components initialized")
+        logger.info(f"Available pools: {scanner_registry.list_pools()}")
 
     except Exception as e:
         logger.error(f"Failed to initialize components: {e}", exc_info=True)
@@ -374,6 +420,7 @@ async def main():
         queue=queue,
         task_manager=task_manager,
         scanner_registry=scanner_registry,
+        pools=pools,
         max_concurrent_scans=max_concurrent
     )
 

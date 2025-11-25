@@ -1,12 +1,19 @@
-# Scanner instance configuration
+# Scanner Pool Configuration
 #
-# Environment variable substitution supported using ${VAR_NAME} syntax
+# Pools group scanners by purpose, network zone, or vendor.
+# Each pool has its own queue and load balancing.
 #
-# Both scanners are accessed via internal Docker network (nessus-shared_vpn_net):
-# - nessus-pro-1: 172.30.0.3:8834 (Scanner 1)
-# - nessus-pro-2: 172.30.0.4:8834 (Scanner 2)
+# Pool naming convention:
+#   - {vendor}_{zone}: nessus_dmz, nessus_lan, openvas_internal
+#   - {vendor}: nessus, nuclei, openvas (for single-zone setups)
 #
-# Web UI credentials: nessus / nessus (same for both)
+# Environment variable substitution: ${VAR_NAME} or ${VAR_NAME:-default}
+
+# =============================================================================
+# Pool: nessus (default pool for general scanning)
+# =============================================================================
+# Both scanners accessed via internal Docker network (nessus-shared_vpn_net)
+# Queue: nessus:queue
 
 nessus:
   # Scanner 1 - Primary scanner (nessus-pro-1)
@@ -27,10 +34,63 @@ nessus:
     enabled: true
     max_concurrent_scans: 5
 
-# Future: OpenVAS scanner support
+# =============================================================================
+# Example: Zone-specific pools (uncomment to enable)
+# =============================================================================
+
+# Pool: nessus_dmz (DMZ network scanning)
+# Queue: nessus_dmz:queue
+#
+# nessus_dmz:
+#   - instance_id: dmz-scanner1
+#     name: "DMZ Nessus Scanner"
+#     url: ${NESSUS_DMZ_URL:-https://dmz-scanner:8834}
+#     username: ${NESSUS_DMZ_USERNAME:-admin}
+#     password: ${NESSUS_DMZ_PASSWORD}
+#     enabled: true
+#     max_concurrent_scans: 3
+
+# Pool: nessus_lan (Internal LAN scanning)
+# Queue: nessus_lan:queue
+#
+# nessus_lan:
+#   - instance_id: lan-scanner1
+#     name: "LAN Nessus Scanner 1"
+#     url: ${NESSUS_LAN_URL:-https://lan-scanner1:8834}
+#     username: ${NESSUS_LAN_USERNAME:-admin}
+#     password: ${NESSUS_LAN_PASSWORD}
+#     enabled: true
+#     max_concurrent_scans: 5
+#   - instance_id: lan-scanner2
+#     name: "LAN Nessus Scanner 2"
+#     url: ${NESSUS_LAN_URL_2:-https://lan-scanner2:8834}
+#     username: ${NESSUS_LAN_USERNAME:-admin}
+#     password: ${NESSUS_LAN_PASSWORD}
+#     enabled: true
+#     max_concurrent_scans: 5
+
+# =============================================================================
+# Future: Other scanner vendors
+# =============================================================================
+
+# Pool: nuclei (Nuclei scanner for web vuln scanning)
+# Queue: nuclei:queue
+#
+# nuclei:
+#   - instance_id: nuclei-1
+#     name: "Nuclei Scanner"
+#     url: ${NUCLEI_URL}
+#     enabled: false
+#     max_concurrent_scans: 10
+
+# Pool: openvas (OpenVAS/Greenbone scanner)
+# Queue: openvas:queue
+#
 # openvas:
 #   - instance_id: openvas-1
+#     name: "OpenVAS Scanner"
 #     url: ${OPENVAS_URL}
 #     username: ${OPENVAS_USERNAME}
 #     password: ${OPENVAS_PASSWORD}
 #     enabled: false
+#     max_concurrent_scans: 3
