@@ -356,60 +356,77 @@ ESCALATION_METHODS = [
 
 ## Test User Setup
 
-### Test Target: 172.32.0.215
+### Test Target: 172.32.0.209 (Docker Host - READY)
 
-Create dedicated test users for different sudo scenarios:
+Test users have been created on the Docker host (172.32.0.209) for authenticated scan testing.
 
-#### User Creation Commands
+**Status: CREATED AND VERIFIED (2025-11-25)**
 
-```bash
-# Connect to test target
-ssh randy@172.32.0.215
+#### Users Created
 
-# Create test users (requires root/sudo)
-sudo useradd -m -s /bin/bash testauth_sudo_pass
-sudo useradd -m -s /bin/bash testauth_sudo_nopass
-sudo useradd -m -s /bin/bash testauth_nosudo
+| Username | Password | Sudo Config | UID |
+|----------|----------|-------------|-----|
+| `testauth_sudo_pass` | `TestPass123!` | sudo with password | 1002 |
+| `testauth_sudo_nopass` | `TestPass123!` | sudo NOPASSWD | 1003 |
+| `testauth_nosudo` | `TestPass123!` | No sudo | 1004 |
 
-# Set passwords
-echo "testauth_sudo_pass:TestPass123!" | sudo chpasswd
-echo "testauth_sudo_nopass:TestPass123!" | sudo chpasswd
-echo "testauth_nosudo:TestPass123!" | sudo chpasswd
+#### Sudoers Configuration
 
-# Configure sudo access
-sudo visudo -f /etc/sudoers.d/testauth
-
-# Add these lines:
-# testauth_sudo_pass ALL=(ALL) ALL
-# testauth_sudo_nopass ALL=(ALL) NOPASSWD: ALL
-# (testauth_nosudo gets no sudo entry)
+File: `/etc/sudoers.d/testauth`
+```
+# Test users for Nessus authenticated scan testing
+testauth_sudo_pass ALL=(ALL) ALL
+testauth_sudo_nopass ALL=(ALL) NOPASSWD: ALL
+# testauth_nosudo - intentionally NO sudo access
 ```
 
-#### Test User Matrix
-
-| Username | Password | Sudo Config | Scan Type | Expected Result |
-|----------|----------|-------------|-----------|-----------------|
-| `testauth_sudo_pass` | `TestPass123!` | sudo with password | `authenticated_privileged` | Success with escalation_password |
-| `testauth_sudo_nopass` | `TestPass123!` | sudo NOPASSWD | `authenticated_privileged` | Success without escalation_password |
-| `testauth_nosudo` | `TestPass123!` | No sudo | `authenticated` | Success, Plugin 110385 warning |
-| `randy` | `randylovesgoldfish1998` | Full root access | `authenticated` | Success (existing) |
-
-#### Verification Commands
+#### Verification Results
 
 ```bash
-# Verify user can SSH
-ssh testauth_sudo_pass@172.32.0.215
+# NOPASSWD sudo works:
+$ sudo -u testauth_sudo_nopass sudo -n whoami
+root
 
-# Verify sudo with password
-sudo -l  # Should prompt for password
+# No sudo access (password required = effectively no access for Nessus):
+$ sudo -u testauth_nosudo sudo -n whoami
+sudo: a password is required
+```
 
-# Verify sudo NOPASSWD
-ssh testauth_sudo_nopass@172.32.0.215
-sudo -l  # Should NOT prompt for password
+### Test Target: 172.32.0.215 (External Host)
 
-# Verify no sudo
-ssh testauth_nosudo@172.32.0.215
-sudo -l  # Should fail: "user is not in sudoers file"
+Existing user for basic authenticated scan testing:
+
+| Username | Password | Access |
+|----------|----------|--------|
+| `randy` | `randylovesgoldfish1998` | Full root SSH access |
+
+### Complete Test Matrix
+
+| Target | Username | Password | Sudo Config | Scan Type | Expected Result |
+|--------|----------|----------|-------------|-----------|-----------------|
+| 172.32.0.209 | `testauth_sudo_pass` | `TestPass123!` | sudo + password | `authenticated_privileged` | Success with escalation_password |
+| 172.32.0.209 | `testauth_sudo_nopass` | `TestPass123!` | sudo NOPASSWD | `authenticated_privileged` | Success without escalation_password |
+| 172.32.0.209 | `testauth_nosudo` | `TestPass123!` | No sudo | `authenticated` | Success, Plugin 110385 warning |
+| 172.32.0.209 | `nessus` | `nessus` | sudo + password | `authenticated_privileged` | Success (existing) |
+| 172.32.0.215 | `randy` | `randylovesgoldfish1998` | Full root | `authenticated` | Success |
+
+### Test Scan Examples
+
+```bash
+# 1. Authenticated scan (SSH only, no escalation)
+python manage_scans.py create "Test_Auth" "172.32.0.209" "Test"
+# Configure with testauth_nosudo credentials
+# Expected: Plugin 110385 (insufficient privilege)
+
+# 2. Privileged scan with sudo + password
+python manage_scans.py create "Test_Priv_Pass" "172.32.0.209" "Test"
+# Configure with testauth_sudo_pass + escalation_password
+# Expected: Full privileged scan
+
+# 3. Privileged scan with sudo NOPASSWD
+python manage_scans.py create "Test_Priv_NoPass" "172.32.0.209" "Test"
+# Configure with testauth_sudo_nopass (no escalation_password needed)
+# Expected: Full privileged scan
 ```
 
 ---
@@ -886,18 +903,20 @@ class TestAuthenticatedScanE2E:
 
 ### Approved Scan Targets
 
-| IP | Host | Auth Type | Credentials | Notes |
-|----|------|-----------|-------------|-------|
-| `172.32.0.215` | External host | Root (SSH) | `randy` / `randylovesgoldfish1998` | Primary test target |
-| `172.32.0.209` | Docker host | Non-root (SSH) | `nessus` / `nessus` | Nessus server host |
+| IP | Host | Users | Notes |
+|----|------|-------|-------|
+| `172.32.0.209` | Docker host | `nessus`, `testauth_*` | Primary test target for escalation testing |
+| `172.32.0.215` | External host | `randy` | Basic authenticated scan testing |
 
-### Test Users (To Be Created on 172.32.0.215)
+### Test Users (CREATED on 172.32.0.209)
 
-| Username | Password | Sudo Config | Purpose |
-|----------|----------|-------------|---------|
-| `testauth_sudo_pass` | `TestPass123!` | sudo with password | Test privileged with escalation_password |
-| `testauth_sudo_nopass` | `TestPass123!` | sudo NOPASSWD | Test privileged without escalation_password |
-| `testauth_nosudo` | `TestPass123!` | No sudo | Test authenticated (non-privileged) |
+| Username | Password | Sudo Config | Purpose | Status |
+|----------|----------|-------------|---------|--------|
+| `testauth_sudo_pass` | `TestPass123!` | sudo with password | Test privileged with escalation_password | READY |
+| `testauth_sudo_nopass` | `TestPass123!` | sudo NOPASSWD | Test privileged without escalation_password | READY |
+| `testauth_nosudo` | `TestPass123!` | No sudo | Test authenticated (non-privileged) | READY |
+| `nessus` | `nessus` | sudo with password | Existing user | READY |
+| `randy` (172.32.0.215) | `randylovesgoldfish1998` | Full root | Existing user | READY |
 
 ---
 
@@ -920,10 +939,11 @@ class TestAuthenticatedScanE2E:
 
 ### Phase 5.2: Test Infrastructure
 
-- [ ] Create test users on 172.32.0.215
-  - [ ] `testauth_sudo_pass` (sudo with password)
-  - [ ] `testauth_sudo_nopass` (sudo NOPASSWD)
-  - [ ] `testauth_nosudo` (no sudo access)
+- [x] Create test users on 172.32.0.209 (Docker host)
+  - [x] `testauth_sudo_pass` (sudo with password) - UID 1002
+  - [x] `testauth_sudo_nopass` (sudo NOPASSWD) - UID 1003
+  - [x] `testauth_nosudo` (no sudo access) - UID 1004
+  - [x] Sudoers file: `/etc/sudoers.d/testauth`
 
 - [ ] Create `tests/unit/test_authenticated_scans.py`
   - [ ] Test credential payload building
@@ -979,18 +999,6 @@ curl -X POST http://localhost:8835/mcp \
 # 4. Verify Plugin 141118 present in results
 # 5. Verify hosts_summary.credential == "true"
 ```
-
----
-
-## Risk Assessment
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| Credential exposure in logs | Medium | High | Sanitize all logging (already in validator) |
-| Credential exposure in Redis | Low | Medium | Document consideration, internal network only |
-| Auth failure not detected | Low | Medium | Validator checks Plugin 141118, 110385, 19506 |
-| Wrong credential format | Medium | Low | Input validation with clear error messages |
-| Performance impact | Low | Low | Same scan workflow, no additional overhead |
 
 ---
 

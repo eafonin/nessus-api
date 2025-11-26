@@ -274,6 +274,14 @@ Tests use these environment variables (with defaults):
 | `172.32.0.215` | External host | Root (SSH) | `randy` / `randylovesgoldfish1998` | Primary test target, full sudo |
 | `172.32.0.209` | Docker host | Non-root (SSH) | `nessus` / `nessus` | Nessus server host, sudo available |
 
+### Test Users for Privilege Escalation (172.32.0.209)
+
+| Username | Password | Sudo Config | Purpose |
+|----------|----------|-------------|---------|
+| `testauth_sudo_pass` | `TestPass123!` | sudo with password | Test `authenticated_privileged` with escalation_password |
+| `testauth_sudo_nopass` | `TestPass123!` | sudo NOPASSWD | Test `authenticated_privileged` without escalation_password |
+| `testauth_nosudo` | `TestPass123!` | No sudo | Test `authenticated` (Plugin 110385 expected) |
+
 ### Usage Examples
 
 ```python
@@ -303,6 +311,29 @@ await client.submit_scan(
         "ssh_username": "nessus",
         "ssh_password": "nessus",
         "escalation_method": "sudo"
+    }
+)
+
+# Privileged scan with sudo NOPASSWD (no escalation_password needed)
+await client.submit_scan(
+    targets="172.32.0.209",
+    scan_name="Privileged Scan NOPASSWD",
+    scan_type="authenticated_privileged",
+    credentials={
+        "ssh_username": "testauth_sudo_nopass",
+        "ssh_password": "TestPass123!",
+        "elevate_privileges_with": "sudo"
+    }
+)
+
+# Authenticated scan (non-privileged, Plugin 110385 expected)
+await client.submit_scan(
+    targets="172.32.0.209",
+    scan_name="Authenticated Scan (no sudo)",
+    scan_type="authenticated",
+    credentials={
+        "ssh_username": "testauth_nosudo",
+        "ssh_password": "TestPass123!"
     }
 )
 ```
