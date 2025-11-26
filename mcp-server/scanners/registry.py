@@ -20,7 +20,8 @@ from .mock_scanner import MockNessusScanner
 logger = logging.getLogger(__name__)
 
 # Default concurrent scan limit per scanner
-DEFAULT_MAX_CONCURRENT_SCANS = 5
+# Limit to 2 to avoid prolonging individual scan times
+DEFAULT_MAX_CONCURRENT_SCANS = 2
 
 # Default pool name for backward compatibility
 DEFAULT_POOL = "nessus"
@@ -70,11 +71,20 @@ class ScannerRegistry:
                 username: ${NESSUS_USERNAME}
                 password: ${NESSUS_PASSWORD}
                 enabled: true
-                max_concurrent_scans: 5
+                max_concurrent_scans: 2
         """
         if not self.config_file.exists():
-            logger.warning(f"Config file not found: {self.config_file}")
-            logger.info("Using mock scanner as fallback")
+            logger.warning(
+                "scanner_config_missing",
+                config_file=str(self.config_file),
+                action="generating_example_config"
+            )
+            self._generate_example_config()
+            logger.warning(
+                "scanner_config_generated",
+                config_file=str(self.config_file),
+                message="ALERT: Example scanners.yaml generated. Edit with your scanner details and restart."
+            )
             self._register_mock_scanner()
             return
 
@@ -170,6 +180,64 @@ class ScannerRegistry:
             "max_concurrent_scans": DEFAULT_MAX_CONCURRENT_SCANS,
         }
         logger.info(f"Registered scanner: {key} (Mock Scanner) pool={pool}")
+
+    def _generate_example_config(self) -> None:
+        """Generate example scanners.yaml with documented options."""
+        example_config = """\
+# Scanner Pool Configuration
+#
+# ALERT: This is an auto-generated example config.
+# Edit this file with your actual scanner details and restart the MCP server.
+#
+# Environment variable substitution: ${VAR_NAME} or ${VAR_NAME:-default}
+
+# =============================================================================
+# Pool: nessus (default pool)
+# =============================================================================
+
+nessus:
+  # Scanner 1 - Primary scanner
+  - instance_id: scanner1
+    name: "Nessus Scanner 1"
+    url: ${NESSUS_URL:-https://localhost:8834}
+    username: ${NESSUS_USERNAME:-admin}
+    password: ${NESSUS_PASSWORD}
+    enabled: true
+    max_concurrent_scans: 2  # Limit to avoid prolonging scan times
+
+  # Scanner 2 - Secondary scanner (optional)
+  # - instance_id: scanner2
+  #   name: "Nessus Scanner 2"
+  #   url: ${NESSUS_URL_2:-https://scanner2:8834}
+  #   username: ${NESSUS_USERNAME_2:-admin}
+  #   password: ${NESSUS_PASSWORD_2}
+  #   enabled: true
+  #   max_concurrent_scans: 2
+
+# =============================================================================
+# Example: Zone-specific pools (uncomment to enable)
+# =============================================================================
+
+# nessus_dmz:
+#   - instance_id: dmz-scanner1
+#     name: "DMZ Nessus Scanner"
+#     url: ${NESSUS_DMZ_URL}
+#     username: ${NESSUS_DMZ_USERNAME}
+#     password: ${NESSUS_DMZ_PASSWORD}
+#     enabled: true
+#     max_concurrent_scans: 2
+"""
+        try:
+            # Ensure parent directory exists
+            self.config_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.config_file, "w") as f:
+                f.write(example_config)
+        except Exception as e:
+            logger.error(
+                "failed_to_generate_config",
+                config_file=str(self.config_file),
+                error=str(e)
+            )
 
     def _expand_env(self, value: str) -> str:
         """
@@ -512,6 +580,42 @@ class ScannerRegistry:
             "utilization_pct": round(utilization, 1),
         }
 
+    async def get_scanner(
+        self,
+        pool: str,
+        instance_id: str,
+        fallback_to_pool: bool = True
+    ) -> Optional["BaseScanner"]:
+        """Get a scanner instance for direct API calls.
+
+        Use this when you need to call scanner methods directly (e.g., stop_scan, delete_scan).
+        The returned scanner is NOT acquired from the semaphore pool - do not use it for
+        running new scans (use acquire() instead).
+
+        Args:
+            pool: Pool name (e.g., "nessus", "nessus_dmz")
+            instance_id: Scanner instance ID
+            fallback_to_pool: If True and specific instance not found, return any scanner
+                             from the same pool. Useful for cleanup operations where the
+                             original scanner may no longer be configured.
+
+        Returns:
+            Scanner instance or None if not found
+        """
+        key = f"{pool}:{instance_id}"
+        if key in self._instances:
+            return self._instances[key]["scanner"]
+
+        # Specific instance not found, try fallback to any scanner in pool
+        if fallback_to_pool:
+            for k, data in self._instances.items():
+                if data.get("pool") == pool:
+                    logger.info(f"Scanner {key} not found, using fallback: {k}")
+                    return data["scanner"]
+
+        logger.warning(f"Scanner not found: {key} (no fallback available)")
+        return None
+
     def get_scanner_count(self, scanner_type: Optional[str] = None, pool: Optional[str] = None) -> int:
         """Get count of registered scanners.
 
@@ -523,6 +627,15 @@ class ScannerRegistry:
         if filter_pool:
             return len([k for k in self._instances.keys() if k.startswith(f"{filter_pool}:")])
         return len(self._instances)
+
+    def get_all_scanners(self) -> List[Tuple[str, Any]]:
+        """Get all registered scanner instances.
+
+        Returns:
+            List of tuples (instance_key, scanner_instance)
+            Example: [("nessus:scanner1", <NessusScanner>), ("nessus:scanner2", <NessusScanner>)]
+        """
+        return [(key, data["scanner"]) for key, data in self._instances.items()]
 
     async def close_all(self) -> None:
         """Close all scanner instances."""

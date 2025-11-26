@@ -24,7 +24,7 @@ from core.metrics import (
 from scanners.registry import ScannerRegistry
 from scanners.base import ScanRequest
 from scanners.nessus_validator import validate_scan_results
-from core.housekeeping import run_periodic_cleanup
+from core.housekeeping import run_periodic_cleanup, run_stale_scan_cleanup, run_nessus_scan_cleanup
 
 # Configure logging
 logging.basicConfig(
@@ -485,6 +485,15 @@ async def main():
     completed_ttl_days = int(os.getenv("COMPLETED_TTL_DAYS", "7"))
     failed_ttl_days = int(os.getenv("FAILED_TTL_DAYS", "30"))
 
+    # Stale scan cleanup configuration
+    stale_scan_cleanup_enabled = os.getenv("STALE_SCAN_CLEANUP_ENABLED", "true").lower() == "true"
+    stale_scan_hours = int(os.getenv("STALE_SCAN_HOURS", "24"))
+    stale_scan_delete_from_nessus = os.getenv("STALE_SCAN_DELETE_FROM_NESSUS", "true").lower() == "true"
+
+    # Nessus scan cleanup configuration (delete finished scans from Nessus)
+    nessus_scan_cleanup_enabled = os.getenv("NESSUS_SCAN_CLEANUP_ENABLED", "true").lower() == "true"
+    nessus_scan_retention_hours = int(os.getenv("NESSUS_SCAN_RETENTION_HOURS", "24"))
+
     # Configure logging
     logging.getLogger().setLevel(log_level)
 
@@ -537,6 +546,38 @@ async def main():
             )
         )
 
+    # Start stale scan cleanup background task if enabled
+    stale_scan_task = None
+    if stale_scan_cleanup_enabled:
+        logger.info(
+            f"Stale scan cleanup enabled: threshold={stale_scan_hours}h, "
+            f"delete_from_nessus={stale_scan_delete_from_nessus}"
+        )
+        stale_scan_task = asyncio.create_task(
+            run_stale_scan_cleanup(
+                scanner_registry=scanner_registry,
+                data_dir=data_dir,
+                interval_hours=housekeeping_interval_hours,  # Run at same interval
+                stale_hours=stale_scan_hours,
+                delete_from_nessus=stale_scan_delete_from_nessus
+            )
+        )
+
+    # Start Nessus scan cleanup background task if enabled (scanner-centric cleanup)
+    nessus_scan_task = None
+    if nessus_scan_cleanup_enabled:
+        logger.info(
+            f"Nessus scan cleanup enabled: retention={nessus_scan_retention_hours}h"
+        )
+        nessus_scan_task = asyncio.create_task(
+            run_nessus_scan_cleanup(
+                scanner_registry=scanner_registry,
+                interval_hours=housekeeping_interval_hours,  # Run at same interval
+                retention_hours=nessus_scan_retention_hours,
+                stale_running_hours=stale_scan_hours  # Use same threshold for stale running scans
+            )
+        )
+
     try:
         await worker.start()
         return 0
@@ -544,11 +585,23 @@ async def main():
         logger.error(f"Worker error: {e}", exc_info=True)
         return 1
     finally:
-        # Cancel housekeeping task
+        # Cancel background tasks
         if housekeeping_task:
             housekeeping_task.cancel()
             try:
                 await housekeeping_task
+            except asyncio.CancelledError:
+                pass
+        if stale_scan_task:
+            stale_scan_task.cancel()
+            try:
+                await stale_scan_task
+            except asyncio.CancelledError:
+                pass
+        if nessus_scan_task:
+            nessus_scan_task.cancel()
+            try:
+                await nessus_scan_task
             except asyncio.CancelledError:
                 pass
 

@@ -14,7 +14,7 @@ References:
 import asyncio
 import httpx
 import logging
-from typing import Dict, Any, Optional, Callable, Awaitable, TypeVar
+from typing import Dict, Any, Optional, Callable, Awaitable, TypeVar, List
 from .base import ScannerInterface, ScanRequest
 from .api_token_fetcher import fetch_and_verify_token
 
@@ -33,6 +33,7 @@ class NessusScanner(ScannerInterface):
     - Bypasses scan_api: false restriction
     - Pure async/await (no subprocess calls)
     - Error handling for 412/403/404/409
+    - SSH credential injection for authenticated scans (Phase 5)
     """
 
     # Template UUID for Advanced Scan
@@ -41,6 +42,19 @@ class NessusScanner(ScannerInterface):
     # Folder and scanner IDs
     FOLDER_MY_SCANS = 3
     SCANNER_LOCAL = 1
+
+    # Valid SSH privilege escalation methods (from nessusAPIWrapper/manage_credentials.py)
+    VALID_ESCALATION_METHODS = {
+        "Nothing",           # No privilege escalation
+        "sudo",              # Most common - sudo to root
+        "su",                # Switch user
+        "su+sudo",           # Combined su then sudo
+        "pbrun",             # PowerBroker
+        "dzdo",              # Centrify DirectAuthorize
+        ".k5login",          # Kerberos
+        "Cisco 'enable'",    # Network devices
+        "Checkpoint Gaia 'expert'"  # Checkpoint firewalls
+    }
 
     # Status mapping: Nessus → MCP
     STATUS_MAP = {
@@ -266,14 +280,17 @@ class NessusScanner(ScannerInterface):
         Pattern from: manage_scans.py:312-424
         ReadError handling: HTTPX_READERROR_INVESTIGATION.md Option 4
 
+        Phase 5: Supports SSH credential injection for authenticated scans.
+        Credentials are validated and included in payload when provided.
+
         Args:
-            request: Scan request parameters
+            request: Scan request parameters (includes optional credentials)
 
         Returns:
             scan_id: Nessus scan ID (integer)
 
         Raises:
-            ValueError: If scan creation fails
+            ValueError: If scan creation fails or credentials invalid
         """
         await self._authenticate()
         client = await self._get_session()
@@ -291,6 +308,16 @@ class NessusScanner(ScannerInterface):
                 "launch_now": False  # Always explicit launch
             }
         }
+
+        # Phase 5: Add credentials if provided (authenticated/authenticated_privileged scans)
+        if request.credentials:
+            self._validate_credentials(request.credentials)
+            payload["credentials"] = self._build_credentials_payload(request.credentials)
+            logger.info(
+                f"Creating authenticated scan '{request.name}' with SSH credentials "
+                f"(user={request.credentials.get('username')}, "
+                f"escalation={request.credentials.get('elevate_privileges_with', 'Nothing')})"
+            )
 
         async def _do_create() -> int:
             """Execute create scan HTTP request."""
@@ -605,6 +632,121 @@ class NessusScanner(ScannerInterface):
                 logger.warning(f"Scan {scan_id} in transitional state (HTTP 409), marked for deletion")
                 return True
             raise ValueError(f"Delete scan failed: HTTP {e.response.status_code}")
+
+    async def list_scans(self) -> List[Dict[str, Any]]:
+        """
+        List all scans on this Nessus instance.
+
+        Returns:
+            List of scan dictionaries with keys:
+                - id: Scan ID
+                - name: Scan name
+                - status: Current status (running, completed, etc.)
+                - creation_date: Unix timestamp when created
+                - last_modification_date: Unix timestamp of last modification
+                - folder_id: Folder ID (2 = Trash)
+
+        Raises:
+            ValueError: If API call fails
+        """
+        await self._authenticate()
+        client = await self._get_session()
+
+        try:
+            response = await client.get(
+                f"{self.url}/scans",
+                headers=self._build_headers()
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            # Return scans list (exclude trash folder by default)
+            scans = data.get("scans", []) or []
+            return [s for s in scans if s.get("folder_id") != 2]
+
+        except httpx.HTTPStatusError as e:
+            raise ValueError(f"List scans failed: HTTP {e.response.status_code}")
+
+    def _validate_credentials(self, credentials: Dict[str, Any]) -> None:
+        """
+        Validate credential structure before use.
+
+        Args:
+            credentials: Credential dictionary
+
+        Raises:
+            ValueError: If credentials are invalid
+        """
+        if not credentials:
+            return
+
+        cred_type = credentials.get("type", "ssh")
+
+        if cred_type == "ssh":
+            # Required fields for SSH
+            required = ["username", "password"]
+            for field in required:
+                if not credentials.get(field):
+                    raise ValueError(f"SSH credential missing required field: {field}")
+
+            # Validate escalation config
+            escalation = credentials.get("elevate_privileges_with", "Nothing")
+            if escalation not in self.VALID_ESCALATION_METHODS:
+                raise ValueError(
+                    f"Invalid escalation method: {escalation}. "
+                    f"Valid options: {', '.join(sorted(self.VALID_ESCALATION_METHODS))}"
+                )
+        else:
+            raise ValueError(f"Unsupported credential type: {cred_type}")
+
+    def _build_credentials_payload(
+        self,
+        credentials: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Build Nessus credentials payload from request credentials.
+
+        Pattern from nessusAPIWrapper/manage_credentials.py
+
+        Args:
+            credentials: Credential dictionary with SSH details
+
+        Returns:
+            Nessus API credentials payload structure
+        """
+        cred_type = credentials.get("type", "ssh")
+
+        if cred_type == "ssh":
+            ssh_cred = {
+                "auth_method": credentials.get("auth_method", "password"),
+                "username": credentials["username"],
+                "password": credentials["password"],
+                "elevate_privileges_with": credentials.get(
+                    "elevate_privileges_with", "Nothing"
+                ),
+                "custom_password_prompt": "",
+                "target_priority_list": ""
+            }
+
+            # Add escalation fields if using sudo/su
+            escalation = credentials.get("elevate_privileges_with", "Nothing")
+            if escalation not in ("Nothing", ""):
+                if credentials.get("escalation_password"):
+                    ssh_cred["escalation_password"] = credentials["escalation_password"]
+                if credentials.get("escalation_account"):
+                    ssh_cred["escalation_account"] = credentials["escalation_account"]
+
+            return {
+                "add": {
+                    "Host": {
+                        "SSH": [ssh_cred]
+                    }
+                },
+                "edit": {},
+                "delete": []
+            }
+
+        raise ValueError(f"Unsupported credential type: {cred_type}")
 
     async def close(self) -> None:
         """Cleanup HTTP session."""
