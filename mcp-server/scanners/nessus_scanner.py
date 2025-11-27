@@ -204,6 +204,57 @@ class NessusScanner(ScannerInterface):
 
         return headers
 
+    async def _refresh_auth(self) -> None:
+        """
+        Clear cached tokens and re-authenticate.
+
+        Used when a 401 error indicates session expiration.
+        """
+        logger.warning("Session expired, refreshing authentication...")
+        self._session_token = None
+        self._api_token = None
+        await self._authenticate()
+
+    async def _with_auth_retry(
+        self,
+        operation_name: str,
+        request_func: Callable[[], Awaitable[T]],
+        max_retries: int = 1
+    ) -> T:
+        """
+        Execute authenticated request with automatic retry on 401.
+
+        Nessus sessions expire after ~30 minutes of inactivity. This wrapper
+        automatically refreshes authentication and retries on 401 errors.
+
+        Args:
+            operation_name: Name of operation for logging
+            request_func: Async function that makes the HTTP request
+            max_retries: Number of retry attempts (default: 1)
+
+        Returns:
+            Result from request_func
+
+        Raises:
+            httpx.HTTPStatusError: If request fails after retries
+        """
+        for attempt in range(max_retries + 1):
+            try:
+                return await request_func()
+
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 401 and attempt < max_retries:
+                    logger.warning(
+                        f"{operation_name}: HTTP 401 on attempt {attempt + 1}, "
+                        f"refreshing authentication..."
+                    )
+                    await self._refresh_auth()
+                    continue  # Retry with fresh tokens
+                raise  # Re-raise on final attempt or non-401 errors
+
+        # Should not reach here, but just in case
+        raise ValueError(f"{operation_name} failed after {max_retries + 1} attempts")
+
     async def _handle_read_error(
         self,
         operation_name: str,
@@ -365,13 +416,19 @@ class NessusScanner(ScannerInterface):
                 logger.error(f"Verification failed: {e}")
                 return None
 
-        # Use ReadError handler with verification
-        try:
+        # Wrap with auth retry to handle session expiration
+        async def _create_with_read_error_handling() -> int:
             return await self._handle_read_error(
                 operation_name="create_scan",
                 request_func=_do_create,
                 verify_func=_verify_create,
                 allow_412=True
+            )
+
+        try:
+            return await self._with_auth_retry(
+                "create_scan",
+                _create_with_read_error_handling
             )
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 403:
@@ -400,7 +457,7 @@ class NessusScanner(ScannerInterface):
         await self._authenticate()
         client = await self._get_session()
 
-        try:
+        async def _do_launch() -> str:
             response = await client.post(
                 f"{self.url}/scans/{scan_id}/launch",
                 json={},  # Empty payload
@@ -416,6 +473,8 @@ class NessusScanner(ScannerInterface):
 
             return scan_uuid
 
+        try:
+            return await self._with_auth_retry("launch_scan", _do_launch)
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 403:
                 raise ValueError("Forbidden: Missing X-KL-kfa-Ajax-Request header")
@@ -509,7 +568,7 @@ class NessusScanner(ScannerInterface):
         await self._authenticate()
         client = await self._get_session()
 
-        try:
+        async def _do_export() -> bytes:
             # Step 1: Request export
             response = await client.post(
                 f"{self.url}/scans/{scan_id}/export",
@@ -548,6 +607,8 @@ class NessusScanner(ScannerInterface):
 
             return download_response.content
 
+        try:
+            return await self._with_auth_retry("export_results", _do_export)
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 raise ValueError(f"Scan {scan_id} not found or no results available")
@@ -571,7 +632,7 @@ class NessusScanner(ScannerInterface):
         await self._authenticate()
         client = await self._get_session()
 
-        try:
+        async def _do_stop() -> bool:
             response = await client.post(
                 f"{self.url}/scans/{scan_id}/stop",
                 json={},
@@ -580,6 +641,8 @@ class NessusScanner(ScannerInterface):
             response.raise_for_status()
             return True
 
+        try:
+            return await self._with_auth_retry("stop_scan", _do_stop)
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 raise ValueError(f"Scan {scan_id} not found")
@@ -606,7 +669,7 @@ class NessusScanner(ScannerInterface):
         await self._authenticate()
         client = await self._get_session()
 
-        try:
+        async def _do_delete() -> bool:
             # Step 1: Move to trash folder
             await client.put(
                 f"{self.url}/scans/{scan_id}",
@@ -622,6 +685,8 @@ class NessusScanner(ScannerInterface):
             response.raise_for_status()
             return True
 
+        try:
+            return await self._with_auth_retry("delete_scan", _do_delete)
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 # Already deleted
@@ -652,7 +717,7 @@ class NessusScanner(ScannerInterface):
         await self._authenticate()
         client = await self._get_session()
 
-        try:
+        async def _do_list():
             response = await client.get(
                 f"{self.url}/scans",
                 headers=self._build_headers()
@@ -664,6 +729,8 @@ class NessusScanner(ScannerInterface):
             scans = data.get("scans", []) or []
             return [s for s in scans if s.get("folder_id") != 2]
 
+        try:
+            return await self._with_auth_retry("list_scans", _do_list)
         except httpx.HTTPStatusError as e:
             raise ValueError(f"List scans failed: HTTP {e.response.status_code}")
 
