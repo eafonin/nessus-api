@@ -453,6 +453,25 @@ nessus:
             "available_capacity": max_concurrent - active,
         }
 
+    def get_pool_capacity(self, pool: str) -> int:
+        """
+        Get total capacity for a pool (sum of all scanner max_concurrent_scans).
+
+        This is used by the worker for per-pool backpressure control.
+
+        Args:
+            pool: Pool name (e.g., "nessus", "nessus_dmz")
+
+        Returns:
+            Total max_concurrent_scans across all scanners in pool.
+            Returns 0 if pool doesn't exist.
+        """
+        total = 0
+        for key, data in self._instances.items():
+            if key.startswith(f"{pool}:"):
+                total += data.get("max_concurrent_scans", 1)
+        return total
+
     def get_pool_status(self, scanner_type: str = "nessus", pool: Optional[str] = None) -> Dict[str, Any]:
         """
         Get overall pool status.

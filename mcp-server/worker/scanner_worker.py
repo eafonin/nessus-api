@@ -7,7 +7,7 @@ import asyncio
 import signal
 import os
 import logging
-from typing import Optional, List
+from typing import Optional, List, Dict, Set
 from pathlib import Path
 
 from core.queue import TaskQueue
@@ -57,11 +57,13 @@ class ScannerWorker:
         queue: TaskQueue,
         task_manager: TaskManager,
         scanner_registry: ScannerRegistry,
-        pools: Optional[List[str]] = None,
-        max_concurrent_scans: int = 5
+        pools: Optional[List[str]] = None
     ):
         """
         Initialize scanner worker.
+
+        Per-pool backpressure: Each pool's capacity is derived from its scanner
+        configuration (sum of max_concurrent_scans for all scanners in pool).
 
         Args:
             queue: TaskQueue instance for consuming tasks
@@ -69,14 +71,11 @@ class ScannerWorker:
             scanner_registry: ScannerRegistry for getting scanner instances
             pools: List of pool names to consume from (e.g., ["nessus", "nessus_dmz"]).
                   If None, uses all registered pools from scanner_registry.
-            max_concurrent_scans: Maximum parallel scans (default: 5)
         """
         self.queue = queue
         self.task_manager = task_manager
         self.scanner_registry = scanner_registry
-        self.max_concurrent_scans = max_concurrent_scans
         self.running = False
-        self.active_tasks: set[asyncio.Task] = set()
         self._shutdown_event = asyncio.Event()
 
         # Determine pools to consume from
@@ -89,9 +88,43 @@ class ScannerWorker:
                 # Fallback to default pool
                 self.pools = [scanner_registry.get_default_pool()]
 
+        # Per-pool active task tracking for backpressure control
+        # Capacity for each pool is derived from scanner_registry.get_pool_capacity()
+        self.active_tasks_per_pool: Dict[str, Set[asyncio.Task]] = {
+            pool: set() for pool in self.pools
+        }
+
         # Register signal handlers
         signal.signal(signal.SIGTERM, self._handle_shutdown)
         signal.signal(signal.SIGINT, self._handle_shutdown)
+
+    def _get_pool_capacity(self, pool: str) -> int:
+        """Get capacity for pool from scanner registry."""
+        return self.scanner_registry.get_pool_capacity(pool)
+
+    def _get_pools_with_capacity(self) -> List[str]:
+        """Return pools that have available capacity for new scans."""
+        available = []
+        for pool in self.pools:
+            active = len(self.active_tasks_per_pool.get(pool, set()))
+            capacity = self._get_pool_capacity(pool)
+            if active < capacity:
+                available.append(pool)
+        return available
+
+    def _get_capacity_status(self) -> Dict[str, str]:
+        """Get human-readable capacity status for all pools."""
+        return {
+            pool: f"{len(self.active_tasks_per_pool.get(pool, set()))}/{self._get_pool_capacity(pool)}"
+            for pool in self.pools
+        }
+
+    def _cleanup_completed_tasks(self) -> None:
+        """Remove completed tasks from per-pool tracking."""
+        for pool in self.pools:
+            self.active_tasks_per_pool[pool] = {
+                t for t in self.active_tasks_per_pool[pool] if not t.done()
+            }
 
     def _handle_shutdown(self, signum, frame):
         """Handle shutdown signals gracefully."""
@@ -106,9 +139,11 @@ class ScannerWorker:
         Continuously polls pool queues and spawns task processors.
         """
         self.running = True
+        # Log per-pool capacities derived from scanner configuration
+        pool_capacities = {pool: self._get_pool_capacity(pool) for pool in self.pools}
         logger.info(
-            f"Worker started (max_concurrent_scans={self.max_concurrent_scans}, "
-            f"pools={self.pools})"
+            f"Worker started with per-pool backpressure (pools={self.pools}, "
+            f"capacities={pool_capacities})"
         )
 
         try:
@@ -133,7 +168,27 @@ class ScannerWorker:
             logger.error(f"Error updating metrics: {e}")
 
     async def _worker_loop(self) -> None:
-        """Main worker loop - poll pool queues and process tasks."""
+        """Main worker loop - poll pool queues and process tasks.
+
+        Per-pool backpressure: Only dequeues from pools that have available
+        capacity. Each pool's capacity is derived from scanner configuration.
+
+        # TODO: Future enhancement - Target network limits
+        # Different target networks may have different scan capacity based on:
+        # - Target infrastructure resources (CPU/RAM consumption during scans)
+        # - Network bandwidth constraints
+        # - Compliance requirements (e.g., production vs lab)
+        #
+        # Potential implementation:
+        # target_limits:
+        #   - cidr: "172.32.0.0/24"
+        #     max_concurrent_scans: 2
+        #   - cidr: "10.0.0.0/8"
+        #     max_concurrent_scans: 10
+        #   - default: 5
+        #
+        # Would require checking target CIDR against limits before allowing scan.
+        """
         import time
         metrics_interval = 30  # Update metrics every 30 seconds
         last_metrics_update = 0
@@ -146,19 +201,22 @@ class ScannerWorker:
                     self._update_metrics()
                     last_metrics_update = now
 
-                # Check if at capacity
-                if len(self.active_tasks) >= self.max_concurrent_scans:
-                    logger.debug(f"At capacity ({len(self.active_tasks)}/{self.max_concurrent_scans}), waiting...")
+                # Clean up completed tasks from all pools
+                self._cleanup_completed_tasks()
+
+                # Per-pool backpressure: only dequeue from pools with available capacity
+                pools_with_capacity = self._get_pools_with_capacity()
+                if not pools_with_capacity:
+                    status = self._get_capacity_status()
+                    logger.debug(f"All pools at capacity: {status}, waiting...")
                     await asyncio.sleep(1)
-                    # Clean up completed tasks
-                    self.active_tasks = {t for t in self.active_tasks if not t.done()}
                     continue
 
-                # Dequeue task from any pool (blocking with 5s timeout)
+                # Dequeue task from pools with available capacity (blocking with 5s timeout)
                 # Run blocking Redis call in thread pool to avoid blocking event loop
                 task_data = await asyncio.to_thread(
                     self.queue.dequeue_any,
-                    pools=self.pools,
+                    pools=pools_with_capacity,
                     timeout=5
                 )
 
@@ -166,12 +224,20 @@ class ScannerWorker:
                     # Timeout - no tasks available
                     continue
 
+                # Determine which pool this task belongs to
+                task_pool = task_data.get("scanner_pool", self.pools[0])
+
+                # Ensure pool is tracked (in case of dynamic pool addition)
+                if task_pool not in self.active_tasks_per_pool:
+                    self.active_tasks_per_pool[task_pool] = set()
+
                 # Spawn task processor (non-blocking)
                 task = asyncio.create_task(self._process_task(task_data))
-                self.active_tasks.add(task)
+                self.active_tasks_per_pool[task_pool].add(task)
 
-                # Remove from active set when done
-                task.add_done_callback(self.active_tasks.discard)
+                # Log task assignment
+                status = self._get_capacity_status()
+                logger.debug(f"Task assigned to pool '{task_pool}': {status}")
 
             except Exception as e:
                 logger.error(f"Error in worker loop: {e}", exc_info=True)
@@ -449,14 +515,19 @@ class ScannerWorker:
         self.queue.move_to_dlq(task_data, error_msg, pool=scanner_pool)
 
     async def _cleanup(self) -> None:
-        """Clean up resources and wait for active tasks."""
-        logger.info(f"Cleanup: waiting for {len(self.active_tasks)} active tasks...")
+        """Clean up resources and wait for active tasks across all pools."""
+        # Gather all active tasks from all pools
+        all_tasks = set()
+        for pool_tasks in self.active_tasks_per_pool.values():
+            all_tasks.update(pool_tasks)
 
-        if self.active_tasks:
+        logger.info(f"Cleanup: waiting for {len(all_tasks)} active tasks across {len(self.pools)} pools...")
+
+        if all_tasks:
             # Wait for active tasks with timeout
             try:
                 await asyncio.wait_for(
-                    asyncio.gather(*self.active_tasks, return_exceptions=True),
+                    asyncio.gather(*all_tasks, return_exceptions=True),
                     timeout=60  # 1 minute timeout for cleanup
                 )
             except asyncio.TimeoutError:
@@ -471,7 +542,6 @@ async def main():
     redis_url = os.getenv("REDIS_URL", "redis://redis:6379")
     data_dir = os.getenv("DATA_DIR", "/app/data/tasks")
     scanner_config = os.getenv("SCANNER_CONFIG", "/app/config/scanners.yaml")
-    max_concurrent = int(os.getenv("MAX_CONCURRENT_SCANS", "5"))
     log_level = os.getenv("LOG_LEVEL", "INFO")
 
     # Pool configuration (comma-separated list or empty for all pools)
@@ -503,9 +573,9 @@ async def main():
     logger.info(f"Redis URL: {redis_url}")
     logger.info(f"Data directory: {data_dir}")
     logger.info(f"Scanner config: {scanner_config}")
-    logger.info(f"Max concurrent scans: {max_concurrent}")
     logger.info(f"Pools: {pools or 'all'}")
     logger.info(f"Log level: {log_level}")
+    logger.info("Per-pool backpressure: capacity derived from scanners.yaml")
     logger.info("=" * 60)
 
     # Initialize components
@@ -522,12 +592,12 @@ async def main():
         return 1
 
     # Create and start worker
+    # Per-pool backpressure: capacity is derived from scanners.yaml, not env var
     worker = ScannerWorker(
         queue=queue,
         task_manager=task_manager,
         scanner_registry=scanner_registry,
-        pools=pools,
-        max_concurrent_scans=max_concurrent
+        pools=pools
     )
 
     # Start housekeeping background task if enabled
