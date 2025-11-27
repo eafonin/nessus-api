@@ -48,6 +48,7 @@
 
 networks:
   vpn_net:
+    name: nessus-shared_vpn_net  # Fixed name for dev1 compatibility
     driver: bridge
     enable_ipv6: false
     ipam:
