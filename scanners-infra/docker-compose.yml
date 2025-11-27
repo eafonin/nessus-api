@@ -1,0 +1,256 @@
+# =============================================================================
+# Nessus Scanner Deployment - UNIFIED MODE with NGINX PROXY
+# =============================================================================
+# Version: 4.0
+# Date: 2025-11-14
+# Status: PRODUCTION
+#
+# Architecture Documentation: See ARCHITECTURE.md for complete technical details
+# Quick Start: See README.md for common commands and troubleshooting
+#
+# =============================================================================
+# UNIFIED MODE DESIGN
+# =============================================================================
+# - VPN split routing: Internet via VPN, LAN direct (automatic via Gluetun)
+# - Separate network namespaces: Each scanner has independent routing
+# - NO port forwarding on scanners: Prevents Docker NAT TLS issues
+# - WebUI access: Via nginx reverse proxy (172.32.0.209:8443/8444)
+# - MCP server access: Direct container-to-container (172.30.0.3/4:8834)
+# - Health monitoring: Auto-restart unhealthy containers via autoheal
+#
+# =============================================================================
+# ACCESS URLS (Use LAN IP 172.32.0.209, NOT localhost!)
+# =============================================================================
+# Scanner 1 WebUI:  https://172.32.0.209:8443/
+# Scanner 2 WebUI:  https://172.32.0.209:8444/
+# Documentation:    http://172.32.0.209:8080/
+#
+# MCP Server Internal:
+# Scanner 1 API:    https://172.30.0.3:8834
+# Scanner 2 API:    https://172.30.0.4:8834
+#
+# =============================================================================
+# NETWORK TOPOLOGY
+# =============================================================================
+# vpn_net (172.30.0.0/24):
+#   172.30.0.1 - Docker bridge gateway
+#   172.30.0.2 - VPN Gateway (Gluetun)
+#   172.30.0.3 - Scanner 1 (Nessus Pro)
+#   172.30.0.4 - Scanner 2 (Nessus Pro)
+#   172.30.0.5 - MCP Worker
+#   172.30.0.6 - MCP API
+#   172.30.0.7 - Debug Scanner + Documentation Server
+#   172.30.0.8 - Nginx Reverse Proxy
+#
+# =============================================================================
+# NETWORK CONFIGURATION
+# =============================================================================
+
+networks:
+  vpn_net:
+    driver: bridge
+    enable_ipv6: false
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+          gateway: 172.30.0.1
+
+# =============================================================================
+# PERSISTENT VOLUMES
+# =============================================================================
+# Scanner data survives container restarts/recreation
+
+volumes:
+  nessus_data_1:
+    external: true
+    name: nessus_data  # Scanner 1 data (existing activated license)
+  nessus_data_2:
+    external: true
+    name: nessus_data_2  # Scanner 2 data
+
+# =============================================================================
+# SERVICES
+# =============================================================================
+
+services:
+  # ==========================================================================
+  # Shared VPN Gateway - Routes scanner internet traffic through VPN
+  # ==========================================================================
+  vpn-gateway:
+    image: qmcgaw/gluetun:latest
+    container_name: vpn-gateway-shared
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      - TZ=Europe/Amsterdam
+      # VPN SPLIT ROUTING: LAN direct, internet via VPN
+      # Gluetun automatically routes these subnets via bridge (no VPN)
+      # Everything else goes via VPN tunnel
+      - FIREWALL_OUTBOUND_SUBNETS=172.30.0.0/24,172.32.0.0/24
+      - FIREWALL_VPN_INPUT_PORTS=
+      - FIREWALL_INPUT_PORTS=
+      - FIREWALL=on  # Enable firewall to configure NAT for scanners
+      # HTTP proxy (optional - disable if not needed)
+      - HTTPPROXY=on
+      - HTTPPROXY_LOG=on
+    volumes:
+      - ./wg/wg0.conf:/gluetun/wireguard/wg0.conf:ro
+    networks:
+      vpn_net:
+        ipv4_address: 172.30.0.2
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv4.ip_forward=1  # Enable forwarding for containers
+    labels:
+      - autoheal=true
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Nessus Scanner 1 - Unified mode with VPN split routing
+  # ==========================================================================
+  nessus-pro-1:
+    image: tenable/nessus:latest-ubuntu
+    container_name: nessus-pro-1
+    depends_on:
+      - vpn-gateway
+    volumes:
+      - nessus_data_1:/opt/nessus
+    environment:
+      - ACTIVATION_CODE=8WVN-N99G-LHTF-TQ4D-LTAX
+      - USERNAME=nessus
+      - PASSWORD=nessus
+    # NO port forwarding - access via nginx proxy instead
+    # This avoids Docker NAT breaking TLS handshakes
+    networks:
+      vpn_net:
+        ipv4_address: 172.30.0.3
+    # DNS via VPN gateway for proper routing
+    dns:
+      - 172.30.0.2
+    # Healthcheck using Python (curl not available in Nessus container)
+    # This prevents autoheal from killing the container during scans
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request,ssl;c=ssl.create_default_context();c.check_hostname=False;c.verify_mode=ssl.CERT_NONE;exit(0 if urllib.request.urlopen('https://localhost:8834/server/status',timeout=5,context=c).status==200 else 1)\""]
+      interval: 60s
+      timeout: 15s
+      retries: 5
+      start_period: 180s
+    labels:
+      - autoheal=true
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Nessus Scanner 2 - Unified mode with VPN split routing
+  # ==========================================================================
+  nessus-pro-2:
+    image: tenable/nessus:latest-ubuntu
+    container_name: nessus-pro-2
+    depends_on:
+      - vpn-gateway
+    volumes:
+      - nessus_data_2:/opt/nessus
+    environment:
+      - ACTIVATION_CODE=XS6C-BFB6-VUMK-Y5MU-AWNG
+      - USERNAME=nessus
+      - PASSWORD=nessus
+    # NO port forwarding - access via nginx proxy instead
+    networks:
+      vpn_net:
+        ipv4_address: 172.30.0.4
+    # DNS via VPN gateway for proper routing
+    dns:
+      - 172.30.0.2
+    # Healthcheck using Python (curl not available in Nessus container)
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request,ssl;c=ssl.create_default_context();c.check_hostname=False;c.verify_mode=ssl.CERT_NONE;exit(0 if urllib.request.urlopen('https://localhost:8834/server/status',timeout=5,context=c).status==200 else 1)\""]
+      interval: 60s
+      timeout: 15s
+      retries: 5
+      start_period: 180s
+    labels:
+      - autoheal=true
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Debug Scanner - Troubleshooting + Documentation Server
+  # ==========================================================================
+  debug-scanner:
+    image: alpine:latest
+    container_name: debug-scanner
+    depends_on:
+      - vpn-gateway
+    volumes:
+      - .:/docs:ro  # Mount docker directory as /docs (read-only)
+    networks:
+      vpn_net:
+        ipv4_address: 172.30.0.7  # Fixed IP to avoid conflicts
+    command: >
+      sh -c "
+      echo 'Installing debug tools and Python...' &&
+      apk add --no-cache curl wget bind-tools nmap tcpdump iproute2 python3 >/dev/null 2>&1 &&
+      echo 'Starting documentation server on port 8080...' &&
+      cd /docs && python3 -m http.server 8080 > /tmp/http.log 2>&1 &
+      echo 'Debug scanner ready!' &&
+      tail -f /dev/null
+      "
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Autoheal - Automatically restart unhealthy containers
+  # ==========================================================================
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: autoheal-shared
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=autoheal
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    network_mode: none
+    restart: unless-stopped
+
+  # ==========================================================================
+  # NGINX Reverse Proxy - Provides localhost HTTPS access to scanners
+  # ==========================================================================
+  nginx-proxy:
+    image: nginx:alpine
+    container_name: nessus-nginx-proxy
+    depends_on:
+      - nessus-pro-1
+      - nessus-pro-2
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    ports:
+      - "8443:8443"  # Scanner 1 WebUI: https://172.32.0.209:8443/
+      - "8444:8444"  # Scanner 2 WebUI: https://172.32.0.209:8444/
+      - "8080:8080"  # Documentation: http://172.32.0.209:8080/
+    networks:
+      vpn_net:
+        ipv4_address: 172.30.0.8
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - autoheal=true
+    restart: unless-stopped
+
+# =============================================================================
+# Access URLs (use LAN IP, NOT localhost due to Docker NAT hairpin issue):
+#   Scanner 1 WebUI: https://172.32.0.209:8443/ (via proxy)
+#   Scanner 2 WebUI: https://172.32.0.209:8444/ (via proxy)
+#   Test Service:    http://172.32.0.209:8080/ (debug only)
+#
+#   MCP Server Internal Access:
+#   Scanner 1: https://172.30.0.3:8834 (direct container-to-container)
+#   Scanner 2: https://172.30.0.4:8834 (direct container-to-container)
+#
+# Note: localhost (127.0.0.1) will NOT work due to Docker's localhost hairpin
+#       NAT limitation. Always use the host's LAN IP (172.32.0.209).
+# =============================================================================
