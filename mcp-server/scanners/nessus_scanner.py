@@ -518,15 +518,26 @@ class NessusScanner(ScannerInterface):
 
                 data = response.json()
                 info = data.get("info", {})
+                hosts = data.get("hosts", [])
 
                 # Map Nessus status to MCP status
                 nessus_status = info.get("status", "unknown")
                 mapped_status = self.STATUS_MAP.get(nessus_status, "unknown")
 
+                # Calculate progress from hosts array (Nessus doesn't put it in info)
+                # Each host has scanprogresscurrent/scanprogresstotal (0-100 scale)
+                progress = 0
+                if hosts:
+                    total_current = sum(h.get("scanprogresscurrent", 0) for h in hosts)
+                    total_max = sum(h.get("scanprogresstotal", 100) for h in hosts)
+                    if total_max > 0:
+                        progress = int((total_current / total_max) * 100)
+
                 return {
                     "status": mapped_status,
-                    "progress": info.get("progress", 0),
+                    "progress": progress,
                     "uuid": info.get("uuid", ""),
+                    "host_count": len(hosts),
                     "info": info  # Full response for debugging
                 }
 
