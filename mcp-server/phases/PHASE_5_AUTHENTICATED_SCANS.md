@@ -362,6 +362,16 @@ Test users have been created on the Docker host (172.32.0.209) for authenticated
 
 **Status: CREATED AND VERIFIED (2025-11-25)**
 
+**Network Constraint**: The Docker host (172.32.0.209) is on the 172.32.0.0/24 network,
+while Docker containers use the 172.30.0.0/24 network (nessus-shared_vpn_net). By default,
+containers cannot reach the Docker host's external IP. Tests targeting 172.32.0.209 will
+automatically skip if the target is not reachable.
+
+To run privileged scan tests:
+1. Ensure network routing between 172.30.0.0/24 and 172.32.0.0/24 is configured
+2. Or run tests from a host that can reach 172.32.0.209 directly
+3. Or use 172.32.0.215 (external host) for authenticated scan testing
+
 #### Users Created
 
 | Username | Password | Sudo Config | UID |
@@ -908,7 +918,30 @@ class TestAuthenticatedScanE2E:
 | `172.32.0.209` | Docker host | `nessus`, `testauth_*` | Primary test target for escalation testing |
 | `172.32.0.215` | External host | `randy` | Basic authenticated scan testing |
 
-### Test Users (CREATED on 172.32.0.209)
+### Test Users
+
+#### Scan Target Container (172.30.0.9 - `scan-target`)
+
+A dedicated Docker container provides test targets for authenticated scans, running on the same network as other services (nessus-shared_vpn_net).
+
+**Build & Run:**
+```bash
+# Build
+docker build -t scan-target:test -f docker/Dockerfile.scan-target .
+
+# Run on vpn network
+docker run -d --name scan-target --network nessus-shared_vpn_net scan-target:test
+```
+
+| Username | Password | Sudo Config | Purpose | Status |
+|----------|----------|-------------|---------|--------|
+| `testauth_sudo_pass` | `TestPass123!` | sudo with password | Test privileged with escalation_password | READY |
+| `testauth_sudo_nopass` | `TestPass123!` | sudo NOPASSWD | Test privileged without escalation_password | READY |
+| `testauth_nosudo` | `TestPass123!` | No sudo | Test authenticated (non-privileged) | READY |
+
+#### Docker Host (172.32.0.209 - may not be reachable from containers)
+
+Test users also exist on the Docker host for manual testing. Note that this host may not be reachable from within Docker containers due to network isolation.
 
 | Username | Password | Sudo Config | Purpose | Status |
 |----------|----------|-------------|---------|--------|
@@ -916,7 +949,12 @@ class TestAuthenticatedScanE2E:
 | `testauth_sudo_nopass` | `TestPass123!` | sudo NOPASSWD | Test privileged without escalation_password | READY |
 | `testauth_nosudo` | `TestPass123!` | No sudo | Test authenticated (non-privileged) | READY |
 | `nessus` | `nessus` | sudo with password | Existing user | READY |
-| `randy` (172.32.0.215) | `randylovesgoldfish1998` | Full root | Existing user | READY |
+
+#### External Host (172.32.0.215)
+
+| Username | Password | Access | Status |
+|----------|----------|--------|--------|
+| `randy` | `randylovesgoldfish1998` | Full root SSH | READY |
 
 ---
 
@@ -924,18 +962,18 @@ class TestAuthenticatedScanE2E:
 
 ### Phase 5.1: Core Implementation
 
-- [ ] Modify `scanners/nessus_scanner.py`
-  - [ ] Add `_build_credentials_payload()` method
-  - [ ] Add `_validate_credentials()` method
-  - [ ] Add `VALID_ESCALATION_METHODS` constant
-  - [ ] Update `create_scan()` to include credentials
-  - [ ] Add credential logging (sanitized - no passwords in logs)
+- [x] Modify `scanners/nessus_scanner.py` ✅ COMPLETED (2025-11-26)
+  - [x] Add `_build_credentials_payload()` method
+  - [x] Add `_validate_credentials()` method
+  - [x] Add `VALID_ESCALATION_METHODS` constant
+  - [x] Update `create_scan()` to include credentials
+  - [x] Add credential logging (sanitized - no passwords in logs)
 
-- [ ] Modify `tools/mcp_server.py`
-  - [ ] Add `run_authenticated_scan()` tool
-  - [ ] Add input validation for scan_type
-  - [ ] Add credential validation
-  - [ ] Update metrics labels for new scan types
+- [x] Modify `tools/mcp_server.py` ✅ COMPLETED (2025-11-26)
+  - [x] Add `run_authenticated_scan()` tool
+  - [x] Add input validation for scan_type
+  - [x] Add credential validation
+  - [x] Update metrics labels for new scan types
 
 ### Phase 5.2: Test Infrastructure
 
@@ -945,22 +983,27 @@ class TestAuthenticatedScanE2E:
   - [x] `testauth_nosudo` (no sudo access) - UID 1004
   - [x] Sudoers file: `/etc/sudoers.d/testauth`
 
-- [ ] Create `tests/unit/test_authenticated_scans.py`
-  - [ ] Test credential payload building
-  - [ ] Test credential validation
-  - [ ] Test error cases
+- [x] Create `tests/unit/test_authenticated_scans.py` ✅ COMPLETED (2025-11-26)
+  - [x] Test credential payload building (6 tests)
+  - [x] Test credential validation (8 tests)
+  - [x] Test error cases
+  - [x] Test ScanRequest with credentials (2 tests)
+  - [x] Test create_scan with credentials (2 tests) - Total: 18 tests passing
 
-- [ ] Create `tests/integration/test_authenticated_scan_workflow.py`
-  - [ ] Test authenticated scan E2E
-  - [ ] Test authenticated_privileged scan (sudo + password)
-  - [ ] Test authenticated_privileged scan (sudo NOPASSWD)
-  - [ ] Test auth failure detection
-  - [ ] Test insufficient privilege detection
+- [x] Create `tests/integration/test_authenticated_scan_workflow.py` ✅ COMPLETED (2025-11-26)
+  - [x] Test credential injection (SSH, sudo credentials)
+  - [x] Test authenticated scan E2E with real Nessus (8 min scan)
+  - [x] Test MCP tool validation (scan_type, escalation checks)
+  - [x] Test auth failure detection (bad credentials)
+  - [x] Test authenticated_privileged scan (sudo + password) ✅ PASSED (2025-11-26)
+  - [x] Test authenticated_privileged scan (sudo NOPASSWD) ✅ PASSED (2025-11-26)
+  - [x] Test insufficient privilege detection - via idempotent user verification
+  - [x] Test infrastructure: Scan target container (docker/Dockerfile.scan-target) ✅
 
 ### Phase 5.3: Documentation
 
-- [ ] Update `docs/API.md` with auth scan documentation
-- [ ] Update `README.md` with auth scan examples
+- [x] Update `docs/API.md` with auth scan documentation ✅ COMPLETED (2025-11-26)
+- [x] Update `README.md` with auth scan examples ✅ COMPLETED (2025-11-26)
 - [ ] Update `nessusAPIWrapper/CODEBASE_INDEX.md`
 - [ ] Update `nessusAPIWrapper/MCP_WORKFLOW_GUIDE.md`
 

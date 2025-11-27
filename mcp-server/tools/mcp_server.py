@@ -218,6 +218,255 @@ async def run_untrusted_scan(
 
 
 @mcp.tool()
+async def run_authenticated_scan(
+    targets: str,
+    name: str,
+    scan_type: str,
+    ssh_username: str,
+    ssh_password: str,
+    description: str = "",
+    schema_profile: str = "brief",
+    elevate_privileges_with: str = "Nothing",
+    escalation_account: str = "",
+    escalation_password: str = "",
+    idempotency_key: str | None = None,
+    scanner_pool: str | None = None,
+    scanner_instance: str | None = None,
+) -> dict:
+    """
+    Run an authenticated vulnerability scan with SSH credentials (Phase 5).
+
+    Authenticated scans log into target systems via SSH to perform deeper
+    vulnerability assessment than unauthenticated network scans.
+
+    Args:
+        targets: IP addresses or hostnames to scan (comma-separated)
+        name: Human-readable scan name
+        scan_type: "authenticated" (SSH only) or "authenticated_privileged" (SSH + sudo)
+        ssh_username: SSH username for target authentication
+        ssh_password: SSH password for target authentication
+        description: Optional scan description
+        schema_profile: Result detail level (minimal|summary|brief|full)
+        elevate_privileges_with: "Nothing", "sudo", "su" (for authenticated_privileged)
+        escalation_account: Account to escalate to (default: root)
+        escalation_password: Password for privilege escalation (if required)
+        idempotency_key: Optional key for duplicate prevention
+        scanner_pool: Optional pool name for scanner selection
+        scanner_instance: Optional specific scanner instance
+
+    Returns:
+        {
+            "task_id": "...",
+            "trace_id": "...",
+            "status": "queued",
+            "scan_type": "authenticated|authenticated_privileged",
+            "scanner_pool": "nessus",
+            "scanner_instance": "scanner1",
+            "queue_position": 1,
+            "message": "Authenticated scan enqueued successfully"
+        }
+
+    Authentication Detection (after scan completion):
+        - authentication_status: "success" | "partial" | "failed"
+        - Plugin 141118: "Valid Credentials Provided" (confirms success)
+        - Plugin 110385: "Insufficient Privilege" (need sudo escalation)
+        - hosts_summary.credential: "true" | "false"
+
+    Example (authenticated scan - SSH only):
+        run_authenticated_scan(
+            targets="172.32.0.215",
+            name="Internal Server Audit",
+            scan_type="authenticated",
+            ssh_username="randy",
+            ssh_password="password123"
+        )
+
+    Example (authenticated_privileged scan - SSH + sudo):
+        run_authenticated_scan(
+            targets="172.32.0.209",
+            name="Full System Audit",
+            scan_type="authenticated_privileged",
+            ssh_username="testauth_sudo_pass",
+            ssh_password="TestPass123!",
+            elevate_privileges_with="sudo",
+            escalation_password="TestPass123!"
+        )
+    """
+    # Generate IDs
+    trace_id = str(uuid.uuid4())
+
+    # Validate scan_type
+    valid_types = ("authenticated", "authenticated_privileged")
+    if scan_type not in valid_types:
+        return {
+            "error": f"Invalid scan_type: {scan_type}. Must be one of: {valid_types}",
+            "trace_id": trace_id
+        }
+
+    # Validate privileged scan has escalation configured
+    if scan_type == "authenticated_privileged" and elevate_privileges_with == "Nothing":
+        return {
+            "error": "authenticated_privileged scan requires elevate_privileges_with (sudo/su)",
+            "trace_id": trace_id
+        }
+
+    # Pool selection
+    target_pool = scanner_pool or scanner_registry.get_default_pool()
+
+    # Select scanner: use specified or get least loaded in pool
+    try:
+        if scanner_instance:
+            _ = scanner_registry.get_instance(pool=target_pool, instance_id=scanner_instance)
+            selected_instance = scanner_instance
+        else:
+            _, instance_key = scanner_registry.get_available_scanner(pool=target_pool)
+            selected_instance = instance_key.split(":")[-1]
+    except ValueError as e:
+        return {
+            "error": "Scanner not found",
+            "message": str(e),
+            "status_code": 404,
+        }
+
+    logger.info(
+        "tool_invocation",
+        tool="run_authenticated_scan",
+        trace_id=trace_id,
+        targets=targets,
+        name=name,
+        scan_type=scan_type,
+        ssh_username=ssh_username,
+        elevate_privileges_with=elevate_privileges_with,
+        idempotency_key=idempotency_key,
+        scanner_pool=target_pool,
+        scanner_instance=selected_instance,
+    )
+
+    # Build credentials structure
+    credentials = {
+        "type": "ssh",
+        "auth_method": "password",
+        "username": ssh_username,
+        "password": ssh_password,
+        "elevate_privileges_with": elevate_privileges_with,
+    }
+
+    if elevate_privileges_with != "Nothing":
+        if escalation_password:
+            credentials["escalation_password"] = escalation_password
+        if escalation_account:
+            credentials["escalation_account"] = escalation_account
+
+    # Check idempotency key if provided
+    if idempotency_key:
+        request_params = {
+            "targets": targets,
+            "name": name,
+            "scan_type": scan_type,
+            "description": description,
+            "schema_profile": schema_profile,
+            "scanner_pool": target_pool,
+            "scanner_instance": selected_instance,
+            "ssh_username": ssh_username,
+            "elevate_privileges_with": elevate_privileges_with,
+        }
+
+        try:
+            existing_task_id = await idempotency_manager.check(idempotency_key, request_params)
+            if existing_task_id:
+                existing_task = task_manager.get_task(existing_task_id)
+                return {
+                    "task_id": existing_task_id,
+                    "trace_id": existing_task.trace_id,
+                    "status": existing_task.status,
+                    "scan_type": existing_task.scan_type,
+                    "scanner_pool": existing_task.scanner_pool,
+                    "scanner_instance": existing_task.scanner_instance_id,
+                    "message": "Returning existing task (idempotency key matched)",
+                    "idempotent": True,
+                }
+        except ConflictError as e:
+            return {
+                "error": "Conflict",
+                "message": str(e),
+                "status_code": 409,
+            }
+
+    task_id = generate_task_id(target_pool, selected_instance)
+
+    # Create task with credentials in payload
+    task = Task(
+        task_id=task_id,
+        trace_id=trace_id,
+        scan_type=scan_type,
+        scanner_type=target_pool.split("_")[0],
+        scanner_pool=target_pool,
+        scanner_instance_id=selected_instance,
+        status=ScanState.QUEUED.value,
+        payload={
+            "targets": targets,
+            "name": name,
+            "description": description,
+            "schema_profile": schema_profile,
+            "credentials": credentials,
+        },
+        created_at=datetime.utcnow().isoformat(),
+    )
+
+    # Store task metadata
+    task_manager.create_task(task)
+
+    # Enqueue task for worker processing
+    task_data = {
+        "task_id": task_id,
+        "trace_id": trace_id,
+        "scan_type": scan_type,
+        "scanner_pool": target_pool,
+        "scanner_instance_id": selected_instance,
+        "payload": task.payload,
+    }
+
+    queue_depth = task_queue.enqueue(task_data, pool=target_pool)
+
+    # Store idempotency key if provided
+    if idempotency_key:
+        await idempotency_manager.store(idempotency_key, task_id, request_params)
+
+    # Record metrics
+    record_tool_call("run_authenticated_scan", "success")
+    record_scan_submission(scan_type, "queued")
+
+    # Get scanner URL for transparency
+    scanner_info = scanner_registry.get_instance_info(pool=target_pool, instance_id=selected_instance)
+    scanner_url = scanner_info.get("url", "unknown") if scanner_info else "unknown"
+
+    # Estimate wait time
+    estimated_wait_minutes = queue_depth * 15
+
+    logger.info(
+        "authenticated_scan_enqueued",
+        task_id=task_id,
+        trace_id=trace_id,
+        scan_type=scan_type,
+        scanner_pool=target_pool,
+        queue_position=queue_depth
+    )
+
+    return {
+        "task_id": task_id,
+        "trace_id": trace_id,
+        "status": "queued",
+        "scan_type": scan_type,
+        "scanner_pool": target_pool,
+        "scanner_instance": selected_instance,
+        "scanner_url": scanner_url,
+        "queue_position": queue_depth,
+        "estimated_wait_minutes": estimated_wait_minutes,
+        "message": f"{scan_type.replace('_', ' ').title()} scan enqueued successfully. Worker will process asynchronously."
+    }
+
+
+@mcp.tool()
 async def get_scan_status(task_id: str) -> dict:
     """
     Get current status of scan task with validation results (Phase 4).
@@ -638,7 +887,7 @@ async def metrics(request):
 # Using http_app with streamable-http transport (modern FastMCP 2.13+ API)
 # streamable-http uses /messages POST endpoint for bidirectional communication
 # This replaces the deprecated sse_app() method
-app = mcp.http_app(path="/mcp", transport="streamable-http")
+app = mcp.http_app(path="/mcp", transport="streamable-http", stateless_http=True)
 
 # =============================================================================
 # Register HTTP Endpoints

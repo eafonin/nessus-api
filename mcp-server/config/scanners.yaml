@@ -23,7 +23,7 @@ nessus:
     username: ${NESSUS_USERNAME:-nessus}
     password: ${NESSUS_PASSWORD:-nessus}
     enabled: true
-    max_concurrent_scans: 5
+    max_concurrent_scans: 2
 
   # Scanner 2 - Secondary scanner (nessus-pro-2)
   - instance_id: scanner2
@@ -32,7 +32,7 @@ nessus:
     username: ${NESSUS_USERNAME_2:-nessus}
     password: ${NESSUS_PASSWORD_2:-nessus}
     enabled: true
-    max_concurrent_scans: 5
+    max_concurrent_scans: 2
 
 # =============================================================================
 # Example: Zone-specific pools (uncomment to enable)
@@ -60,14 +60,14 @@ nessus:
 #     username: ${NESSUS_LAN_USERNAME:-admin}
 #     password: ${NESSUS_LAN_PASSWORD}
 #     enabled: true
-#     max_concurrent_scans: 5
+#     max_concurrent_scans: 2
 #   - instance_id: lan-scanner2
 #     name: "LAN Nessus Scanner 2"
 #     url: ${NESSUS_LAN_URL_2:-https://lan-scanner2:8834}
 #     username: ${NESSUS_LAN_USERNAME:-admin}
 #     password: ${NESSUS_LAN_PASSWORD}
 #     enabled: true
-#     max_concurrent_scans: 5
+#     max_concurrent_scans: 2
 
 # =============================================================================
 # Future: Other scanner vendors

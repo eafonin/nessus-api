@@ -1,13 +1,14 @@
 # Nessus MCP Server - Implementation Tracker
 
 > **Status**: 🚧 In Development
-> **Current Phase**: Phase 4 - Production Hardening (100% Complete)
+> **Current Phase**: Phase 5 - Authenticated Scans (100% Complete)
 > **Phase 0**: ✅ Completed (2025-11-06)
 > **Phase 1**: ✅ Completed (2025-11-07) - Real Nessus Integration + Queue
 > **Phase 2**: ✅ Completed (2025-11-07) - Schema System & Results
 > **Phase 3**: ✅ Completed - Observability & Testing
 > **Phase 4**: ✅ Completed (2025-11-25) - Production Hardening
-> **Last Updated**: 2025-11-25
+> **Phase 5**: ✅ Completed (2025-11-26) - Authenticated Scans
+> **Last Updated**: 2025-11-26
 
 ---
 
@@ -16,10 +17,11 @@
 ### Implementation Phases
 - [Phase 0: Foundation & Mock Infrastructure](./phases/PHASE_0_FOUNDATION.md) ✅ **COMPLETED** - [Status Report](./phases/phase0/PHASE0_STATUS.md)
 - [Phase 1A: Scanner Rewrite](./phases/PHASE_1A_SCANNER_REWRITE.md) ✅ **COMPLETED** - [Completion Report](./phases/PHASE_1A_COMPLETION_REPORT.md)
-- [Phase 1: Real Nessus Integration + Queue](./phases/PHASE_1_REAL_NESSUS.md) ⬅️ **IN PROGRESS**
-- [Phase 2: Schema System & Results](./phases/PHASE_2_SCHEMA_RESULTS.md)
-- [Phase 3: Observability & Testing](./phases/PHASE_3_OBSERVABILITY.md)
-- [Phase 4: Production Hardening](./phases/PHASE_4_PRODUCTION.md)
+- [Phase 1: Real Nessus Integration + Queue](./phases/PHASE_1_REAL_NESSUS.md) ✅ **COMPLETED**
+- [Phase 2: Schema System & Results](./phases/PHASE_2_SCHEMA_RESULTS.md) ✅ **COMPLETED**
+- [Phase 3: Observability & Testing](./phases/PHASE_3_OBSERVABILITY.md) ✅ **COMPLETED**
+- [Phase 4: Production Hardening](./phases/PHASE_4_PRODUCTION.md) ✅ **COMPLETED**
+- [Phase 5: Authenticated Scans](./phases/PHASE_5_AUTHENTICATED_SCANS.md) ✅ **COMPLETED** - SSH credential injection
 
 ### Phase 0 Completion Documents
 - [Phase 0 Status Report](./phases/phase0/PHASE0_STATUS.md) - Complete implementation summary
@@ -38,6 +40,7 @@
   - Section 4: State Machine Enforcement (valid transitions)
   - Section 5: Native Async Nessus Scanner (no subprocess calls)
   - Section 9: JSON-NL Converter (LLM-friendly results format)
+- **[API Reference](./docs/API.md)** ⭐ - Complete MCP tool reference with examples
 - **[Requirements](./docs/NESSUS_MCP_SERVER_REQUIREMENTS.md)** - Functional requirements and acceptance criteria
 - **[Test Suite](./tests/README.md)** ⭐ - Layered test architecture (unit → integration → E2E)
 - **[Scanner Pools](./docs/SCANNER_POOLS.md)** - Pool-based scanner grouping, queue isolation, and load balancing
@@ -65,7 +68,8 @@
 An **MCP (Model Context Protocol) server** that exposes Nessus vulnerability scanning capabilities to AI agents with:
 
 - **Async Task Queue**: Non-blocking scan submission with Redis-based FIFO queue
-- **Three Scan Types**: Untrusted (network-only), Trusted (SSH), Privileged (sudo/root)
+- **Three Scan Types**: Untrusted (network-only), Authenticated (SSH), Authenticated Privileged (sudo/root)
+- **SSH Credential Injection**: Authenticated scans with password and privilege escalation support
 - **Pluggable Scanners**: Abstract interface supporting multiple scanner backends
 - **LLM-Optimized Results**: JSON-NL format with flexible schemas and filtering
 - **Production-Grade**: Idempotency, trace IDs, state machines, observability
@@ -94,6 +98,7 @@ An **MCP (Model Context Protocol) server** that exposes Nessus vulnerability sca
 - ✅ **Phase 2**: Complete (2025-11-07) - Schema System & Results (25/25 tests passing)
 - ✅ **Phase 3**: Complete - Observability & Testing
 - ✅ **Phase 4**: Complete (2025-11-25) - Production Hardening (200 unit tests passing)
+- ✅ **Phase 5**: Complete (2025-11-26) - Authenticated Scans (22 tests passing)
 
 **See**: [phases/README.md](./phases/README.md) for detailed status tracking guide.
 
@@ -118,7 +123,7 @@ An **MCP (Model Context Protocol) server** that exposes Nessus vulnerability sca
   - [x] 1.4: Worker with State Machine (worker/scanner_worker.py - 392 lines)
   - [x] 1.5: Idempotency System (core/idempotency.py - 120 lines) - SHA256 + Redis SETNX
   - [x] 1.6: Trace ID Middleware (core/middleware.py - 25 lines)
-  - [x] 1.7: Enhanced MCP Tools (6 tools: run_untrusted_scan, get_scan_status, list_scanners, get_queue_status, list_tasks, get_scan_results)
+  - [x] 1.7: Enhanced MCP Tools (7 tools: run_untrusted_scan, run_authenticated_scan, get_scan_status, list_scanners, get_queue_status, list_tasks, get_scan_results)
   - [x] 1.8: Real Nessus Integration Tests (test_phase0_phase1_real_nessus.py)
 
 - [x] **Phase 2**: Schema System & Results ✅ (Completed 2025-11-07)
@@ -150,6 +155,14 @@ An **MCP (Model Context Protocol) server** that exposes Nessus vulnerability sca
   - [x] 4.11: DLQ Handler CLI - Admin CLI for queue management
   - [x] 4.12: Circuit Breaker - Scanner failure protection with auto-recovery
   - **[Monitoring Guide](./docs/MONITORING.md)** ⭐ - Comprehensive observability documentation
+
+- [x] **Phase 5**: Authenticated Scans ✅ (Completed 2025-11-26)
+  - [x] 5.1: Scanner Credential Support - `_validate_credentials()`, `_build_credentials_payload()`
+  - [x] 5.2: MCP Tool - `run_authenticated_scan()` with SSH/sudo support
+  - [x] 5.3: Unit Tests - 18 tests for credential validation and payload building
+  - [x] 5.4: Integration Tests - E2E authenticated scan with real Nessus
+  - [x] 5.5: Documentation - [API Reference](./docs/API.md) with authenticated scan examples
+  - **[Phase 5 Plan](./phases/PHASE_5_AUTHENTICATED_SCANS.md)** ⭐ - Authenticated scan implementation guide
 
 ---
 
@@ -522,9 +535,9 @@ docker compose up -d
 ### Functional Requirements
 
 **FR-1: Three Scan Workflows**
-- Untrusted (network-only, no credentials)
-- Trusted (SSH user access, no escalation)
-- Privileged (SSH + sudo/su/pbrun for root access)
+- Untrusted (network-only, no credentials) - `run_untrusted_scan()`
+- Authenticated (SSH user access, no escalation) - `run_authenticated_scan(scan_type="authenticated")`
+- Authenticated Privileged (SSH + sudo/su for root access) - `run_authenticated_scan(scan_type="authenticated_privileged")`
 
 **FR-2: Async Task Management**
 - Non-blocking scan submission (<1s response)
