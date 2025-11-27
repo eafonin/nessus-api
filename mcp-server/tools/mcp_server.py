@@ -10,6 +10,7 @@ from core.task_manager import TaskManager, generate_task_id
 from core.types import Task, ScanState
 from core.queue import TaskQueue, get_queue_stats
 from core.idempotency import IdempotencyManager, ConflictError
+from core.ip_utils import targets_match
 from scanners.registry import ScannerRegistry
 from schema.converter import NessusToJsonNL
 from core.metrics import metrics_response, record_tool_call, record_scan_submission
@@ -507,6 +508,8 @@ async def get_scan_status(task_id: str) -> dict:
         "scanner_pool": task.scanner_pool or task.scanner_type,  # Backward compat
         "scanner_type": task.scanner_type,
         "scanner_instance": task.scanner_instance_id,
+        "targets": task.payload.get("targets", "") if task.payload else "",
+        "name": task.payload.get("name", "") if task.payload else "",
         "nessus_scan_id": task.nessus_scan_id,
         "created_at": task.created_at,
         "started_at": task.started_at,
@@ -686,7 +689,8 @@ async def get_queue_status(scanner_pool: str | None = None) -> dict:
 async def list_tasks(
     limit: int = 10,
     status_filter: str | None = None,
-    scanner_pool: str | None = None
+    scanner_pool: str | None = None,
+    target_filter: str | None = None,
 ) -> dict:
     """
     List recent tasks from task manager.
@@ -695,6 +699,10 @@ async def list_tasks(
         limit: Maximum number of tasks to return (default: 10)
         status_filter: Optional filter by status (queued|running|completed|failed|timeout)
         scanner_pool: Optional filter by pool (e.g., "nessus", "nessus_dmz")
+        target_filter: Optional filter by target IP/CIDR (CIDR-aware matching).
+                      Matches if query IP is within stored subnet, or query subnet
+                      contains/overlaps stored targets.
+                      Examples: "192.168.1.5", "10.0.0.0/24"
 
     Returns:
         {
@@ -703,6 +711,8 @@ async def list_tasks(
                     "task_id": "...",
                     "status": "...",
                     "scanner_pool": "nessus",
+                    "targets": "192.168.1.0/24",
+                    "name": "Network Scan",
                     "created_at": "...",
                     ...
                 },
@@ -718,8 +728,11 @@ async def list_tasks(
         reverse=True
     )
 
+    # When filtering by target, we may need to scan more files
+    scan_multiplier = 10 if target_filter else 2
+
     tasks = []
-    for task_file in task_dirs[:limit * 2]:  # Read more than limit for filtering
+    for task_file in task_dirs[:limit * scan_multiplier]:
         try:
             task = task_manager.get_task(task_file.parent.name)
             if task:
@@ -732,6 +745,12 @@ async def list_tasks(
                 if scanner_pool and task_pool != scanner_pool:
                     continue
 
+                # Apply target filter if provided (CIDR-aware)
+                if target_filter:
+                    stored_targets = task.payload.get("targets", "") if task.payload else ""
+                    if not targets_match(target_filter, stored_targets):
+                        continue
+
                 tasks.append({
                     "task_id": task.task_id,
                     "trace_id": task.trace_id,
@@ -740,6 +759,8 @@ async def list_tasks(
                     "scanner_pool": task_pool,
                     "scanner_type": task.scanner_type,
                     "scanner_instance": task.scanner_instance_id,
+                    "targets": task.payload.get("targets", "") if task.payload else "",
+                    "name": task.payload.get("name", "") if task.payload else "",
                     "created_at": task.created_at,
                     "started_at": task.started_at,
                     "completed_at": task.completed_at,
