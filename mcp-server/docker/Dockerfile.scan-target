@@ -1,0 +1,42 @@
+# Dockerfile for Authenticated Scan Test Target
+# This container provides SSH access with test users for Phase 5 authenticated scan testing
+#
+# Build: docker build -t scan-target:test -f docker/Dockerfile.scan-target .
+# Run: docker run -d --name scan-target --network nessus-shared_vpn_net scan-target:test
+
+FROM ubuntu:22.04
+
+# Install SSH server and sudo
+RUN apt-get update && apt-get install -y \
+    openssh-server \
+    sudo \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir /run/sshd
+
+# Create test users for authenticated scan testing
+# testauth_sudo_pass - sudo with password required
+RUN useradd -m -s /bin/bash -u 1002 testauth_sudo_pass && \
+    echo 'testauth_sudo_pass:TestPass123!' | chpasswd && \
+    echo 'testauth_sudo_pass ALL=(ALL) ALL' >> /etc/sudoers.d/testauth
+
+# testauth_sudo_nopass - sudo without password (NOPASSWD)
+RUN useradd -m -s /bin/bash -u 1003 testauth_sudo_nopass && \
+    echo 'testauth_sudo_nopass:TestPass123!' | chpasswd && \
+    echo 'testauth_sudo_nopass ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers.d/testauth
+
+# testauth_nosudo - no sudo access (for testing insufficient privilege detection)
+RUN useradd -m -s /bin/bash -u 1004 testauth_nosudo && \
+    echo 'testauth_nosudo:TestPass123!' | chpasswd
+
+# Fix sudoers permissions
+RUN chmod 440 /etc/sudoers.d/testauth
+
+# Configure SSH
+RUN sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config
+
+# Expose SSH port
+EXPOSE 22
+
+# Start SSH daemon
+CMD ["/usr/sbin/sshd", "-D"]
