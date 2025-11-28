@@ -6,6 +6,15 @@
 
 ---
 
+> **IMPORTANT - Dynamic Token Update**
+>
+> This document references a static `X-API-Token`. The current `nessus_scanner.py` implementation
+> now **dynamically fetches** the token from `/nessus6.js` via `api_token_fetcher.py`. This ensures
+> compatibility when Nessus is rebuilt/reinstalled (token changes). The HTTP patterns below remain
+> valid, but use the dynamically fetched token instead of the hardcoded value shown.
+
+---
+
 ## Overview
 
 This document contains **byte-for-byte exact** HTTP patterns extracted from the proven `nessusAPIWrapper/` code. These patterns have been validated to work with Nessus Essentials and bypass the `scan_api: false` restriction through Web UI simulation.

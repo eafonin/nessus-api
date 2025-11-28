@@ -1,71 +1,90 @@
-# Scanner Implementations
+# Scanner Module
 
-This directory contains scanner implementations that conform to the `ScannerInterface` defined in `base.py`.
+> Scanner abstraction, Nessus client, and pool registry
 
-## Available Scanners
+## Files
 
-### NessusScanner (nessus_scanner.py)
+| File | Lines | Purpose |
+|------|-------|---------|
+| `base.py` | ~70 | Abstract scanner interface and ScanRequest dataclass |
+| `registry.py` | ~670 | Pool-based scanner registry with load balancing |
+| `nessus_scanner.py` | ~835 | High-level Nessus scanner (main implementation) |
+| `nessus_validator.py` | ~235 | Scan result validation and auth status detection |
+| `api_token_fetcher.py` | ~145 | Dynamic X-API-Token fetching from Nessus Web UI |
+| `mock_scanner.py` | ~110 | Mock scanner for testing |
+| `nessus.py` | ~80 | Low-level Nessus client stub (minimal) |
 
-Production-ready async Nessus scanner using proven HTTP patterns from nessusAPIWrapper/.
+## Architecture
 
-**Status**: ✅ Production Ready (Phase 1A Completed)
+```
+ScannerRegistry
+    │
+    ├── Pool: nessus
+    │   ├── nessus:scanner1 → NessusScanner → Nessus API
+    │   └── nessus:scanner2 → NessusScanner → Nessus API
+    │
+    └── Pool: nessus_dmz
+        └── nessus_dmz:dmz1 → NessusScanner → Nessus API
+```
 
-**Features**:
-- Web UI authentication with session tokens
-- Bypasses Nessus Essentials `scan_api: false` restriction
-- Native async/await using httpx (no subprocess calls)
-- Comprehensive error handling (412/403/404/409)
-- Proper HTTP session cleanup
+## Key Classes
 
-**Key Implementation Details**:
-- Static API Token: `af824aba-e642-4e63-a49b-0810542ad8a5` (required for all requests)
-- Web UI Marker: `X-KL-kfa-Ajax-Request: Ajax_Request` (required for launch/stop operations)
-- Session-based authentication with token cookies
-- Three-step export process (request → poll → download)
-- Two-step delete process (move to trash → delete)
+### ScannerInterface (base.py)
 
-**Documentation**:
-- **[Nessus HTTP Patterns](./NESSUS_HTTP_PATTERNS.md)** ⭐ - Complete HTTP pattern reference extracted from wrapper
-- **[Docker Network Config](../docs/DOCKER_NETWORK_CONFIG.md)** - Network topology and URL configuration
-- **[Phase 1A Completion Report](../phases/PHASE_1A_COMPLETION_REPORT.md)** - Implementation summary
-
-### MockNessusScanner (mock_scanner.py)
-
-Mock scanner for testing and development.
-
-**Status**: ✅ Stable
-
-**Features**:
-- Returns mock .nessus XML from fixtures
-- Simulates scan progression over configurable duration
-- Supports all ScannerInterface operations
-- No external dependencies (ideal for unit tests)
-
-## Scanner Interface (base.py)
-
-Abstract base class defining the scanner contract:
+Abstract interface for scanner backends:
 
 ```python
 class ScannerInterface(ABC):
     async def create_scan(request: ScanRequest) -> int
     async def launch_scan(scan_id: int) -> str
-    async def get_status(scan_id: int) -> Dict[str, Any]
+    async def get_status(scan_id: int) -> Dict
     async def export_results(scan_id: int) -> bytes
     async def stop_scan(scan_id: int) -> bool
     async def delete_scan(scan_id: int) -> bool
-    async def close() -> None  # Cleanup resources
+    async def close() -> None  # Cleanup HTTP sessions
 ```
 
-## Scanner Registry (registry.py)
+### ScanRequest (base.py)
 
-Manages multiple scanner instances with:
-- YAML-based configuration
-- Environment variable substitution
-- Round-robin load balancing
+```python
+@dataclass
+class ScanRequest:
+    targets: str          # "192.168.1.0/24"
+    name: str             # Scan name
+    scan_type: str        # "untrusted" | "authenticated" | "authenticated_privileged"
+    description: str
+    credentials: Dict     # SSH credentials for auth scans
+    schema_profile: str   # "minimal" | "summary" | "brief" | "full"
+```
+
+### ScannerRegistry (registry.py)
+
+Pool-based scanner management:
+
+```python
+registry = ScannerRegistry(config_file="config/scanners.yaml")
+
+# List pools
+pools = registry.list_pools()  # ["nessus", "nessus_dmz"]
+
+# Get least loaded scanner
+scanner, key = registry.get_available_scanner(pool="nessus")
+
+# Acquire/release for tracking
+scanner, key = await registry.acquire_scanner(pool="nessus")
+await registry.release_scanner(key)
+
+# Pool capacity
+capacity = registry.get_pool_capacity(pool="nessus")  # 4
+```
+
+**Features**:
+- Pool-based grouping
+- Load-based selection (least active scans)
 - Hot-reload on SIGHUP
-- Automatic fallback to mock scanner
+- Environment variable substitution in config
 
-**Configuration Example**:
+**Configuration Example** (`config/scanners.yaml`):
 ```yaml
 nessus:
   - instance_id: local
@@ -77,93 +96,134 @@ nessus:
     max_concurrent_scans: 10
 ```
 
-## Network Configuration
+### NessusScanner (nessus_scanner.py)
 
-**Critical**: URL configuration differs between host and containers:
-
-| Context | Nessus URL | Notes |
-|---------|-----------|-------|
-| Host | `https://localhost:8834` | Port forwarded from vpn-gateway |
-| Containers | `https://172.18.0.2:8834` or `https://vpn-gateway:8834` | Direct to VPN gateway |
-
-See [Docker Network Configuration](../docs/DOCKER_NETWORK_CONFIG.md) for complete details.
-
-## Usage Examples
-
-### Direct Scanner Usage
+High-level scanner wrapper with Web UI simulation:
 
 ```python
-from scanners.nessus_scanner import NessusScanner
-from scanners.base import ScanRequest
+scanner = NessusScanner(url, username, password, verify_ssl=False)
 
-scanner = NessusScanner(
-    url="https://172.18.0.2:8834",  # Use container URL
-    username="nessus",
-    password="nessus",
-    verify_ssl=False
+# Create and launch scan
+scan_id = await scanner.create_scan(ScanRequest(...))
+uuid = await scanner.launch_scan(scan_id)
+
+# Monitor
+status = await scanner.get_status(scan_id)
+# {"status": "running", "progress": 45}
+
+# Export results
+nessus_xml = await scanner.export_results(scan_id)
+
+await scanner.close()  # Always cleanup
+```
+
+**Key Implementation Details**:
+- **Dynamic X-API-Token**: Fetched from `/nessus6.js` at runtime (adapts to Nessus rebuilds)
+- **Web UI Marker**: `X-KL-kfa-Ajax-Request: Ajax_Request` required for launch/stop operations
+- **Bypasses `scan_api: false`**: Uses Web UI simulation for Nessus Essentials
+- **Session-based auth**: Token cookies with auto-refresh on 401
+- **Three-step export**: Request → Poll status → Download
+- **Two-step delete**: Move to trash → Delete from trash
+- **Error handling**: 412/403/404/409 with appropriate retry logic
+
+### NessusValidator (nessus_validator.py)
+
+Result validation:
+
+```python
+from scanners.nessus_validator import validate_scan_results
+
+result = validate_scan_results(
+    nessus_file=Path("scan.nessus"),
+    scan_type="authenticated"
 )
 
-try:
-    # Create scan
-    request = ScanRequest(
-        targets="192.168.1.1",
-        name="Security Scan",
-        scan_type="untrusted"
-    )
-    scan_id = await scanner.create_scan(request)
-
-    # Launch scan
-    scan_uuid = await scanner.launch_scan(scan_id)
-
-    # Check status
-    status = await scanner.get_status(scan_id)
-    print(f"Status: {status['status']}, Progress: {status['progress']}%")
-
-finally:
-    await scanner.close()  # Always cleanup
+# result.is_valid: bool
+# result.error: Optional[str]
+# result.stats: {"hosts_scanned": 1, "total_vulnerabilities": 42}
+# result.authentication_status: "success" | "failed" | "partial" | "not_applicable"
 ```
 
-### Via Scanner Registry
+**Validates**:
+- XML well-formed
+- Hosts found
+- Authentication success (for auth scans)
+- Plugin 141118 - "Valid Credentials Provided"
+- Plugin 110385 - "Insufficient Privilege"
 
-```python
-from scanners.registry import ScannerRegistry
+## Scan Types
 
-registry = ScannerRegistry(config_file="config/scanners.yaml")
+| Type | Credentials | Use Case |
+|------|-------------|----------|
+| `untrusted` | None | Network-only scan |
+| `authenticated` | SSH | Login to target |
+| `authenticated_privileged` | SSH + sudo | Root-level scan |
 
-# Get scanner instance (round-robin)
-scanner = registry.get_instance(scanner_type="nessus")
+## Authentication Flow
 
-# Use scanner...
 ```
+Authenticated scan:
+1. Create scan with SSH credentials
+2. Nessus logs into target
+3. Plugin 141118 confirms success
+4. Plugin 110385 indicates privilege level
+5. Validator checks auth status
+```
+
+## Dependencies
+
+```
+scanners/
+├── base.py              # No dependencies
+├── registry.py          # → yaml, nessus_scanner, mock_scanner
+├── nessus_scanner.py    # → httpx, api_token_fetcher, base
+├── nessus_validator.py  # → xml.etree
+├── api_token_fetcher.py # → httpx
+└── mock_scanner.py      # → base.py
+```
+
+## Network Configuration
+
+Network topology is environment-specific. To discover current configuration:
+
+```bash
+# List running containers and networks
+docker compose ps
+docker network ls
+
+# Get container IPs
+docker inspect <container_name> | grep IPAddress
+
+# Check Nessus connectivity from MCP container
+docker exec mcp-server curl -k https://<nessus_ip>:8834/server/status
+```
+
+**Docker Compose files**:
+- `dev1/docker-compose.yml` - Development environment
+- `mcp-server/prod/docker-compose.yml` - Production
+- `scanners-infra/docker-compose.yml` - Scanner infrastructure
 
 ## Testing
 
-### Integration Tests
+See [../docs/TESTING.md](../docs/TESTING.md) for comprehensive test documentation.
 
+**Quick test commands**:
 ```bash
-# Test scanner with real Nessus
 cd mcp-server
-pytest tests/integration/test_scanner_wrapper_comparison.py -v
 
-# Test connectivity
+# Integration tests with real Nessus
+pytest tests/integration/test_nessus_scanner.py -v
 pytest tests/integration/test_connectivity.py -v
-```
 
-### Unit Tests
-
-```bash
-# Test with mock scanner
-pytest tests/unit/test_scanner_interface.py -v
+# Unit tests
+pytest tests/unit/test_nessus_validator.py -v
+pytest tests/unit/test_pool_registry.py -v
 ```
 
 ## Adding New Scanner Types
 
-1. Create new scanner class implementing `ScannerInterface`
-2. Add configuration section to `scanners.yaml`
-3. Update `registry.py` to handle new scanner type
-4. Add integration tests
+1. Create new scanner class implementing `ScannerInterface`:
 
-Example:
 ```python
 from scanners.base import ScannerInterface, ScanRequest
 
@@ -172,8 +232,28 @@ class OpenVASScanner(ScannerInterface):
         # Implementation...
         pass
 
-    # Implement other interface methods...
+    async def launch_scan(self, scan_id: int) -> str:
+        pass
+
+    async def get_status(self, scan_id: int) -> Dict[str, Any]:
+        pass
+
+    async def export_results(self, scan_id: int) -> bytes:
+        pass
+
+    async def stop_scan(self, scan_id: int) -> bool:
+        pass
+
+    async def delete_scan(self, scan_id: int) -> bool:
+        pass
+
+    async def close(self) -> None:
+        pass
 ```
+
+2. Add configuration section to `config/scanners.yaml`
+3. Update `registry.py` to handle new scanner type
+4. Add integration tests
 
 ## Troubleshooting
 
@@ -181,9 +261,14 @@ class OpenVASScanner(ScannerInterface):
 
 **Problem**: Scanner can't reach Nessus
 
-**Solution**: Check you're using the correct URL for your context:
-- From host: `https://localhost:8834`
-- From container: `https://172.18.0.2:8834` or `https://vpn-gateway:8834`
+**Solution**: Verify URL matches your context:
+```bash
+# Check Nessus is reachable
+curl -k https://<NESSUS_URL>:8834/server/status
+
+# From container
+docker exec mcp-server curl -k https://vpn-gateway:8834/server/status
+```
 
 ### Authentication Failures
 
@@ -191,8 +276,8 @@ class OpenVASScanner(ScannerInterface):
 
 **Solution**:
 - Verify credentials are correct
-- For launch/stop operations, ensure `X-KL-kfa-Ajax-Request` header is present
-- Check Nessus server status: `curl -k https://NESSUS_URL/server/status`
+- For launch/stop operations, ensure `X-KL-kfa-Ajax-Request` header is present (handled by NessusScanner automatically)
+- Check if session expired (NessusScanner auto-refreshes on 401)
 
 ### HTTP 412 Errors
 
@@ -200,11 +285,20 @@ class OpenVASScanner(ScannerInterface):
 
 **Cause**: Nessus Essentials has `scan_api: false` restriction
 
-**Solution**: NessusScanner uses Web UI simulation to bypass this - ensure you're using the latest version
+**Solution**: NessusScanner uses Web UI simulation to bypass this. Ensure you're using `NessusScanner` class, not direct API calls.
+
+### Export Timeout
+
+**Problem**: Export takes too long or times out
+
+**Solution**:
+- Default timeout is 5 minutes (150 × 2s polls)
+- Large scans may need longer - check scan completed before export
+- Verify Nessus isn't under heavy load
 
 ## Related Documentation
 
-- [Phase 1A Completion Report](../phases/PHASE_1A_COMPLETION_REPORT.md) - Scanner rewrite summary
-- [Nessus HTTP Patterns](./NESSUS_HTTP_PATTERNS.md) - Complete HTTP reference
-- [Docker Network Config](../docs/DOCKER_NETWORK_CONFIG.md) - Network setup guide
-- [Architecture v2.2](../ARCHITECTURE_v2.2.md) - Overall system design
+- [NESSUS_HTTP_PATTERNS.md](./NESSUS_HTTP_PATTERNS.md) - Low-level HTTP reference (note: X-API-Token is now dynamic)
+- [../docs/ARCHITECTURE_v2.2.md](../docs/ARCHITECTURE_v2.2.md) - Overall system architecture
+- [../docs/TESTING.md](../docs/TESTING.md) - Test documentation
+- [../docs/SCANNER_POOLS.md](../docs/SCANNER_POOLS.md) - Pool configuration details
