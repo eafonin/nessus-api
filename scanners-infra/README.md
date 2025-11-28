@@ -2,7 +2,9 @@
 
 > Docker deployment for Nessus Pro scanners with VPN split-routing and reverse proxy
 
-**Version:** 4.0 | **Status:** Production
+**Version:** 4.1 | **Status:** Production
+
+> **Related**: [MCP Server Architecture](../mcp-server/docs/ARCHITECTURE_v2.2.md) | [MCP Development Compose](../dev1/docker-compose.yml)
 
 ## Overview
 
@@ -56,18 +58,19 @@ vpn_net (172.30.0.0/24)
 ├── 172.30.0.5  MCP Worker (dev1/)
 ├── 172.30.0.6  MCP API (dev1/)
 ├── 172.30.0.7  Debug Scanner + Docs
-└── 172.30.0.8  Nginx Proxy
+├── 172.30.0.8  Nginx Proxy
+└── 172.30.0.9  Scan Target (SSH test)
 ```
 
-> **Note**: MCP services (172.30.0.5-6) are defined in `dev1/docker-compose.yml`, not this file.
+> **Note**: MCP services (.5-.6) defined in `dev1/docker-compose.yml`. Scan target (.9) started manually for testing.
 
 ## Directory Structure
 
 ```
 scanners-infra/
 ├── docker-compose.yml      # Service definitions
-├── ARCHITECTURE.md         # Technical deep-dive
-├── CONFIGURATION.md        # Configuration reference
+├── ARCHITECTURE.md         # Technical deep-dive (start here)
+├── README.md               # This file
 ├── nginx/                  # Reverse proxy
 │   ├── README.MD          # Nginx documentation
 │   ├── nginx.conf         # Proxy configuration
@@ -85,8 +88,11 @@ scanners-infra/
 | `nessus-pro-1` | `nessus-pro-1` | Nessus Professional scanner |
 | `nessus-pro-2` | `nessus-pro-2` | Nessus Professional scanner |
 | `nginx-proxy` | `nessus-nginx-proxy` | TLS termination, WebUI proxy |
-| `debug-scanner` | `debug-scanner` | Troubleshooting + documentation server |
+| `debug-scanner` | `debug-scanner` | Network debugging + documentation server |
 | `autoheal` | `autoheal-shared` | Auto-restart unhealthy containers |
+| `scan-target` | `scan-target` | SSH test target for authenticated scans (manual start) |
+
+> **Nessus Image Note:** Nessus containers are vendor-supplied by Tenable and lack standard tools (no curl, wget). Use `debug-scanner` for network debugging - it has full tooling and identical network behavior.
 
 ## Architecture Highlights
 
@@ -179,6 +185,7 @@ docker exec debug-scanner curl -k https://nessus-pro-1:8834/server/status
 1. Check VPN logs: `docker logs vpn-gateway-shared`
 2. Verify public IP: `docker exec debug-scanner curl -s https://api.ipify.org`
 3. Expected VPN IP: `62.84.100.88`
+4. Ensure `gluetun-host` container is running (host network mode, required for VPN connectivity)
 
 ### Browser Certificate Warning
 

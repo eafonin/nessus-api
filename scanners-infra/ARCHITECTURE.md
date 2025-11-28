@@ -1,9 +1,13 @@
 # Nessus Unified Mode Architecture
 
-**Version:** 4.0
-**Date:** 2025-11-14
+**Version:** 4.1
+**Date:** 2025-11-28
 **Status:** Production
-**Purpose:** Technical deep-dive architecture reference for managing Nessus scanner infrastructure
+**Purpose:** Technical deep-dive architecture reference for Claude agents managing Nessus scanner infrastructure
+
+> **Related Documentation:**
+> - [MCP Server Architecture](../mcp-server/docs/ARCHITECTURE_v2.2.md) - Application architecture (API, workers, Redis queue)
+> - [MCP Development Compose](../dev1/docker-compose.yml) - MCP service definitions
 
 ---
 
@@ -11,11 +15,15 @@
 
 1. [System Overview](#system-overview)
 2. [Network Architecture](#network-architecture)
-3. [Component Details](#component-details)
+3. [Component Details](#component-details) (7 components)
 4. [Traffic Flow Diagrams](#traffic-flow-diagrams)
 5. [Directory Structure](#directory-structure)
 6. [Configuration Reference](#configuration-reference)
 7. [Technical Decisions & Justifications](#technical-decisions--justifications)
+8. [Access Summary](#access-summary)
+9. [Critical Constraints](#critical-constraints)
+10. [Maintenance Notes](#maintenance-notes)
+11. [Troubleshooting Reference](#troubleshooting-reference)
 
 ---
 
@@ -57,14 +65,24 @@ This infrastructure provides:
 │  │   │172.30.0.3│ │172.30.0.4│ │172.30.0.7│ │172.30.0.6│        │   │
 │  │   │:8834     │ │:8834     │ │:8080     │ │:8000     │        │   │
 │  │   └──────────┘ └──────────┘ └──────────┘ └──────────┘        │   │
-│  │          │            │                                         │   │
-│  │          └────────────┴────► Scan Targets                      │   │
-│  │                              (LAN: direct, Internet: via VPN)  │   │
+│  │          │            │            │                            │   │
+│  │          └────────────┴────────────┴──► Scan Targets           │   │
+│  │                                          ┌──────────┐          │   │
+│  │                                          │scan-target│          │   │
+│  │           (LAN: direct, Internet: VPN)   │172.30.0.9│          │   │
+│  │                                          │:22 (SSH) │          │   │
+│  │                                          └──────────┘          │   │
 │  └────────────────────────────────────────────────────────────────┘   │
+│                                                                          │
+│  ┌────────────────────────────────────────┐                            │
+│  │  gluetun-host (host network mode)      │ ◄── Required for VPN      │
+│  │  Ensures VPN gateway can reach WG server│                            │
+│  └────────────────────────────────────────┘                            │
 │                                                                          │
 │  External Access:                                                       │
 │    - Web Browser → https://172.32.0.209:8443 (Scanner 1)              │
 │    - Web Browser → https://172.32.0.209:8444 (Scanner 2)              │
+│    - MCP API → http://172.32.0.209:8836                                │
 │    - Documentation → http://172.32.0.209:8080                          │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -93,7 +111,8 @@ All containers exist on the same bridge network but have **separate network name
 | 172.30.0.6 | nessus-mcp-api-dev | dev1 | MCP API server |
 | 172.30.0.7 | debug-scanner | scanners-infra | Debug/testing + docs |
 | 172.30.0.8 | nessus-nginx-proxy | scanners-infra | Reverse proxy |
-| 172.30.0.9+ | (available) | - | Future expansion |
+| 172.30.0.9 | scan-target | scanners-infra | SSH test target for authenticated scans |
+| 172.30.0.10+ | (available) | - | Future expansion |
 
 **Port Mappings (Host → Container):**
 
@@ -155,7 +174,9 @@ dns:
 - `VPN_SERVICE_PROVIDER=custom` - Uses custom WireGuard config
 - `VPN_TYPE=wireguard` - WireGuard protocol
 - `FIREWALL_OUTBOUND_SUBNETS` - Split routing configuration
-- Secrets mounted from `/run/secrets/wireguard_*`
+- WireGuard config mounted from `./wg/wg0.conf:/gluetun/wireguard/wg0.conf:ro`
+
+> **Host-Specific Note:** A separate `gluetun-host` container runs on host network mode to ensure the VPN gateway can connect to the WireGuard server. This container is not part of the compose file but must remain running. Do not remove it.
 
 **Network Interfaces:**
 - `eth0` - Docker bridge (172.30.0.2)
@@ -177,6 +198,8 @@ dns:
 - Run vulnerability scans against targets
 - Provide Web UI for scan management
 - Expose API for MCP server integration
+
+> **Image Limitations:** Nessus images are vendor-supplied by Tenable. They lack most standard binaries (no `curl`, `wget`, `bash` utilities) and additional packages cannot be installed. This is why health checks use Python urllib instead of curl. For debugging network issues, use the `debug-scanner` container which has full tooling.
 
 **Key Configuration:**
 - **Separate network namespaces** - Each scanner has independent routing
@@ -245,15 +268,19 @@ Browser (172.32.0.209:8443)
 - Network troubleshooting and testing
 - Documentation server (Python HTTP server on port 8080)
 - Verify VPN split routing functionality
+- **Test proxy for Nessus scanners** - behaves identically to Nessus on the network
 
 **Services Running:**
 - Python HTTP server serving `/docs` directory
-- Debug tools: curl, wget, bind-tools, nmap, tcpdump
+- Debug tools: curl, wget, bind-tools, nmap, tcpdump, iproute2
+
+> **Why This Container Exists:** Since Nessus images are vendor-supplied with no installable packages, this Alpine container provides full network tooling. It sits on the same network with the same routing rules as the Nessus scanners, making it ideal for testing connectivity, VPN routing, and debugging network issues before running actual scans.
 
 **Justification:**
-- Essential for debugging network issues
+- Essential for debugging network issues (Nessus containers lack tools)
 - Provides visibility into VPN routing behavior
 - Dual-purpose: debugging + documentation hosting
+- Same network behavior as scanners for accurate testing
 
 ### 5. MCP Server (Separate Compose)
 
@@ -293,6 +320,38 @@ Browser (172.32.0.209:8443)
 - Ensures high availability
 - Automatic recovery from transient failures
 - No manual intervention needed
+
+### 7. Scan Target (Test Container)
+
+**Container:** `scan-target`
+**Image:** `scan-target:test` (built from `mcp-server/docker/Dockerfile.scan-target`)
+**Network:** `vpn_net` (172.30.0.9)
+
+**Purpose:**
+- Provides SSH test target for authenticated scan testing
+- Used by MCP server integration tests (Phase 5)
+- Contains test users with various privilege levels
+
+**Test Users Available:**
+| Username | Password | Sudo Access | Use Case |
+|----------|----------|-------------|----------|
+| `testauth_sudo_pass` | `TestPass123!` | Yes (with password) | Authenticated privileged scan |
+| `testauth_sudo_nopass` | `TestPass123!` | Yes (NOPASSWD) | Authenticated privileged scan |
+| `testauth_nosudo` | `TestPass123!` | No | Authenticated scan, insufficient privilege testing |
+
+**Usage:**
+```bash
+# Start the scan target (if not running)
+docker run -d --name scan-target \
+  --network nessus-shared_vpn_net \
+  --ip 172.30.0.9 \
+  scan-target:test
+
+# Or build and run from mcp-server/
+docker build -t scan-target:test -f docker/Dockerfile.scan-target .
+```
+
+> **Note:** This container is started manually or via test scripts, not by docker-compose.yml. It provides a real SSH target within the scanner network for integration testing.
 
 ---
 
@@ -446,40 +505,35 @@ Browser (172.32.0.209:8443)
 
 ## Directory Structure
 
-### Docker Configuration Directory
+### Scanner Infrastructure Directory
 ```
-/home/nessus/docker/nessus-shared/
+/home/nessus/projects/nessus-api/scanners-infra/
 ├── docker-compose.yml          # Main orchestration file
 ├── ARCHITECTURE.md             # This file (architecture reference)
 ├── README.md                   # Quick start guide and overview
 ├── nginx/
+│   ├── README.MD               # Nginx configuration docs
 │   ├── nginx.conf              # Nginx reverse proxy configuration
 │   └── certs/
 │       ├── nessus-proxy.crt    # Self-signed SSL certificate
 │       └── nessus-proxy.key    # SSL private key
-└── backups/                    # (Archived - see /projects/nessus-api/archive/)
-    └── backup_20251114_194220/ # Pre-unified-mode backup
+└── wg/
+    ├── README.MD               # WireGuard configuration docs
+    └── wg0.conf                # WireGuard VPN credentials
 ```
 
-### Project Documentation Directory
+### Related Project Directories
 ```
 /home/nessus/projects/nessus-api/
-├── QUICK_ACCESS_GUIDE.md                    # Quick reference URLs and commands
-├── UNIFIED_MODE_IMPLEMENTATION_SUMMARY.md   # Implementation details and testing
-├── archive/                                 # Archived interim docs
-│   ├── docs/                                # Phase documentation
-│   │   ├── PHASE_*.md                       # Historical phase plans
-│   │   └── *_STATUS.md                      # Historical status docs
-│   ├── analysis/                            # Interim analysis
-│   │   ├── ALTERNATIVE_FIX_ANALYSIS.md
-│   │   ├── MODE_COMPATIBILITY_ANALYSIS.md
-│   │   ├── PROXY_SOLUTION_ANALYSIS.md
-│   │   └── ...
-│   └── docker/                              # Old docker configs
-│       ├── docker-compose.*.yml
-│       └── backups/
-└── mcp-server/                              # MCP server code
-    └── ...
+├── scanners-infra/              # This infrastructure (you are here)
+├── dev1/                        # MCP development compose
+│   └── docker-compose.yml       # MCP API, Worker, Redis
+├── mcp-server/                  # MCP server code
+│   ├── docs/
+│   │   └── ARCHITECTURE_v2.2.md # Application architecture
+│   └── docker/
+│       └── Dockerfile.scan-target  # SSH test target
+└── archive/                     # Historical documentation
 ```
 
 ### Container Filesystem Locations
@@ -498,12 +552,12 @@ nginx-proxy: /etc/nginx/certs/ → ./nginx/certs/:ro
 
 **Debug Scanner Documentation:**
 ```
-debug-scanner: /docs/ → /home/nessus/docker/nessus-shared/ (mounted)
+debug-scanner: /docs/ → ./  (scanners-infra directory, read-only)
 ```
 
-**Gluetun Secrets:**
+**WireGuard VPN Configuration:**
 ```
-vpn-gateway: /run/secrets/wireguard_* → Docker secrets
+vpn-gateway: /gluetun/wireguard/wg0.conf → ./wg/wg0.conf:ro
 ```
 
 ---
@@ -558,15 +612,17 @@ proxy_http_version 1.1;         # WebSocket support
 
 ### Health Check Configuration
 
-**Scanner Health Checks:**
+**Scanner Health Checks (using Python - curl not available):**
 ```yaml
 healthcheck:
-  test: ["CMD-SHELL", "curl -f -k https://localhost:8834/server/status || exit 1"]
-  interval: 30s
-  timeout: 10s
-  retries: 3
-  start_period: 60s
+  test: ["CMD-SHELL", "python3 -c \"import urllib.request,ssl;c=ssl.create_default_context();c.check_hostname=False;c.verify_mode=ssl.CERT_NONE;exit(0 if urllib.request.urlopen('https://localhost:8834/server/status',timeout=5,context=c).status==200 else 1)\""]
+  interval: 60s
+  timeout: 15s
+  retries: 5
+  start_period: 180s
 ```
+
+> **Why Python?** Nessus containers are vendor-supplied and lack curl/wget. Python is the only available tool for HTTP requests.
 
 **Nginx Health Check:**
 ```yaml
@@ -746,20 +802,24 @@ localhost:8443 → Hangs (hairpin NAT issue)
 
 | Service | URL | Purpose |
 |---------|-----|---------|
-| Scanner 1 API | `https://172.30.0.3:8834` | MCP server |
-| Scanner 2 API | `https://172.30.0.4:8834` | MCP server |
+| Scanner 1 API | `https://172.30.0.3:8834` or `https://nessus-pro-1:8834` | MCP server |
+| Scanner 2 API | `https://172.30.0.4:8834` or `https://nessus-pro-2:8834` | MCP server |
 | VPN Gateway | `172.30.0.2` | DNS, routing |
+| Scan Target | `172.30.0.9:22` | SSH test target for authenticated scans |
+| Debug Scanner | `172.30.0.7` | Network debugging (curl, nmap, etc.) |
 
 ---
 
 ## Critical Constraints
 
-1. **Must use LAN IP (172.32.0.209)** - Localhost doesn't work
+1. **Must use LAN IP (172.32.0.209)** - Localhost doesn't work (Docker hairpin NAT)
 2. **Cannot use path-based routing** - Breaks Nessus SPA
 3. **Scanners must have separate namespaces** - Required for split routing
 4. **VPN split routing is automatic** - No manual route modifications
 5. **Health checks required** - Autoheal depends on them
 6. **Static IPs required** - Proxy and MCP configs depend on them
+7. **gluetun-host container must run** - Required for VPN gateway connectivity (host-specific)
+8. **Nessus containers lack tools** - Use debug-scanner for network debugging
 
 ---
 
@@ -768,7 +828,7 @@ localhost:8443 → Hangs (hairpin NAT issue)
 ### Updating Scanner Images
 
 ```bash
-cd /home/nessus/docker/nessus-shared
+cd /home/nessus/projects/nessus-api/scanners-infra
 docker compose pull nessus-pro-1 nessus-pro-2
 docker compose up -d nessus-pro-1 nessus-pro-2
 ```
@@ -778,7 +838,7 @@ Data persists in volumes (no data loss).
 ### Regenerating SSL Certificates
 
 ```bash
-cd /home/nessus/docker/nessus-shared/nginx/certs
+cd /home/nessus/projects/nessus-api/scanners-infra/nginx/certs
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -keyout nessus-proxy.key \
   -out nessus-proxy.crt \
@@ -790,17 +850,19 @@ docker compose restart nginx-proxy
 ### Adding New Scanner
 
 1. Add service to docker-compose.yml
-2. Assign static IP (172.30.0.x)
+2. Assign static IP (172.30.0.x) - next available is 172.30.0.10
 3. Add nginx server block (new port)
 4. Restart stack
 
 ### VPN Configuration Changes
 
-Gluetun secrets located at: `/run/secrets/wireguard_*`
+WireGuard config located at: `./wg/wg0.conf`
 
 To update:
-1. Update Docker secrets
-2. Restart vpn-gateway container
+1. Edit `wg/wg0.conf` with new credentials
+2. Restart vpn-gateway container: `docker compose restart vpn-gateway`
+
+> **Warning:** The `gluetun-host` container on host network must remain running for VPN connectivity. Do not remove it.
 
 ---
 
@@ -813,9 +875,13 @@ To update:
 docker logs nessus-nginx-proxy --tail 50
 ```
 
-**Check scanner health:**
+**Check scanner health (use debug-scanner, not Nessus container):**
 ```bash
-docker exec nessus-pro-1 curl -k https://localhost:8834/server/status
+# From debug-scanner (has curl)
+docker exec debug-scanner curl -k https://172.30.0.3:8834/server/status
+
+# Or check container health status
+docker inspect nessus-pro-1 --format '{{.State.Health.Status}}'
 ```
 
 ### VPN Not Working
