@@ -1,18 +1,37 @@
-# FastMCP Client Examples
+# Client Examples
 
-> Comprehensive examples demonstrating all NessusFastMCPClient capabilities
+> Progressive examples demonstrating NessusFastMCPClient usage
 
-## Overview
+## Prerequisites
 
-This directory contains 5 progressive examples that demonstrate the complete FastMCP client functionality, from basic usage to production-ready workflows.
-
-**Prerequisites**:
 - MCP server running at `http://localhost:8835/mcp`
-- Redis queue running at `redis://localhost:6379`
-- Scanner worker running (`python worker/scanner_worker.py`)
+- Scanner worker running
 - Nessus scanner accessible
 
-## Examples
+## Example Progression
+
+| Example | Complexity | Duration | Focus |
+|---------|------------|----------|-------|
+| `01_basic_usage.py` | Basic | ~5s | Connect, submit, check status |
+| `02_wait_for_completion.py` | Basic | ~5min | Polling until completion |
+| `03_scan_and_wait.py` | Intermediate | ~5min | Combined workflow |
+| `04_get_critical_vulns.py` | Intermediate | ~5min | Result filtering |
+| `05_full_workflow.py` | Advanced | ~10min | Complete production workflow |
+| `06_e2e_workflow_test.py` | Testing | ~10min | E2E test validation |
+
+## Quick Start
+
+```bash
+cd mcp-server
+
+# Run first example
+python client/examples/01_basic_usage.py
+
+# Continue with returned task_id
+python client/examples/02_wait_for_completion.py <task_id>
+```
+
+## Example Details
 
 ### 01_basic_usage.py
 
@@ -21,11 +40,11 @@ This directory contains 5 progressive examples that demonstrate the complete Fas
 - Listing available tools
 - Submitting a scan
 - Checking scan status
-- Listing tasks
 
 **Usage**:
+
 ```bash
-python 01_basic_usage.py
+python client/examples/01_basic_usage.py
 ```
 
 **Key Concepts**:
@@ -35,7 +54,8 @@ python 01_basic_usage.py
 - Basic error handling
 
 **Output**:
-```
+
+```text
 1. Pinging MCP server...
    ✓ Server is reachable
 
@@ -60,12 +80,13 @@ python 01_basic_usage.py
 - Using existing task_id or submitting new scan
 
 **Usage**:
+
 ```bash
 # Wait for existing scan
-python 02_wait_for_completion.py nessus-local-20251108-143022
+python client/examples/02_wait_for_completion.py nessus-local-20251108-143022
 
 # Or submit new scan and wait
-python 02_wait_for_completion.py
+python client/examples/02_wait_for_completion.py
 ```
 
 **Key Concepts**:
@@ -75,7 +96,8 @@ python 02_wait_for_completion.py
 - Long-running operations
 
 **Output**:
-```
+
+```text
 Monitoring existing scan: nessus-local-20251108-143022
 
 Waiting for scan to complete...
@@ -103,8 +125,9 @@ Waiting for scan to complete...
 - Vulnerability summary
 
 **Usage**:
+
 ```bash
-python 03_scan_and_wait.py
+python client/examples/03_scan_and_wait.py
 ```
 
 **Key Concepts**:
@@ -113,7 +136,8 @@ python 03_scan_and_wait.py
 - `get_vulnerability_summary()` helper
 
 **Output**:
-```
+
+```text
 Enter target IP (default: 192.168.1.1):
 Enter scan name (default: Quick Scan):
 
@@ -145,8 +169,9 @@ Total vulnerabilities found: 40
 - Helper methods for critical vulnerabilities
 
 **Usage**:
+
 ```bash
-python 04_get_critical_vulns.py nessus-local-20251108-143022
+python client/examples/04_get_critical_vulns.py nessus-local-20251108-143022
 ```
 
 **Key Concepts**:
@@ -157,7 +182,8 @@ python 04_get_critical_vulns.py nessus-local-20251108-143022
 - Result filtering
 
 **Output**:
-```
+
+```text
 Method 1: Using helper method
 ------------------------------------------------------------
 Found 11 critical vulnerabilities
@@ -198,8 +224,9 @@ Size reduction: ~60%
 - Production-ready patterns
 
 **Usage**:
+
 ```bash
-python 05_full_workflow.py
+python client/examples/05_full_workflow.py
 ```
 
 **Key Concepts**:
@@ -210,7 +237,8 @@ python 05_full_workflow.py
 - Comprehensive logging
 
 **Output**:
-```
+
+```text
 ======================================================================
                NESSUS MCP CLIENT - FULL WORKFLOW
 ======================================================================
@@ -274,53 +302,25 @@ Critical Vulnerabilities:
 
 ---
 
-## Running Examples
+### 06_e2e_workflow_test.py
 
-### Quick Start
+**What it demonstrates**:
+- Automated E2E test workflow
+- Validates complete scan cycle
+- Asserts expected states
+- Cleanup after test
 
-```bash
-# Navigate to examples directory
-cd mcp-server/client/examples
-
-# Run basic example
-python 01_basic_usage.py
-
-# Run full workflow
-python 05_full_workflow.py
-```
-
-### Prerequisites Check
+**Usage**:
 
 ```bash
-# Check MCP server is running
-curl http://localhost:8835/health
-
-# Check Redis is running
-redis-cli ping
-
-# Check scanner worker is running
-ps aux | grep scanner_worker.py
+python client/examples/06_e2e_workflow_test.py
 ```
 
-### Troubleshooting
-
-**Connection Error**:
-```
-✗ Server unreachable: Connection refused
-```
-**Solution**: Start MCP server with `python tools/mcp_server.py`
-
-**Timeout Error**:
-```
-✗ Scan timed out after 600 seconds
-```
-**Solution**: Increase timeout or check scanner worker logs
-
-**Task Not Found**:
-```
-✗ Error: Task nessus-local-... not found
-```
-**Solution**: Verify task_id is correct with `python 01_basic_usage.py`
+**Key Concepts**:
+- Automated testing pattern
+- State assertions
+- Test cleanup
+- CI/CD integration
 
 ---
 
@@ -380,23 +380,57 @@ except Exception as e:
 
 ---
 
-## Next Steps
+## Environment
 
-1. **Review client implementation**: [`../nessus_fastmcp_client.py`](../nessus_fastmcp_client.py)
-2. **Read architecture docs**: [`../../FASTMCP_CLIENT_ARCHITECTURE.md`](../../FASTMCP_CLIENT_ARCHITECTURE.md)
-3. **Explore FastMCP docs**: `@docs/fastMCPServer/`
-4. **Write your own integration**: Use examples as templates
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MCP_SERVER_URL` | `http://localhost:8835/mcp` | MCP server endpoint |
+
+**Note**: Inside Docker containers, use `http://mcp-api:8000/mcp`
+
+---
+
+## Troubleshooting
+
+### Connection Error
+
+```text
+✗ Server unreachable: Connection refused
+```
+
+**Solution**: Start MCP server with `python tools/run_server.py`
+
+### Timeout Error
+
+```text
+✗ Scan timed out after 600 seconds
+```
+
+**Solution**: Increase timeout or check scanner worker logs
+
+### Task Not Found
+
+```text
+✗ Error: Task nessus-local-... not found
+```
+
+**Solution**: Verify task_id is correct with `python client/examples/01_basic_usage.py`
+
+---
+
+## Running All Examples
+
+```bash
+# Sequential execution
+for i in 01 02 03 04 05; do
+    python client/examples/${i}_*.py
+done
+```
 
 ---
 
 ## See Also
 
-- [FastMCP Client Architecture](../../FASTMCP_CLIENT_ARCHITECTURE.md) - Complete architecture documentation
+- [Client Library](../README.MD) - NessusFastMCPClient documentation
 - [Client Implementation](../nessus_fastmcp_client.py) - Source code
-- [FastMCP Documentation](../../docs/fastMCPServer/) - Official FastMCP docs
-- [Testing Guide](../../TESTING.md) - Integration testing patterns
-
----
-
-**Last Updated**: 2025-11-08
-**Examples Version**: 1.0
+- [Testing Guide](../../docs/TESTING.md) - Integration testing patterns

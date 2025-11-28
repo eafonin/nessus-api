@@ -14,7 +14,7 @@
 
 | Directory | Purpose |
 |-----------|---------|
-| [examples/](examples/README_NEW.MD) | Progressive usage examples |
+| [examples/](examples/README.md) | Progressive usage examples |
 
 ## NessusFastMCPClient
 
