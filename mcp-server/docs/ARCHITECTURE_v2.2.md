@@ -18,7 +18,7 @@
 │  │                                                         │ │
 │  │  ┌─────────────────┐  ┌──────────────────┐            │ │
 │  │  │  MCP HTTP API   │  │  Redis           │            │ │
-│  │  │  Port: 8835     │──│  Port: 6379      │            │ │
+│  │  │  Port: 8836     │──│  Port: 6379      │            │ │
 │  │  │  - 10 MCP Tools │  │  - Task Queue    │            │ │
 │  │  │  - Idempotency  │  │  - Dead Letter Q │            │ │
 │  │  │  - /metrics     │  │  - Scanner Reg   │            │ │
@@ -1353,7 +1353,7 @@ class NessusMCPClient:
     Wraps MCP HTTP API for easy testing and validation.
     """
 
-    def __init__(self, base_url: str = "http://localhost:8835"):
+    def __init__(self, base_url: str = "http://localhost:8836"):
         self.base_url = base_url.rstrip("/")
         self.client = httpx.AsyncClient()
 
@@ -1517,7 +1517,7 @@ services:
       dockerfile: mcp-server/Dockerfile.api
     container_name: nessus-mcp-api
     ports:
-      - "8835:8000"
+      - "8836:8000"
     environment:
       - REDIS_URL=redis://redis:6379
       - DATA_DIR=/app/data
@@ -1730,7 +1730,7 @@ paths:
 
 ```bash
 # Submit scan with idempotency
-curl -X POST http://localhost:8835/tools/run_untrusted_scan \
+curl -X POST http://localhost:8836/tools/run_untrusted_scan \
   -H "X-Idempotency-Key: my-retry-key-123" \
   -H "Content-Type: application/json" \
   -d '{
@@ -1739,18 +1739,18 @@ curl -X POST http://localhost:8835/tools/run_untrusted_scan \
   }'
 
 # Check status (with trace_id in response)
-curl -X POST http://localhost:8835/tools/get_scan_status \
+curl -X POST http://localhost:8836/tools/get_scan_status \
   -d '{"task_id": "ns_a3f2_20250101_120345_b1c2d3e4"}'
 
 # Get results with filters (echoed in first line)
-curl -X POST http://localhost:8835/tools/get_scan_results \
+curl -X POST http://localhost:8836/tools/get_scan_results \
   -d '{
     "task_id": "ns_a3f2_20250101_120345_b1c2d3e4",
     "filters": {"severity": "Critical", "exploit_available": true}
   }'
 
 # Prometheus metrics
-curl http://localhost:8835/metrics
+curl http://localhost:8836/metrics
 ```
 
 ### 14.2 Redis Inspection

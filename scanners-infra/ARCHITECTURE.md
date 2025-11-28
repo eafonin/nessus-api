@@ -81,24 +81,31 @@ All containers exist on the same bridge network but have **separate network name
 
 ### IP Address Assignments
 
-| Container | IP Address | Purpose | Ports Exposed |
-|-----------|------------|---------|---------------|
-| vpn-gateway-shared | 172.30.0.2 | Gluetun VPN gateway | None (internal) |
-| nessus-pro-1 | 172.30.0.3 | Scanner 1 | None (via proxy) |
-| nessus-pro-2 | 172.30.0.4 | Scanner 2 | None (via proxy) |
-| nessus-mcp-worker | 172.30.0.5 | MCP worker | None (internal) |
-| nessus-mcp-api | 172.30.0.6 | MCP API server | 8836→8000 |
-| debug-scanner | 172.30.0.7 | Debug/testing + docs | None (via proxy) |
-| nginx-proxy | 172.30.0.8 | Reverse proxy | 8443, 8444, 8080 |
+**Full Network Allocation (172.30.0.0/24):**
 
-### Port Mappings (Host → Container)
+| IP Address | Container | Compose File | Purpose |
+|------------|-----------|--------------|---------|
+| 172.30.0.1 | (gateway) | Docker | Bridge gateway |
+| 172.30.0.2 | vpn-gateway-shared | scanners-infra | VPN gateway (Gluetun) |
+| 172.30.0.3 | nessus-pro-1 | scanners-infra | Scanner 1 |
+| 172.30.0.4 | nessus-pro-2 | scanners-infra | Scanner 2 |
+| 172.30.0.5 | nessus-mcp-worker-dev | dev1 | MCP worker |
+| 172.30.0.6 | nessus-mcp-api-dev | dev1 | MCP API server |
+| 172.30.0.7 | debug-scanner | scanners-infra | Debug/testing + docs |
+| 172.30.0.8 | nessus-nginx-proxy | scanners-infra | Reverse proxy |
+| 172.30.0.9+ | (available) | - | Future expansion |
 
-| Host Port | Container:Port | Service |
-|-----------|----------------|---------|
+**Port Mappings (Host → Container):**
+
+| Host Port | Container | Service |
+|-----------|-----------|---------|
 | 8443 | nginx-proxy:8443 | Scanner 1 Web UI (HTTPS) |
 | 8444 | nginx-proxy:8444 | Scanner 2 Web UI (HTTPS) |
 | 8080 | nginx-proxy:8080 | Documentation Server (HTTP) |
-| 8836 | nessus-mcp-api:8000 | MCP API (HTTP) |
+| 8836 | mcp-api:8000 | MCP API (HTTP) |
+| 6379 | redis:6379 | Redis (MCP internal) |
+
+> **Important**: MCP services (worker, api, redis) are defined in `dev1/docker-compose.yml`, not this file. They connect to `nessus-shared_vpn_net` as an external network with static IPs to prevent conflicts.
 
 ### VPN Split Routing Configuration
 
@@ -248,20 +255,26 @@ Browser (172.32.0.209:8443)
 - Provides visibility into VPN routing behavior
 - Dual-purpose: debugging + documentation hosting
 
-### 5. MCP Server (Existing)
+### 5. MCP Server (Separate Compose)
 
-**Containers:** `nessus-mcp-api-dev`, `nessus-mcp-worker-dev`
-**Network:** `vpn_net` (172.30.0.6, 172.30.0.5)
+**Compose File:** `dev1/docker-compose.yml`
+**Containers:** `nessus-mcp-api-dev`, `nessus-mcp-worker-dev`, `nessus-mcp-redis-dev`
+**Network:** Joins `vpn_net` via external network reference
 
 **Purpose:**
 - Model Context Protocol server for Claude integration
 - Provides Nessus API access to Claude agents
 
-**Scanner Access:**
-- Uses container-to-container HTTPS (no proxy needed)
-- Direct IPs: `https://172.30.0.3:8834`, `https://172.30.0.4:8834`
+**Scanner Access (using container names):**
+- Primary: `https://nessus-pro-1:8834`, `https://nessus-pro-2:8834`
+- Fallback: `https://172.30.0.3:8834`, `https://172.30.0.4:8834`
 
-**Why Direct Access:**
+**Why Container Names:**
+- DNS-based resolution is more resilient than hardcoded IPs
+- Self-documenting (name indicates the service)
+- Survives network reconfiguration
+
+**Why Direct Access (no nginx):**
 - Container-to-container = no Docker NAT = TLS works
 - No need for nginx proxy layer
 - Lower latency
@@ -690,6 +703,31 @@ localhost:8443 → Hangs (hairpin NAT issue)
 **Trade-offs:**
 - ✅ Pros: Predictable, reliable
 - ❌ Cons: Manual IP management (documented)
+
+### 9. Why Container Names + Static IPs (Hybrid)?
+
+**Problem:**
+- Multiple compose files share one network (`nessus-shared_vpn_net`)
+- Without static IPs, Docker assigns next available IP
+- If infrastructure container (e.g., VPN) is down, other containers steal its IP
+- Results in IP conflict when infrastructure restarts
+
+**Example of Conflict:**
+```
+1. VPN gateway (172.30.0.2) stops
+2. MCP API starts without static IP
+3. Docker assigns 172.30.0.2 to MCP API (first available)
+4. VPN gateway tries to start → IP conflict → fails
+```
+
+**Solution:**
+- **Static IPs**: All containers on shared network MUST have static IPs
+- **Container Names**: Use DNS names for service-to-service communication
+- MCP services use `https://nessus-pro-1:8834` (name) instead of `https://172.30.0.3:8834` (IP)
+
+**Trade-offs:**
+- ✅ Pros: No IP conflicts, self-documenting, resilient
+- ❌ Cons: Must coordinate IPs across compose files (documented in IP allocation table)
 
 ---
 
