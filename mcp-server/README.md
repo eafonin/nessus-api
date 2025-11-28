@@ -99,7 +99,7 @@ Claude Code
      └─────────────────────────────────────┘
 ```
 
-For detailed architecture including idempotency, trace IDs, state machine, and data flows, see [docs/ARCHITECTURE_v2.2.md](docs/ARCHITECTURE_v2.2.md).
+For detailed architecture including idempotency, trace IDs, state machine, data flows etc, see [docs/ARCHITECTURE_v2.2.md](docs/ARCHITECTURE_v2.2.md).
 
 ## MCP Tools
 
@@ -198,3 +198,4 @@ Key operational features:
 | [docs/HOUSEKEEPING.md](docs/HOUSEKEEPING.md) | Task cleanup and retention |
 | [docs/TESTING.md](docs/TESTING.md) | Test suite guide |
 | [tests/README.md](tests/README.md) | Detailed test documentation |
+| [mcp-server/docs/EXTERNAL_RESOURCES.md](mcp-server/docs/EXTERNAL_RESOURCES.md) | External documentation and resources for Nessus MCP Server development |

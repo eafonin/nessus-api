@@ -616,5 +616,4 @@ print(hk.cleanup())
 
 - [Scanner Pools](./SCANNER_POOLS.md) - Pool configuration and load balancing
 - [Architecture](./ARCHITECTURE_v2.2.md) - System design and data flows
-- [Phase 4 Status](../phases/PHASE4_STATUS.md) - Implementation details
 - [Production Docker](../prod/docker-compose.yml) - Production deployment

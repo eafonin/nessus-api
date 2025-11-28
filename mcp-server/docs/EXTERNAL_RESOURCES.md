@@ -18,9 +18,6 @@
   - Tenable Nessus REST API reference
   - Authentication, scan management, export endpoints
 
-- **Tenable Developer Portal**: https://developer.tenable.com/
-  - SDKs, guides, and API documentation
-
 ## Infrastructure
 
 - **Redis Documentation**: https://redis.io/docs/
