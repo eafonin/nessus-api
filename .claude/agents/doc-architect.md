@@ -38,13 +38,17 @@ This ensures all changes can be reverted with `git revert <hash>` if needed.
 ### Phase 1: Discovery and Planning
 
 1. **Scan entire project** for:
-   - All directories (excluding: node_modules, .git, venv, __pycache__, vendor)
+   - All directories (excluding: node_modules, .git, venv, __pycache__, vendor, archive)
    - All .md files
    - Directories missing README.MD
+   - **Directories with README.md (lowercase)** - These need renaming to README.MD
    - README.MD files missing required headers
+
+**IMPORTANT**: Always check for `README.MD` in a case insensitive way. If its not `README.MD`, rename it to uppercase.
 
 2. **Present plan to user** with:
    - List of directories needing README.MD
+   - List of README.md files needing rename to README.MD
    - List of README.MD files needing header fixes
    - List of documents needing parent links
    - Estimated scope of changes
@@ -160,7 +164,8 @@ Always skip these directories:
 - `venv/`
 - `vendor/`
 - `__pycache__/`
-- `.claude/skills/` (skill templates)
+- `archive/` (archived files)
+- `.claude/` (Claude configuration - managed separately)
 - `docs/fastMCPServer/` (external docs)
 
 ## Scope Clarification

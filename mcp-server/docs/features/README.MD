@@ -1,4 +1,13 @@
+<!-- README Navigation -->
+<!-- L4: mcp-server/docs/features/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: Consolidated feature documentation index -->
+
 # Features Documentation
+
+> Consolidated feature documentation for the Nessus MCP Server
+
+**↑ Parent**: [Documentation](../README.MD) | **↑↑ MCP Server**: [README](../../README.MD) | **↑↑↑ Root**: [Nessus MCP Server](../../../README.MD)
 
 ## Overview
 

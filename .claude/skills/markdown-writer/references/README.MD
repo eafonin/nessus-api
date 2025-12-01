@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L4: .claude/skills/markdown-writer/references/ -->
+<!-- Parent: ../README.md -->
+<!-- Purpose: Core documentation standards and templates -->
+
 # Reference Materials
 
 > Core documentation standards and templates for the markdown-writer skill
+
+**↑ Parent**: [Markdown Writer](..) | **↑↑ Skills**: [Skills](../..) | **↑↑↑ Root**: [Nessus MCP Server](../../../../README.MD)
 
 ## Contents
 

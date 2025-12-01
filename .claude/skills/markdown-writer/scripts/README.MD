@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L4: .claude/skills/markdown-writer/scripts/ -->
+<!-- Parent: ../README.md -->
+<!-- Purpose: Automated markdown validation tools -->
+
 # Validation Scripts
 
 > Automated tools for markdown quality checking and documentation analysis
+
+**↑ Parent**: [Markdown Writer](..) | **↑↑ Skills**: [Skills](../..) | **↑↑↑ Root**: [Nessus MCP Server](../../../../README.MD)
 
 ## Scripts
 
