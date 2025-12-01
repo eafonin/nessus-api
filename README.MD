@@ -8,6 +8,19 @@
 
 **Version:** 1.0.0 | **Status:** Production Ready
 
+## Finding Documentation
+
+Every directory in this project contains a `README.MD` file that documents its contents. To understand any directory:
+
+1. **Look for `README.MD`** - Each folder has one describing its purpose and contents
+2. **Follow the hierarchy** - READMEs link to parent directories and subdirectories
+3. **Use navigation headers** - Each README shows its location: `↑ Parent` links go up, tables link down
+
+```bash
+# Find all README files in the project
+find . -name "README.MD" -o -name "README.md" | grep -v node_modules | sort
+```
+
 ## Quick Navigation
 
 | Directory | README | Purpose |
@@ -50,6 +63,7 @@
 | Monitoring | [mcp-server/docs/MONITORING.md](mcp-server/docs/MONITORING.md) | Observability guide |
 | Testing | [mcp-server/docs/TESTING.md](mcp-server/docs/TESTING.md) | Test guide |
 | FastMCP | [docs/fastMCPServer/INDEX.md](docs/fastMCPServer/INDEX.md) | Framework reference |
+| Release Plan | [RELEASE_1.0_PLAN.md](RELEASE_1.0_PLAN.md) | Version 1.0 release roadmap |
 
 ---
 

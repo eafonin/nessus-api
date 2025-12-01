@@ -21,6 +21,7 @@
 
 | File | Description |
 |------|-------------|
+| [credentials.md](credentials.md) | Credentials and authentication reference |
 | [DOCKER_SETUP.md](DOCKER_SETUP.md) | Docker environment setup guide |
 | [NESSUS_ESSENTIALS_LIMITATIONS.md](NESSUS_ESSENTIALS_LIMITATIONS.md) | Nessus Essentials scanner limitations |
 | [nessus_automation_prompt.md](nessus_automation_prompt.md) | Nessus automation reference |
@@ -51,6 +52,7 @@ docs/
 │   ├── deployment/                        # HTTP deployment
 │   ├── integrations/                      # Third-party
 │   └── patterns/                          # Best practices
+├── credentials.md                         # Credentials reference
 ├── DOCKER_SETUP.md                        # Docker setup
 ├── NESSUS_ESSENTIALS_LIMITATIONS.md       # Scanner limitations
 ├── nessus_automation_prompt.md            # Automation reference

@@ -20,6 +20,27 @@ See **[INDEX.md](INDEX.md)** for the complete documentation index with:
 - Detailed topic reference for all components
 - Search tips and file organization
 
+## Core Documents
+
+| Document | Description |
+|----------|-------------|
+| [INDEX.md](INDEX.md) | Main documentation index |
+| [server.md](server.md) | Core server documentation |
+| [tools.md](tools.md) | Tool creation and usage |
+| [resources.md](resources.md) | Resource exposure |
+| [prompts.md](prompts.md) | Prompt templates |
+
+## Subdirectories
+
+| Directory | README | Description |
+|-----------|--------|-------------|
+| [advanced/](advanced/) | [README.MD](advanced/README.MD) | Advanced server features |
+| [authentication/](authentication/) | [README.MD](authentication/README.MD) | Auth mechanisms |
+| [clients/](clients/) | [README.MD](clients/README.MD) | Client library docs |
+| [deployment/](deployment/) | [README.MD](deployment/README.MD) | HTTP deployment guides |
+| [integrations/](integrations/) | [README.MD](integrations/README.MD) | Third-party integrations |
+| [patterns/](patterns/) | [README.MD](patterns/README.MD) | Best practices |
+
 ## Directory Structure
 
 ```

@@ -110,4 +110,4 @@ pytest tests/integration/ -m "not scanner"
 
 ## Documentation
 
-See `TEST_WORKFLOW_PHASES_0_1.md` for detailed phase test documentation.
+See [TEST_WORKFLOW_PHASES_0_1.md](TEST_WORKFLOW_PHASES_0_1.md) for detailed phase test documentation.
