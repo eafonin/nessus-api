@@ -28,9 +28,6 @@ Ensure the entire project documentation follows the 4-level hierarchical structu
    git commit -m "docs(backup): Pre-reorganization snapshot
 
    Automatic backup before doc-architect restructuring.
-   This commit can be reverted if reorganization needs to be undone.
-
-   Co-Authored-By: Claude <noreply@anthropic.com>"
    ```
 3. Record the commit hash for potential revert
 
@@ -214,8 +211,6 @@ Directories affected:
 - dev1/data/
 
 This reorganization follows DOCUMENTATION_HIERARCHY.md requirements.
-
-Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
 ## Decision Tree
