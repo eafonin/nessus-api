@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L3: mcp-server/tools/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: FastMCP server and MCP tool definitions -->
+
 # MCP Tools
 
 > FastMCP server implementation and MCP tool definitions
+
+**↑ Parent**: [MCP Server](../README.MD) | **↑↑ Root**: [Nessus MCP Server](../../README.MD)
 
 ## Module Overview
 

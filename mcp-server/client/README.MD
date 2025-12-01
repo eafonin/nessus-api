@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L3: mcp-server/client/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: Python MCP client library -->
+
 # MCP Client Library
 
 > Python client for Nessus MCP Server
+
+**↑ Parent**: [MCP Server](../README.MD) | **↑↑ Root**: [Nessus MCP Server](../../README.MD)
 
 ## Files
 

@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L4: mcp-server/tests/integration/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: E2E tests with real Redis and MCP server -->
+
 # Integration Tests
 
 > End-to-end tests with real Redis and MCP server
+
+**↑ Parent**: [Test Suite](../README.MD) | **↑↑ MCP Server**: [README](../../README.MD) | **↑↑↑ Root**: [Nessus MCP Server](../../../README.MD)
 
 ## Running Tests
 

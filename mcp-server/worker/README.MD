@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L3: mcp-server/worker/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: Background processor for scan task execution -->
+
 # Scanner Worker
 
 > Background processor for scan task execution
+
+**↑ Parent**: [MCP Server](../README.MD) | **↑↑ Root**: [Nessus MCP Server](../../README.MD)
 
 ## Overview
 

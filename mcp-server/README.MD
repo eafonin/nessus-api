@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L2: mcp-server/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: MCP server core implementation -->
+
 # MCP Server
 
 > Nessus vulnerability scanning via Model Context Protocol
+
+**↑ Parent**: [Nessus MCP Server](../README.MD)
 
 ## Quick Start
 

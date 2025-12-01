@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L2: dev1/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: Development environment with hot reload -->
+
 # Development Environment
 
 > Local development deployment with hot reload and debug logging
+
+**↑ Parent**: [Nessus MCP Server](../README.MD)
 
 ## Quick Start
 

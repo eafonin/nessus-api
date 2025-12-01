@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L3: mcp-server/tests/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: Layered test architecture for MCP Server -->
+
 # Test Suite
 
 > Layered test architecture for Nessus MCP Server
+
+**↑ Parent**: [MCP Server](../README.MD) | **↑↑ Root**: [Nessus MCP Server](../../README.MD)
 
 ## Quick Reference
 

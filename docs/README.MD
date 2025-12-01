@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L2: docs/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: Reference documentation and external resources -->
+
 # Documentation
 
 > Reference documentation and external resources
+
+**↑ Parent**: [Nessus MCP Server](../README.MD)
 
 ## Contents
 

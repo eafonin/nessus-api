@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L4: mcp-server/tests/unit/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: Isolated component tests, no external dependencies -->
+
 # Unit Tests
 
 > Isolated component tests with no external dependencies
+
+**↑ Parent**: [Test Suite](../README.MD) | **↑↑ MCP Server**: [README](../../README.MD) | **↑↑↑ Root**: [Nessus MCP Server](../../../README.MD)
 
 ## Running Tests
 

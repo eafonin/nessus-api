@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L3: dev1/logs/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: Application log storage (currently unused) -->
+
 # Logs Directory
 
 > Application log storage (currently unused)
+
+**↑ Parent**: [Development Environment](../README.MD) | **↑↑ Root**: [Nessus MCP Server](../../README.MD)
 
 ## Status
 

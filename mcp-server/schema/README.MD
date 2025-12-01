@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L3: mcp-server/schema/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: Nessus result parsing, filtering, JSON-NL output -->
+
 # Schema Module
 
 > Nessus result parsing, filtering, and output formatting
+
+**↑ Parent**: [MCP Server](../README.MD) | **↑↑ Root**: [Nessus MCP Server](../../README.MD)
 
 ## Data Flow
 

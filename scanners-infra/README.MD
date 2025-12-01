@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L2: scanners-infra/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: Scanner infrastructure with VPN and reverse proxy -->
+
 # Nessus Scanner Infrastructure
 
 > Docker deployment for Nessus Pro scanners with VPN split-routing and reverse proxy
+
+**↑ Parent**: [Nessus MCP Server](../README.MD)
 
 **Version:** 4.1 | **Status:** Production
 

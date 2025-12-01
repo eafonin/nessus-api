@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L4: mcp-server/tests/client/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: HTTP client wrapper for MCP server testing -->
+
 # Test Client Utilities
 
 > HTTP client wrapper for MCP server testing
+
+**↑ Parent**: [Test Suite](../README.MD) | **↑↑ MCP Server**: [README](../../README.MD) | **↑↑↑ Root**: [Nessus MCP Server](../../../README.MD)
 
 ## Files
 

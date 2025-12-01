@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L3: mcp-server/docs/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: MCP server internal documentation index -->
+
 # Documentation
 
 > MCP server internal documentation index
+
+**↑ Parent**: [MCP Server](../README.MD) | **↑↑ Root**: [Nessus MCP Server](../../README.MD)
 
 For project overview, architecture diagram, and quickstart, see the [parent README](../README.md).
 

@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L4: mcp-server/tests/fixtures/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: Sample data files for test suite -->
+
 # Test Fixtures
 
 > Sample data files for test suite
+
+**↑ Parent**: [Test Suite](../README.MD) | **↑↑ MCP Server**: [README](../../README.MD) | **↑↑↑ Root**: [Nessus MCP Server](../../../README.MD)
 
 ## Files
 

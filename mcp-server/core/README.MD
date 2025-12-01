@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L3: mcp-server/core/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: Task management, queuing, and observability -->
+
 # Core Infrastructure
 
 > Foundation modules for task management, queuing, and observability
+
+**↑ Parent**: [MCP Server](../README.MD) | **↑↑ Root**: [Nessus MCP Server](../../README.MD)
 
 ## Module Overview
 

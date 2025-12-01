@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L3: mcp-server/config/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: Scanner pool configuration files -->
+
 # Configuration
 
 > Scanner pool configuration files
+
+**↑ Parent**: [MCP Server](../README.MD) | **↑↑ Root**: [Nessus MCP Server](../../README.MD)
 
 ## Files
 

@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L3: mcp-server/prod/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: Production-ready Docker deployment -->
+
 # Production Deployment
 
 > Production-ready Docker deployment
+
+**↑ Parent**: [MCP Server](../README.MD) | **↑↑ Root**: [Nessus MCP Server](../../README.MD)
 
 ## Files
 

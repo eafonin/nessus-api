@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L3: docs/fastMCPServer/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: FastMCP framework reference documentation -->
+
 # FastMCP Server Documentation
 
 > External reference documentation for the FastMCP framework
+
+**↑ Parent**: [Documentation](../README.MD) | **↑↑ Root**: [Nessus MCP Server](../../README.MD)
 
 ## Overview
 

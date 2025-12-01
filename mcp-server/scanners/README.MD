@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L3: mcp-server/scanners/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: Scanner abstraction, Nessus client, pool registry -->
+
 # Scanner Module
 
 > Scanner abstraction, Nessus client, and pool registry
+
+**↑ Parent**: [MCP Server](../README.MD) | **↑↑ Root**: [Nessus MCP Server](../../README.MD)
 
 ## Files
 

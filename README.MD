@@ -1,3 +1,7 @@
+<!-- README Navigation -->
+<!-- L1: / (Project Root) -->
+<!-- Purpose: Project entry point and navigation hub -->
+
 # Nessus MCP Server
 
 > Model Context Protocol server for Nessus vulnerability scanning with Claude Code
@@ -8,9 +12,9 @@
 
 | Directory | README | Purpose |
 |-----------|--------|---------|
-| [mcp-server/](mcp-server/) | [README.md](mcp-server/README.md) | MCP server code |
+| [mcp-server/](mcp-server/) | [README.MD](mcp-server/README.MD) | MCP server code |
 | [dev1/](dev1/) | [README.MD](dev1/README.MD) | Development deployment |
-| [scanners-infra/](scanners-infra/) | [README.md](scanners-infra/README.md) | Nessus scanner infrastructure |
+| [scanners-infra/](scanners-infra/) | [README.MD](scanners-infra/README.MD) | Nessus scanner infrastructure |
 | [docs/](docs/) | [README.MD](docs/README.MD) | Reference documentation |
 
 ## MCP Server Modules
@@ -18,16 +22,16 @@
 | Module | README | Purpose |
 |--------|--------|---------|
 | [core/](mcp-server/core/) | [README.MD](mcp-server/core/README.MD) | Task manager, queue, health checks |
-| [scanners/](mcp-server/scanners/) | [README.md](mcp-server/scanners/README.md) | Nessus client, scanner registry |
+| [scanners/](mcp-server/scanners/) | [README.MD](mcp-server/scanners/README.MD) | Nessus client, scanner registry |
 | [tools/](mcp-server/tools/) | [README.MD](mcp-server/tools/README.MD) | MCP tool implementations |
 | [worker/](mcp-server/worker/) | [README.MD](mcp-server/worker/README.MD) | Background scan processor |
 | [schema/](mcp-server/schema/) | [README.MD](mcp-server/schema/README.MD) | JSON-NL result conversion |
 | [client/](mcp-server/client/) | [README.MD](mcp-server/client/README.MD) | MCP client library |
-| [tests/](mcp-server/tests/) | [README.md](mcp-server/tests/README.md) | Test suite |
+| [tests/](mcp-server/tests/) | [README.MD](mcp-server/tests/README.MD) | Test suite |
 | [config/](mcp-server/config/) | [README.MD](mcp-server/config/README.MD) | Scanner configuration |
 | [docker/](mcp-server/docker/) | [README.MD](mcp-server/docker/README.MD) | Dockerfiles |
 | [prod/](mcp-server/prod/) | [README.MD](mcp-server/prod/README.MD) | Production deployment |
-| [docs/](mcp-server/docs/) | [README.md](mcp-server/docs/README.md) | Internal documentation |
+| [docs/](mcp-server/docs/) | [README.MD](mcp-server/docs/README.MD) | Internal documentation |
 
 ## Claude Code Skills
 

@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L3: scanners-infra/nginx/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: TLS termination and WebSocket proxy -->
+
 # Nginx Reverse Proxy
 
 > TLS termination and WebSocket proxy for Nessus scanner WebUIs
+
+**↑ Parent**: [Scanner Infrastructure](../README.MD) | **↑↑ Root**: [Nessus MCP Server](../../README.MD)
 
 ## Purpose
 

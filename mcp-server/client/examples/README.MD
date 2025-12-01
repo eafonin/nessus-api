@@ -1,6 +1,13 @@
+<!-- README Navigation -->
+<!-- L4: mcp-server/client/examples/ -->
+<!-- Parent: ../README.MD -->
+<!-- Purpose: Progressive examples for MCP client usage -->
+
 # Client Examples
 
 > Progressive examples demonstrating NessusFastMCPClient usage
+
+**↑ Parent**: [MCP Client](../README.MD) | **↑↑ MCP Server**: [README](../../README.MD) | **↑↑↑ Root**: [Nessus MCP Server](../../../README.MD)
 
 ## Prerequisites
 
