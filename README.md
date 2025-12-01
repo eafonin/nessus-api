@@ -2,43 +2,86 @@
 
 > Model Context Protocol server for Nessus vulnerability scanning with Claude Code
 
-**Version:** 1.0.0
-**Status:** Production Ready
+**Version:** 1.0.0 | **Status:** Production Ready
 
-## Overview
+## Quick Navigation
 
-Full-stack vulnerability scanning solution that integrates Nessus scanners with Claude Code via the Model Context Protocol (MCP). Clone, configure, and run to get AI-powered vulnerability scanning.
+| Directory | README | Purpose |
+|-----------|--------|---------|
+| [mcp-server/](mcp-server/) | [README.md](mcp-server/README.md) | MCP server code |
+| [dev1/](dev1/) | [README.MD](dev1/README.MD) | Development deployment |
+| [scanners-infra/](scanners-infra/) | [README.md](scanners-infra/README.md) | Nessus scanner infrastructure |
+| [docs/](docs/) | [README.MD](docs/README.MD) | Reference documentation |
 
-## Features
+## MCP Server Modules
 
-- **MCP Integration** - Claude Code can launch scans, check status, and analyze results
-- **Dual Scanner Support** - Pool-based load balancing across multiple Nessus instances
-- **Authenticated Scans** - SSH credential support for deeper vulnerability assessment
-- **Async Architecture** - Redis-backed queue with background workers
-- **Schema Filtering** - Configurable result detail levels (minimal/summary/brief/full)
+| Module | README | Purpose |
+|--------|--------|---------|
+| [core/](mcp-server/core/) | [README.MD](mcp-server/core/README.MD) | Task manager, queue, health checks |
+| [scanners/](mcp-server/scanners/) | [README.md](mcp-server/scanners/README.md) | Nessus client, scanner registry |
+| [tools/](mcp-server/tools/) | [README.MD](mcp-server/tools/README.MD) | MCP tool implementations |
+| [worker/](mcp-server/worker/) | [README.MD](mcp-server/worker/README.MD) | Background scan processor |
+| [schema/](mcp-server/schema/) | [README.MD](mcp-server/schema/README.MD) | JSON-NL result conversion |
+| [client/](mcp-server/client/) | [README.MD](mcp-server/client/README.MD) | MCP client library |
+| [tests/](mcp-server/tests/) | [README.md](mcp-server/tests/README.md) | Test suite |
+| [config/](mcp-server/config/) | [README.MD](mcp-server/config/README.MD) | Scanner configuration |
+| [docker/](mcp-server/docker/) | [README.MD](mcp-server/docker/README.MD) | Dockerfiles |
+| [prod/](mcp-server/prod/) | [README.MD](mcp-server/prod/README.MD) | Production deployment |
+| [docs/](mcp-server/docs/) | [README.md](mcp-server/docs/README.md) | Internal documentation |
+
+## Claude Code Skills
+
+| Skill | README | Purpose |
+|-------|--------|---------|
+| [nessus-scanner/](.claude/skills/nessus-scanner/) | [README.md](.claude/skills/nessus-scanner/README.md) | Vulnerability scanning workflow |
+| [markdown-writer/](.claude/skills/markdown-writer/) | [README.md](.claude/skills/markdown-writer/README.md) | Documentation generation |
+
+## Documentation Index
+
+| Document | Path | Description |
+|----------|------|-------------|
+| API Reference | [mcp-server/docs/API.md](mcp-server/docs/API.md) | MCP tool signatures |
+| Architecture | [mcp-server/docs/ARCHITECTURE_v2.2.md](mcp-server/docs/ARCHITECTURE_v2.2.md) | System design |
+| Scanner Pools | [mcp-server/docs/SCANNER_POOLS.md](mcp-server/docs/SCANNER_POOLS.md) | Pool configuration |
+| Monitoring | [mcp-server/docs/MONITORING.md](mcp-server/docs/MONITORING.md) | Observability guide |
+| Testing | [mcp-server/docs/TESTING.md](mcp-server/docs/TESTING.md) | Test guide |
+| FastMCP | [docs/fastMCPServer/INDEX.md](docs/fastMCPServer/INDEX.md) | Framework reference |
+
+---
+
+## MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `run_untrusted_scan` | Network-only vulnerability scan (no credentials) |
+| `run_authenticated_scan` | SSH authenticated scan with optional sudo |
+| `get_scan_status` | Check scan progress and authentication status |
+| `get_scan_results` | Paginated JSON-NL results with filtering |
+| `list_scanners` | List scanner instances with load info |
+| `list_pools` | List available scanner pools |
+| `get_pool_status` | Pool capacity and utilization |
+| `get_queue_status` | Redis queue metrics |
+| `list_tasks` | Recent task history with CIDR-aware filtering |
 
 ## Quick Start
 
 ### Prerequisites
 
 - Docker and Docker Compose
-- WireGuard VPN (for scanner plugin updates)
-- Nessus Essentials license (free from [Tenable](https://www.tenable.com/products/nessus/nessus-essentials))
+- WireGuard VPN config (for scanner plugin updates)
+- Nessus Essentials license ([free from Tenable](https://www.tenable.com/products/nessus/nessus-essentials))
 
 ### 1. Start Scanner Infrastructure
 
 ```bash
 cd scanners-infra
 
-# Edit docker-compose.yml - replace activation codes with yours
-# Get free codes at: https://www.tenable.com/products/nessus/nessus-essentials
-
 # Configure WireGuard VPN in wg/wg0.conf
+# Edit docker-compose.yml with your Nessus activation codes
 
 docker compose up -d
+# Wait 2-3 minutes for Nessus initialization
 ```
-
-Wait 2-3 minutes for Nessus scanners to initialize.
 
 ### 2. Start MCP Server
 
@@ -63,10 +106,10 @@ claude /tools  # Should show nessus-mcp tools
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      Claude Code                             │
-│                          │                                   │
-│                     MCP Protocol                             │
-│                          ▼                                   │
+│                      Claude Code                            │
+│                          │                                  │
+│                     MCP Protocol                            │
+│                          ▼                                  │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │              MCP Server (dev1/)                      │   │
 │  │  ┌─────────┐    ┌─────────┐    ┌─────────────────┐  │   │
@@ -86,97 +129,36 @@ claude /tools  # Should show nessus-mcp tools
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## MCP Tools
-
-| Tool | Description |
-|------|-------------|
-| `run_untrusted_scan` | Network-only vulnerability scan |
-| `run_authenticated_scan` | SSH authenticated scan |
-| `get_scan_status` | Check scan progress |
-| `get_scan_results` | Get paginated results with filtering |
-| `list_scanners` | List scanner instances |
-| `list_pools` | List scanner pools |
-| `get_pool_status` | Pool capacity info |
-| `get_queue_status` | Queue metrics |
-| `list_tasks` | Recent task history |
-
-## Usage Examples
-
-### Basic Network Scan
-
-```
-User: Scan 192.168.1.0/24 for vulnerabilities
-Claude: [Uses run_untrusted_scan, monitors status, returns top vulnerabilities]
-```
-
-### Authenticated Scan
-
-```
-User: Run an authenticated scan on 192.168.1.100 with user 'admin'
-Claude: [Asks for password, uses run_authenticated_scan with SSH credentials]
-```
-
-### Filter Results
-
-```
-User: Show me only critical vulnerabilities from that scan
-Claude: [Uses get_scan_results with filters={"severity": "4"}]
-```
-
-## Project Structure
-
-```
-nessus-api/
-├── scanners-infra/       # Nessus scanner infrastructure
-│   ├── docker-compose.yml
-│   ├── nginx/            # Reverse proxy
-│   └── wg/               # WireGuard VPN config
-│
-├── mcp-server/           # MCP server code
-│   ├── core/             # Task manager, state machine
-│   ├── scanners/         # Nessus client, registry
-│   ├── tools/            # MCP tool implementations
-│   ├── worker/           # Background processor
-│   ├── schema/           # Results conversion
-│   ├── client/           # MCP client
-│   ├── tests/            # Test suite
-│   ├── docker/           # Dockerfiles
-│   ├── config/           # Scanner configuration
-│   ├── prod/             # Production deployment
-│   └── docs/             # Documentation
-│
-├── dev1/                 # Development deployment
-│   └── docker-compose.yml
-│
-├── docs/
-│   └── fastMCPServer/    # FastMCP framework reference
-│
-└── .claude/skills/       # Claude Code skills
-    ├── nessus-scanner/
-    └── markdown-writer/
-```
+**Network:** `172.30.0.0/24` (nessus-shared_vpn_net)
+- `172.30.0.2` VPN Gateway
+- `172.30.0.3` Scanner 1
+- `172.30.0.4` Scanner 2
+- `172.30.0.5` MCP Worker
+- `172.30.0.6` MCP API
 
 ## Configuration
 
-### Scanner Configuration
+### Scanner Pool Configuration
 
-Edit `mcp-server/config/scanners.yaml`:
+File: `mcp-server/config/scanners.yaml`
 
 ```yaml
-pools:
-  nessus:
-    scanner_type: nessus
-    instances:
-      scanner1:
-        url: https://172.30.0.3:8834
-        username: nessus
-        password: nessus
-        max_concurrent_scans: 5
-      scanner2:
-        url: https://172.30.0.4:8834
-        username: nessus
-        password: nessus
-        max_concurrent_scans: 5
+nessus:
+  - instance_id: scanner1
+    name: "Nessus Scanner 1"
+    url: ${NESSUS_URL:-https://172.30.0.3:8834}
+    username: ${NESSUS_USERNAME:-nessus}
+    password: ${NESSUS_PASSWORD:-nessus}
+    enabled: true
+    max_concurrent_scans: 2
+
+  - instance_id: scanner2
+    name: "Nessus Scanner 2"
+    url: ${NESSUS_URL_2:-https://172.30.0.4:8834}
+    username: ${NESSUS_USERNAME_2:-nessus}
+    password: ${NESSUS_PASSWORD_2:-nessus}
+    enabled: true
+    max_concurrent_scans: 2
 ```
 
 ### Environment Variables
@@ -184,46 +166,79 @@ pools:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `REDIS_URL` | `redis://redis:6379` | Redis connection |
+| `DATA_DIR` | `/app/data/tasks` | Task storage |
+| `SCANNER_CONFIG` | `/app/config/scanners.yaml` | Scanner config |
 | `LOG_LEVEL` | `INFO` | Logging level |
-| `MAX_CONCURRENT_SCANS` | `5` | Per-scanner limit |
 
-## Documentation
+## Usage Examples
 
-- [API Reference](mcp-server/docs/API.md)
-- [Architecture](mcp-server/docs/ARCHITECTURE_v2.2.md)
-- [Scanner Pools](mcp-server/docs/SCANNER_POOLS.md)
-- [Monitoring](mcp-server/docs/MONITORING.md)
-- [Testing](mcp-server/docs/TESTING.md)
+### Network Scan
+```
+User: Scan 192.168.1.0/24 for vulnerabilities
+Claude: [Uses run_untrusted_scan, monitors via get_scan_status, returns results]
+```
+
+### Authenticated Scan
+```
+User: Run authenticated scan on 192.168.1.100 with SSH user 'admin'
+Claude: [Uses run_authenticated_scan with SSH credentials]
+```
+
+### Filter Critical Vulnerabilities
+```
+User: Show only critical vulnerabilities from that scan
+Claude: [Uses get_scan_results with filters={"severity": "4"}]
+```
+
+## Project Structure
+
+```
+nessus-api/
+├── README.md              # This file
+├── mcp-server/            # MCP server code
+│   ├── core/              # Task manager, queue, health
+│   ├── scanners/          # Nessus client, registry
+│   ├── tools/             # MCP tool definitions
+│   ├── worker/            # Background processor
+│   ├── schema/            # Result conversion
+│   ├── client/            # MCP client library
+│   ├── tests/             # Test suite
+│   ├── config/            # Scanner configuration
+│   ├── docker/            # Dockerfiles
+│   ├── prod/              # Production deployment
+│   └── docs/              # Documentation
+├── dev1/                  # Development deployment
+│   ├── data/              # Task storage
+│   └── logs/              # Application logs
+├── scanners-infra/        # Scanner infrastructure
+│   ├── nginx/             # Reverse proxy
+│   └── wg/                # WireGuard VPN
+├── docs/                  # Reference docs
+│   └── fastMCPServer/     # FastMCP framework
+└── .claude/skills/        # Claude Code skills
+    ├── nessus-scanner/
+    └── markdown-writer/
+```
 
 ## Development
-
-### Setup
 
 ```bash
 cd mcp-server
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements-dev.txt
-```
-
-### Run Tests
-
-```bash
 pytest tests/
 ```
 
-### Hot Reload Development
-
-The `dev1/docker-compose.yml` mounts source code for hot reload during development.
+Hot reload: `dev1/docker-compose.yml` mounts source code for development.
 
 ## License
 
-Nessus Essentials is free for up to 16 IPs. Get your activation code at:
+Nessus Essentials: Free for up to 16 IPs. Get activation code at:
 https://www.tenable.com/products/nessus/nessus-essentials
 
 ## Acknowledgments
 
-Built with:
 - [FastMCP](https://github.com/jlowin/fastmcp) - MCP server framework
 - [Nessus](https://www.tenable.com/products/nessus) - Vulnerability scanner
 - [Claude Code](https://claude.ai/claude-code) - AI coding assistant
