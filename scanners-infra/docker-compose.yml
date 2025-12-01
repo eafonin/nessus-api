@@ -194,10 +194,13 @@ services:
       sh -c "
       echo 'Installing debug tools and Python...' &&
       apk add --no-cache curl wget bind-tools nmap tcpdump iproute2 python3 >/dev/null 2>&1 &&
-      echo 'Starting documentation server on port 8080...' &&
-      cd /docs && python3 -m http.server 8080 > /tmp/http.log 2>&1 &
-      echo 'Debug scanner ready!' &&
-      tail -f /dev/null
+      echo 'Debug scanner ready! Starting documentation server on port 8080...' &&
+      cd /docs &&
+      while true; do
+        python3 -m http.server 8080 --bind 0.0.0.0 2>&1 | tee -a /tmp/http.log;
+        echo 'HTTP server exited, restarting in 2s...';
+        sleep 2;
+      done
       "
     restart: unless-stopped
 
