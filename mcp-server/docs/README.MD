@@ -5,120 +5,116 @@
 
 # Documentation
 
-> MCP server internal documentation index
+> MCP server documentation index
 
 **↑ Parent**: [MCP Server](../README.MD) | **↑↑ Root**: [Nessus MCP Server](../../README.MD)
 
-For project overview, architecture diagram, and quickstart, see the [parent README](../README.md).
+---
 
-## Documents
+## Core Documents
+
+| Document | Purpose | Audience |
+|----------|---------|----------|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System design, component interaction | Developers, Architects |
+| [FEATURES.md](FEATURES.md) | MCP tool reference, capabilities | API Consumers, LLM Integrators |
+| [REQUIREMENTS.md](REQUIREMENTS.md) | Traceability matrix | PMs, QA, Compliance |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Docker, configuration, operations | DevOps, Operators |
+
+---
+
+## Reference Documents
 
 | Document | Purpose |
 |----------|---------|
-| [API.md](API.md) | MCP tool API reference |
-| [ARCHITECTURE_v2.2.md](ARCHITECTURE_v2.2.md) | System architecture overview |
-| [SCANNER_POOLS.md](SCANNER_POOLS.md) | Pool configuration guide |
-| [MONITORING.md](MONITORING.md) | Observability, metrics, troubleshooting |
-| [HOUSEKEEPING.md](HOUSEKEEPING.md) | Task cleanup operations |
+| [API.md](API.md) | Detailed API reference (complementary) |
+| [SCANNER_POOLS.md](SCANNER_POOLS.md) | Pool configuration deep-dive |
+| [MONITORING.md](MONITORING.md) | Metrics, health checks, troubleshooting |
+| [HOUSEKEEPING.md](HOUSEKEEPING.md) | TTL cleanup, stale scan management |
 | [PER_POOL_BACKPRESSURE.md](PER_POOL_BACKPRESSURE.md) | Queue backpressure design |
 | [TESTING.md](TESTING.md) | Test suite guide |
 | [EXTERNAL_RESOURCES.md](EXTERNAL_RESOURCES.md) | External documentation links |
+
+---
 
 ## Quick Links
 
 ### For Developers
 
-- **Architecture**: [ARCHITECTURE_v2.2.md](ARCHITECTURE_v2.2.md) - Component overview, data flow
-- **API Reference**: [API.md](API.md) - MCP tool parameters and responses
+- **Architecture**: [ARCHITECTURE.md](ARCHITECTURE.md) - Component overview, data flow, state machine
+- **Features**: [FEATURES.md](FEATURES.md) - MCP tools, schema profiles, filtering
 - **Testing**: [TESTING.md](TESTING.md) - Running tests, fixtures
 - **External Docs**: [EXTERNAL_RESOURCES.md](EXTERNAL_RESOURCES.md) - FastMCP, Nessus API, MCP Protocol
 
 ### For Operators
 
+- **Deployment**: [DEPLOYMENT.md](DEPLOYMENT.md) - Docker compose, environment variables
 - **Scanner Pools**: [SCANNER_POOLS.md](SCANNER_POOLS.md) - Adding scanners, pool configuration
 - **Monitoring**: [MONITORING.md](MONITORING.md) - Prometheus metrics, health checks
 - **Housekeeping**: [HOUSEKEEPING.md](HOUSEKEEPING.md) - Task cleanup, retention
 
-### For Advanced Use
+### For API Consumers
 
-- **Backpressure**: [PER_POOL_BACKPRESSURE.md](PER_POOL_BACKPRESSURE.md) - Queue capacity management
+- **Features**: [FEATURES.md](FEATURES.md) - Complete tool reference with examples
+- **API Reference**: [API.md](API.md) - Detailed parameter documentation
+
+---
 
 ## Document Summaries
 
-### ARCHITECTURE_v2.2.md
+### ARCHITECTURE.md
 
-System components and data flow:
-- MCP server (FastMCP)
-- Redis queue
-- Scanner worker
-- Scanner registry
+System design documentation:
+- Module structure and responsibilities
+- Component interaction patterns
+- Data flow diagrams (scan submission, result retrieval)
 - Task state machine
+- Key abstractions (TaskManager, ScannerRegistry, TaskQueue)
 
-### API.md
+### FEATURES.md
 
-MCP tool reference:
-- `run_untrusted_scan` - Parameters, response format
-- `run_authenticated_scan` - SSH credential handling
-- `get_scan_status` - Status codes, progress
-- `get_scan_results` - Filtering, pagination, JSON-NL
+Capability catalog for MCP consumers:
+- 9 MCP tools with parameters and examples
+- Scan types (untrusted, authenticated, privileged)
+- Schema profiles (minimal, summary, brief, full)
+- Filtering syntax and examples
+- Pagination behavior
+- Authentication detection
+- Error responses
 
-### SCANNER_POOLS.md
+### REQUIREMENTS.md
 
-Pool configuration:
-- Pool naming conventions
-- Adding scanners
-- Load balancing
-- Multi-zone setups
+Living traceability matrix:
+- Functional Requirements (FR) - scan operations, status, results
+- Non-Functional Requirements (NFR) - performance, reliability, observability
+- Tool Requirements (TR) - per-tool checklist
+- Integration Requirements (IR) - Nessus, Redis, Docker
+- Future roadmap
 
-### MONITORING.md
+### DEPLOYMENT.md
 
-Observability:
-- Prometheus metrics
-- Health endpoints
-- Log format
-- Alerting suggestions
+Operational deployment guide:
+- Docker compose configurations (dev, prod)
+- Environment variables reference
+- Network topology
+- Scanner pool configuration (scanners.yaml)
+- Health checks and monitoring
+- Admin CLI commands
 - Troubleshooting guide
 
-### HOUSEKEEPING.md
-
-Cleanup operations:
-- Task expiration
-- Orphan detection
-- DLQ management
-- Nessus scan cleanup
-
-### PER_POOL_BACKPRESSURE.md
-
-Queue management:
-- Capacity calculation
-- Per-pool limits
-- Worker backpressure
-
-### TESTING.md
-
-Test guide:
-- Test layers (unit, integration)
-- Running tests
-- Writing tests
-- CI/CD integration
-
-### EXTERNAL_RESOURCES.md
-
-External documentation:
-- FastMCP framework
-- MCP Protocol specification
-- Nessus API reference
-- Redis, httpx, structlog docs
+---
 
 ## Operational Caveats
 
-Common operational issues and their solutions are documented in [MONITORING.md](MONITORING.md#troubleshooting):
+Common issues documented in [MONITORING.md](MONITORING.md#troubleshooting):
 
 | Issue | Symptom | Reference |
 |-------|---------|-----------|
 | High queue depth | Queue growing, scans delayed | [Troubleshooting](MONITORING.md#high-queue-depth) |
 | Growing DLQ | Failed tasks accumulating | [Troubleshooting](MONITORING.md#growing-dlq) |
-| Circuit breaker open | Scanner marked unavailable | [Troubleshooting](MONITORING.md#circuit-breaker-open) |
 | Disk space | Health check warnings | [Troubleshooting](MONITORING.md#disk-space-issues) |
 
-For circuit breaker behavior and configuration, see [Circuit Breaker](MONITORING.md#circuit-breaker).
+---
+
+## Archive
+
+Historical and superseded documents: [archive/](archive/)
