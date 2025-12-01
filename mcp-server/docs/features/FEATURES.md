@@ -1,135 +1,402 @@
-# Nessus MCP Server - Features & Capabilities
+# Nessus MCP Server - Feature Documentation
 
-> Consolidated feature reference for the Nessus MCP Server
-> Version: 1.0 | Last Updated: 2025-12-01
+> **[↑ Documentation Index](/mcp-server/docs/README.md)** | **[Architecture →](ARCHITECTURE.md)** | **[Requirements →](REQUIREMENTS.md)**
 
----
+## Overview
 
-## Quick Navigation
-
-- [1. MCP Tools (API)](#1-mcp-tools-api)
-- [2. Scanner Integration](#2-scanner-integration)
-- [3. Queue & Task Management](#3-queue--task-management)
-- [4. Results Processing](#4-results-processing)
-- [5. Observability](#5-observability)
-- [6. Production Features](#6-production-features)
-- [7. Administration](#7-administration)
+The Nessus MCP Server provides an MCP (Model Context Protocol) interface for vulnerability scanning using Tenable Nessus. It supports network-only and authenticated scanning with asynchronous queue-based processing.
 
 ---
 
-## 1. MCP Tools (API)
+## Feature Categories
 
-### 1.1 Scan Submission Tools
+| Category | Description |
+|----------|-------------|
+| [Scanning](#1-vulnerability-scanning) | Network and authenticated vulnerability scans |
+| [Queue System](#2-queue-system) | Async task queue with Redis |
+| [Results](#3-results-retrieval) | Schema-based result filtering |
+| [Observability](#4-observability) | Logging, metrics, health checks |
+| [Multi-Scanner](#5-multi-scanner-support) | Scanner pools and load balancing |
 
-#### run_untrusted_scan
+---
 
-Network-only vulnerability scan without credentials.
+## 1. Vulnerability Scanning
 
-**Parameters:**
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `targets` | string | Yes | - | IP addresses or CIDR ranges |
-| `name` | string | Yes | - | Scan name for identification |
-| `description` | string | No | "" | Optional scan description |
-| `schema_profile` | string | No | "brief" | Output schema (minimal\|summary\|brief\|full) |
-| `idempotency_key` | string | No | null | Key for idempotent retries |
-| `scanner_pool` | string | No | "nessus" | Scanner pool for routing |
-| `scanner_instance` | string | No | null | Specific scanner instance |
+### 1.1 Network Scanning (Untrusted)
 
-**Response:**
+External attack surface scanning without authentication.
+
+**MCP Tool**: `run_untrusted_scan()`
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| targets | string | Yes | IP addresses or CIDR ranges |
+| name | string | Yes | Scan name for identification |
+| description | string | No | Optional description |
+| schema_profile | string | No | Output schema (default: brief) |
+| idempotency_key | string | No | Prevent duplicate scans |
+| scanner_pool | string | No | Target scanner pool |
+| scanner_instance | string | No | Specific scanner instance |
+
+**Response**:
 ```json
 {
-  "task_id": "ne_prod_20251201_120000_abc123",
-  "trace_id": "uuid",
+  "task_id": "nessus_scanner1_1732..._abc123",
+  "trace_id": "uuid-v4",
   "status": "queued",
   "scanner_pool": "nessus",
   "scanner_instance": "scanner1",
   "queue_position": 1,
-  "estimated_wait_minutes": 15,
-  "message": "Scan enqueued successfully"
+  "estimated_wait_minutes": 15
+}
+```
+
+### 1.2 Authenticated Scanning
+
+SSH-based authenticated scanning for deeper vulnerability detection.
+
+**MCP Tool**: `run_authenticated_scan()`
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| targets | string | Yes | IP addresses or hostnames |
+| name | string | Yes | Scan name |
+| scan_type | string | Yes | `authenticated` or `authenticated_privileged` |
+| ssh_username | string | Yes | SSH username |
+| ssh_password | string | Yes | SSH password |
+| elevate_privileges_with | string | No | `Nothing`, `sudo`, `su`, `su+sudo`, `pbrun`, `dzdo` |
+| escalation_account | string | No | Account to escalate to (default: root) |
+| escalation_password | string | No | Password for privilege escalation |
+
+**Scan Types**:
+
+| Type | Description | Use Case |
+|------|-------------|----------|
+| `untrusted` | Network-only, no authentication | External attack surface |
+| `authenticated` | SSH login to target | Internal vulnerability assessment |
+| `authenticated_privileged` | SSH + sudo/root escalation | Full system audit, compliance |
+
+**Authentication Detection**:
+- Plugin 141118: "Valid Credentials Provided" (confirms success)
+- Plugin 110385: "Insufficient Privilege" (need escalation)
+- Plugin 19506: "Credentialed checks: yes/no/partial"
+
+### 1.3 Scan Lifecycle
+
+```
+QUEUED → RUNNING → COMPLETED
+                 ↘ FAILED
+                 ↘ TIMEOUT (24h)
+```
+
+**State Transitions**:
+- `QUEUED`: Task created, waiting in queue
+- `RUNNING`: Worker processing, Nessus scanning
+- `COMPLETED`: Scan finished, results available
+- `FAILED`: Error occurred (auth failure, scanner error)
+- `TIMEOUT`: 24-hour limit exceeded
+
+---
+
+## 2. Queue System
+
+### 2.1 Redis Task Queue
+
+Asynchronous FIFO queue for scan task processing.
+
+**Architecture**:
+- Queue key: `{pool}:queue` (e.g., `nessus:queue`)
+- Dead Letter Queue: `{pool}:queue:dead`
+- Blocking dequeue with BRPOP (no CPU spin)
+
+**MCP Tool**: `get_queue_status()`
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| scanner_pool | string | No | Pool name (default: nessus) |
+
+**Response**:
+```json
+{
+  "pool": "nessus",
+  "queue_depth": 3,
+  "dlq_size": 0,
+  "next_tasks": [...],
+  "timestamp": "2025-12-01T12:00:00Z"
+}
+```
+
+### 2.2 Idempotency
+
+Prevent duplicate scan submissions using idempotency keys.
+
+**Behavior**:
+- Same `idempotency_key` returns existing task_id
+- Keys stored in Redis with TTL
+- Useful for retry-safe submissions
+
+### 2.3 Task Management
+
+**MCP Tool**: `list_tasks()`
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| limit | int | No | Max tasks to return (default: 10) |
+| status_filter | string | No | Filter by status |
+| scanner_pool | string | No | Filter by pool |
+| target_filter | string | No | Filter by target IP/CIDR |
+
+**Target Filtering**:
+- CIDR-aware matching
+- Query IP within stored subnet
+- Query subnet contains/overlaps stored targets
+
+---
+
+## 3. Results Retrieval
+
+### 3.1 Schema Profiles
+
+Predefined field selections for different use cases.
+
+**MCP Tool**: `get_scan_results()`
+
+| Profile | Fields | Size Reduction | Use Case |
+|---------|--------|----------------|----------|
+| `minimal` | 6 fields | ~80% | Quick triage |
+| `summary` | 9 fields | ~60% | LLM analysis |
+| `brief` | 11 fields | ~40% | Detailed review (DEFAULT) |
+| `full` | All fields | 0% | Complete export |
+
+**Minimal Fields**: host, plugin_id, severity, cve, cvss_score, exploit_available
+
+**Summary Adds**: plugin_name, cvss3_base_score, synopsis
+
+**Brief Adds**: description, solution
+
+### 3.2 Filtering
+
+Generic filtering engine for vulnerability results.
+
+| Filter Type | Syntax | Example |
+|-------------|--------|---------|
+| String | Substring match | `"plugin_name": "SQL"` |
+| Number | Operators | `"cvss_score": ">7.0"` |
+| Boolean | Exact match | `"exploit_available": true` |
+| List | Contains | `"cve": "CVE-2021"` |
+
+**Logic**: All filters use AND (must all match).
+
+### 3.3 Pagination
+
+Handle large result sets with pagination.
+
+| Parameter | Default | Range | Description |
+|-----------|---------|-------|-------------|
+| page | 1 | 1-N, or 0 | Page number (0 = all) |
+| page_size | 40 | 10-100 | Lines per page |
+
+**Output Format**: JSON-NL (newline-delimited JSON)
+- Line 1: Schema definition
+- Line 2: Scan metadata
+- Lines 3+: Vulnerabilities
+- Last line: Pagination info
+
+---
+
+## 4. Observability
+
+### 4.1 Structured Logging
+
+JSON-formatted logs with trace ID propagation.
+
+**Log Events**:
+- `tool_invocation`: MCP tool called
+- `task_created`: New task created
+- `scan_enqueued`: Task added to queue
+- `state_transition`: Task state changed
+- `scan_progress`: Progress update (25%, 50%, 75%, 100%)
+- `scan_completed`: Scan finished
+- `authentication_status`: Auth success/failure
+
+**Format**:
+```json
+{
+  "timestamp": "2025-12-01T12:00:00.123456Z",
+  "level": "info",
+  "event": "scan_completed",
+  "trace_id": "abc-123",
+  "task_id": "nessus_scanner1_...",
+  "authentication_status": "success",
+  "hosts_scanned": 5,
+  "total_vulnerabilities": 42
+}
+```
+
+### 4.2 Prometheus Metrics
+
+8 core metrics exposed at `/metrics`.
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `nessus_scans_total` | Counter | scan_type, status | Total scans |
+| `nessus_api_requests_total` | Counter | tool, status | API requests |
+| `nessus_active_scans` | Gauge | - | Currently running |
+| `nessus_scanner_instances` | Gauge | scanner_type, enabled | Scanner count |
+| `nessus_queue_depth` | Gauge | queue | Queue depth |
+| `nessus_dlq_size` | Gauge | - | Dead letter queue |
+| `nessus_task_duration_seconds` | Histogram | - | Scan duration |
+| `nessus_ttl_deletions_total` | Counter | - | TTL cleanups |
+
+### 4.3 Health Checks
+
+**Endpoint**: `/health`
+
+**Checks**:
+- Redis connectivity (PING)
+- Filesystem writability
+- Scanner availability
+
+**Response**:
+```json
+{
+  "status": "healthy",
+  "redis_healthy": true,
+  "filesystem_healthy": true
 }
 ```
 
 ---
 
-#### run_authenticated_scan
+## 5. Multi-Scanner Support
 
-SSH-authenticated vulnerability scan with credential injection.
+### 5.1 Scanner Registry
 
-**Parameters:**
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `targets` | string | Yes | - | IP addresses or hostnames |
-| `name` | string | Yes | - | Scan name |
-| `scan_type` | string | Yes | - | "authenticated" or "authenticated_privileged" |
-| `ssh_username` | string | Yes | - | SSH username |
-| `ssh_password` | string | Yes | - | SSH password |
-| `elevate_privileges_with` | string | No | "Nothing" | "sudo", "su", "su+sudo", "pbrun", "dzdo" |
-| `escalation_account` | string | No | "root" | Account to escalate to |
-| `escalation_password` | string | No | "" | Password for escalation |
-| `schema_profile` | string | No | "brief" | Output schema |
-| `idempotency_key` | string | No | null | Idempotent retry key |
-| `scanner_pool` | string | No | "nessus" | Scanner pool |
-| `scanner_instance` | string | No | null | Specific scanner |
+YAML-based multi-instance scanner configuration.
 
-**Scan Types:**
-- `authenticated` - SSH login only, no privilege escalation
-- `authenticated_privileged` - SSH login + sudo/su escalation
+**Configuration** (`config/scanners.yaml`):
+```yaml
+scanners:
+  nessus:
+    - instance_id: scanner1
+      url: https://nessus1.local:8834
+      username: ${NESSUS_USER}
+      password: ${NESSUS_PASS}
+      max_concurrent_scans: 2
+      enabled: true
+```
 
-**Authentication Detection:**
-- Plugin 141118: "Valid Credentials Provided" confirms success
-- Plugin 110385: "Insufficient Privilege" indicates need for escalation
-- hosts_summary.credential field in results
+**Features**:
+- Environment variable substitution
+- Per-instance concurrent scan limits
+- Enable/disable without removal
+- SIGHUP hot-reload
+
+### 5.2 Scanner Pools
+
+Logical grouping of scanner instances.
+
+**MCP Tool**: `list_pools()`
+
+**Response**:
+```json
+{
+  "pools": ["nessus", "nessus_dmz"],
+  "default_pool": "nessus"
+}
+```
+
+### 5.3 Load Balancing
+
+Automatic scanner selection within pools.
+
+**MCP Tool**: `list_scanners()`
+
+**Response per scanner**:
+```json
+{
+  "instance_id": "scanner1",
+  "pool": "nessus",
+  "url": "https://...",
+  "enabled": true,
+  "max_concurrent_scans": 2,
+  "active_scans": 1,
+  "available_capacity": 1,
+  "utilization_pct": 50.0
+}
+```
+
+**Selection Algorithm**: Least loaded scanner with available capacity.
+
+### 5.4 Pool Status
+
+Aggregate metrics per pool.
+
+**MCP Tool**: `get_pool_status()`
+
+**Response**:
+```json
+{
+  "pool": "nessus",
+  "total_scanners": 2,
+  "total_capacity": 4,
+  "total_active": 2,
+  "available_capacity": 2,
+  "utilization_pct": 50.0
+}
+```
 
 ---
 
-### 1.2 Status & Monitoring Tools
+## 6. Status & Monitoring
 
-#### get_scan_status
+### 6.1 Scan Status
 
-Get current status of a scan task with validation results.
+**MCP Tool**: `get_scan_status()`
 
-**Parameters:**
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `task_id` | string | Yes | Task ID from scan submission |
+| task_id | string | Yes | Task ID from scan submission |
 
-**Response (completed scan):**
+**Response Fields**:
+
+| Field | Description |
+|-------|-------------|
+| status | Current state (queued/running/completed/failed) |
+| progress | 0-100 if running |
+| authentication_status | success/failed/partial/not_applicable |
+| validation_warnings | List of warnings |
+| results_summary | Hosts scanned, vuln counts (if completed) |
+| troubleshooting | Hints for failed auth |
+
+### 6.2 Results Summary
+
+Included in status for completed tasks:
+
 ```json
 {
-  "task_id": "ne_prod_20251201_120000_abc123",
-  "trace_id": "uuid",
-  "status": "completed",
-  "scanner_pool": "nessus",
-  "scanner_instance": "scanner1",
-  "nessus_scan_id": 123,
-  "created_at": "2025-12-01T12:00:00Z",
-  "started_at": "2025-12-01T12:00:05Z",
-  "completed_at": "2025-12-01T12:15:00Z",
-  "authentication_status": "success",
-  "validation_warnings": [],
   "results_summary": {
-    "hosts_scanned": 1,
+    "hosts_scanned": 5,
     "total_vulnerabilities": 42,
     "severity_breakdown": {
-      "critical": 11,
-      "high": 9,
+      "critical": 2,
+      "high": 8,
       "medium": 15,
-      "low": 7
+      "low": 7,
+      "info": 10
     },
-    "file_size_kb": 125.5,
-    "auth_plugins_found": 23
+    "file_size_kb": 256.5,
+    "auth_plugins_found": 12
   }
 }
 ```
 
-**Response (failed authentication):**
+### 6.3 Troubleshooting
+
+Included when authentication fails:
+
 ```json
 {
-  "task_id": "...",
-  "status": "failed",
-  "authentication_status": "failed",
-  "error_message": "Authentication FAILED...",
   "troubleshooting": {
     "likely_cause": "Credentials rejected or inaccessible target",
     "next_steps": [
@@ -144,665 +411,38 @@ Get current status of a scan task with validation results.
 
 ---
 
-#### list_tasks
+## MCP Tools Summary
 
-List recent tasks with filtering capabilities.
-
-**Parameters:**
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `limit` | int | No | 10 | Maximum tasks to return |
-| `status_filter` | string | No | null | Filter by status |
-| `scanner_pool` | string | No | null | Filter by pool |
-| `target_filter` | string | No | null | Filter by target (CIDR-aware) |
-
-**Status Values:** `queued`, `running`, `completed`, `failed`, `timeout`
-
----
-
-#### get_queue_status
-
-Get Redis queue metrics for a pool.
-
-**Parameters:**
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `scanner_pool` | string | No | "nessus" | Pool name |
-
-**Response:**
-```json
-{
-  "pool": "nessus",
-  "queue_depth": 3,
-  "dlq_size": 0,
-  "next_tasks": ["task1", "task2", "task3"],
-  "timestamp": "2025-12-01T12:00:00Z"
-}
-```
+| Tool | Description | Category |
+|------|-------------|----------|
+| `run_untrusted_scan` | Network-only vulnerability scan | Scanning |
+| `run_authenticated_scan` | SSH-authenticated vulnerability scan | Scanning |
+| `get_scan_status` | Get task status with progress | Status |
+| `get_scan_results` | Retrieve filtered scan results | Results |
+| `list_tasks` | List recent tasks with filtering | Status |
+| `list_scanners` | List scanner instances with load | Multi-Scanner |
+| `list_pools` | List available scanner pools | Multi-Scanner |
+| `get_pool_status` | Get pool utilization metrics | Multi-Scanner |
+| `get_queue_status` | Get queue depth and metrics | Queue |
 
 ---
 
-### 1.3 Scanner Management Tools
+## Dependencies
 
-#### list_scanners
-
-List registered scanner instances with load information.
-
-**Parameters:**
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `scanner_pool` | string | No | null | Filter by pool |
-
-**Response:**
-```json
-{
-  "scanners": [
-    {
-      "scanner_type": "nessus",
-      "pool": "nessus",
-      "instance_id": "scanner1",
-      "instance_key": "nessus:scanner1",
-      "name": "Nessus Scanner 1",
-      "url": "https://172.30.0.3:8834",
-      "enabled": true,
-      "max_concurrent_scans": 2,
-      "active_scans": 1,
-      "available_capacity": 1,
-      "utilization_pct": 50.0
-    }
-  ],
-  "total": 1,
-  "pools": ["nessus"]
-}
-```
+| Package | Version | Purpose |
+|---------|---------|---------|
+| fastmcp | 2.13.0.2 | MCP server framework |
+| mcp | >=1.18.0 | MCP protocol |
+| starlette | 0.49.1 | SSE transport (PINNED) |
+| anyio | 4.6.2.post1 | Async support (PINNED) |
+| uvicorn | 0.38.0 | ASGI server |
+| httpx | >=0.27.0 | Async HTTP client |
+| redis | >=5.0.0 | Task queue |
+| structlog | 24.1.0 | Structured logging |
+| prometheus-client | >=0.20.0 | Metrics |
+| pyyaml | >=6.0.1 | Configuration |
 
 ---
 
-#### list_pools
-
-List available scanner pools.
-
-**Response:**
-```json
-{
-  "pools": ["nessus", "nessus_dmz"],
-  "default_pool": "nessus"
-}
-```
-
----
-
-#### get_pool_status
-
-Get aggregate pool metrics and per-scanner breakdown.
-
-**Parameters:**
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `scanner_pool` | string | No | "nessus" | Pool name |
-
-**Response:**
-```json
-{
-  "pool": "nessus",
-  "scanner_type": "nessus",
-  "total_scanners": 2,
-  "total_capacity": 4,
-  "total_active": 1,
-  "available_capacity": 3,
-  "utilization_pct": 25.0,
-  "scanners": [
-    {
-      "instance_key": "nessus:scanner1",
-      "active_scans": 1,
-      "max_concurrent_scans": 2,
-      "utilization_pct": 50.0,
-      "available_capacity": 1
-    }
-  ]
-}
-```
-
----
-
-### 1.4 Results Retrieval Tools
-
-#### get_scan_results
-
-Get scan results in paginated JSON-NL format.
-
-**Parameters:**
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `task_id` | string | Yes | - | Task ID |
-| `page` | int | No | 1 | Page number (0 = all data) |
-| `page_size` | int | No | 40 | Results per page (10-100) |
-| `schema_profile` | string | No | "brief" | Predefined schema |
-| `custom_fields` | list | No | null | Custom field list |
-| `filters` | dict | No | null | Filter criteria |
-
-**Schema Profiles:**
-| Profile | Fields | Use Case |
-|---------|--------|----------|
-| `minimal` | host, plugin_id, severity, cve, cvss_score, exploit_available | Quick triage |
-| `summary` | minimal + plugin_name, cvss3_base_score, synopsis | LLM analysis |
-| `brief` | summary + description, solution | Detailed review (default) |
-| `full` | All fields | Complete data |
-
-**Filter Examples:**
-```json
-{
-  "severity": "4",
-  "cvss_score": ">7.0",
-  "exploit_available": true,
-  "cve": "CVE-2021"
-}
-```
-
-**JSON-NL Output Format:**
-```
-{"type": "schema", "profile": "brief", "fields": [...], "total_vulnerabilities": 40}
-{"type": "scan_metadata", "scan_name": "Test Scan", "policy_name": "..."}
-{"type": "vulnerability", "host": "192.168.1.1", "plugin_id": "12345", ...}
-{"type": "pagination", "page": 1, "page_size": 10, "has_next": true}
-```
-
----
-
-## 2. Scanner Integration
-
-### 2.1 Native Async Nessus Scanner
-
-Pure async/await implementation using httpx for all Nessus API operations.
-
-**Capabilities:**
-- Session-based authentication with token management
-- Scan creation with policy templates
-- Scan launch and status polling
-- Results export (nessus format)
-- Scan stop/delete operations
-- SSL verification handling for self-signed certificates
-
-**Status Mapping:**
-| Nessus Status | MCP Status |
-|---------------|------------|
-| pending | queued |
-| running | running |
-| paused | running |
-| completed | completed |
-| canceled | failed |
-| stopped | failed |
-| aborted | failed |
-
----
-
-### 2.2 Scanner Registry
-
-Multi-instance scanner management with pool-based routing.
-
-**Features:**
-- YAML configuration with environment variable substitution
-- Pool-based scanner grouping
-- Per-scanner concurrency limits
-- Load-based scanner selection (lowest utilization wins)
-- Instance enable/disable
-- Hot-reload configuration via SIGHUP
-
-**Configuration Example (`config/scanners.yaml`):**
-```yaml
-nessus:
-  scanner1:
-    name: "Primary Scanner"
-    url: "https://172.30.0.3:8834"
-    username: "${NESSUS_USERNAME:-nessus}"
-    password: "${NESSUS_PASSWORD}"
-    enabled: true
-    max_concurrent_scans: 2
-```
-
----
-
-### 2.3 Scan Result Validation
-
-Post-scan validation with authentication detection.
-
-**Validation Checks:**
-- File existence and size
-- XML structure validity
-- Host count verification
-- Plugin analysis for auth-only plugins
-
-**Authentication Detection Methods:**
-1. Plugin 19506 ("Nessus Scan Information") credential status
-2. Auth-required plugin count (fallback)
-3. hosts_summary.credential field
-
-**Authentication Statuses:**
-- `success` - Credentials accepted, authenticated plugins found
-- `failed` - Credentials rejected or inaccessible
-- `partial` - Some hosts authenticated, some failed
-- `not_applicable` - Untrusted scan (no credentials)
-
----
-
-## 3. Queue & Task Management
-
-### 3.1 Redis Task Queue
-
-FIFO queue implementation with reliable delivery.
-
-**Queue Keys:**
-- `{pool}:queue` - Main task queue (LPUSH/BRPOP)
-- `{pool}:queue:dead` - Dead Letter Queue (ZADD with timestamp)
-
-**Operations:**
-- **Enqueue**: LPUSH to pool queue
-- **Dequeue**: BRPOP with 5-second timeout (no busy-wait)
-- **DLQ Move**: ZADD with timestamp score for failed tasks
-
----
-
-### 3.2 Task State Machine
-
-Enforced state transitions with file locking.
-
-```
-QUEUED
-   │
-   ├─ Worker dequeues
-   │
-   ▼
-RUNNING
-   │
-   ├─→ COMPLETED (success, results exported)
-   ├─→ FAILED (error, moved to DLQ)
-   └─→ TIMEOUT (24h exceeded, scan stopped)
-```
-
-**Valid Transitions:**
-| From | To |
-|------|-----|
-| QUEUED | RUNNING, FAILED |
-| RUNNING | COMPLETED, FAILED, TIMEOUT |
-| COMPLETED | (terminal) |
-| FAILED | (terminal) |
-| TIMEOUT | (terminal) |
-
----
-
-### 3.3 Task Manager
-
-Single writer for task state with file-based persistence.
-
-**Task Storage:**
-```
-/app/data/tasks/{task_id}/
-├── task.json          # Task metadata
-├── scan_native.nessus # Raw scan results
-└── scanner_logs/      # Scanner output
-```
-
-**Task Metadata Fields:**
-```json
-{
-  "task_id": "ne_prod_20251201_120000_abc123",
-  "trace_id": "uuid",
-  "scan_type": "untrusted",
-  "scanner_type": "nessus",
-  "scanner_instance_id": "scanner1",
-  "scanner_pool": "nessus",
-  "status": "completed",
-  "payload": {"targets": "...", "name": "..."},
-  "created_at": "2025-12-01T12:00:00Z",
-  "started_at": "2025-12-01T12:00:05Z",
-  "completed_at": "2025-12-01T12:15:00Z",
-  "nessus_scan_id": 123,
-  "validation_stats": {...},
-  "validation_warnings": [],
-  "authentication_status": "not_applicable"
-}
-```
-
----
-
-### 3.4 Idempotency System
-
-Request deduplication with conflict detection.
-
-**Key Sources (priority order):**
-1. HTTP header: `X-Idempotency-Key`
-2. Tool argument: `idempotency_key`
-
-**Behavior:**
-- Same key + same params → Return existing task
-- Same key + different params → 409 Conflict error
-- New key → Create new task
-
-**Storage:** Redis with 48-hour TTL
-
----
-
-### 3.5 Background Scanner Worker
-
-Async task processor with graceful shutdown.
-
-**Features:**
-- Concurrent scan processing (configurable limit)
-- Multi-pool support via `WORKER_POOLS` env var
-- 30-second status poll interval
-- 24-hour timeout protection
-- Graceful shutdown (60-second cleanup)
-- Automatic DLQ routing for failures
-
----
-
-## 4. Results Processing
-
-### 4.1 XML Parser
-
-Parses .nessus files extracting vulnerabilities and metadata.
-
-**Extracted Data:**
-- Scan metadata (name, policy, timestamps)
-- Per-host results (ReportHost elements)
-- Per-vulnerability data (ReportItem elements)
-- CVE lists (aggregated)
-- CVSS scores (converted to float)
-
----
-
-### 4.2 Filtering Engine
-
-Type-aware generic filtering with AND logic.
-
-**Filter Types:**
-| Type | Behavior | Example |
-|------|----------|---------|
-| String | Case-insensitive substring | `"severity": "critical"` |
-| Number | Comparison operators | `"cvss_score": ">7.0"` |
-| Boolean | Exact match | `"exploit_available": true` |
-| List | Any element contains | `"cve": "CVE-2021"` |
-
-**Operators:** `>`, `>=`, `<`, `<=`, `=`
-
----
-
-### 4.3 JSON-NL Converter
-
-Transforms Nessus XML to structured JSON-NL output.
-
-**Output Structure:**
-1. Schema line (profile, fields, filters applied, totals)
-2. Scan metadata line
-3. Vulnerability lines (paginated)
-4. Pagination line (if paginated)
-
----
-
-## 5. Observability
-
-### 5.1 Structured Logging
-
-JSON output with structlog for machine parsing.
-
-**Log Fields:**
-- ISO 8601 timestamps with microseconds
-- Trace ID propagation
-- Multi-level support (DEBUG, INFO, WARNING, ERROR)
-
-**Worker Events (39 events):**
-- task_dequeued
-- scan_state_transition
-- scan_progress (25%, 50%, 75%, 100%)
-- scan_completed / scan_failed
-- scanner_connection_failed
-- authentication_failed
-
----
-
-### 5.2 Prometheus Metrics
-
-8 core metrics plus pool-specific metrics.
-
-**Core Metrics:**
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `nessus_scans_total` | Counter | scan_type, status | Total scans by type and outcome |
-| `nessus_api_requests_total` | Counter | tool, status | MCP tool call counts |
-| `nessus_active_scans` | Gauge | - | Currently running scans |
-| `nessus_scanner_instances` | Gauge | scanner_type, enabled | Registered scanner count |
-| `nessus_queue_depth` | Gauge | queue | Tasks in queue |
-| `nessus_dlq_size` | Gauge | - | Dead letter queue size |
-| `nessus_task_duration_seconds` | Histogram | - | Scan execution duration |
-| `nessus_ttl_deletions_total` | Counter | - | Housekeeping deletions |
-
-**Pool Metrics:**
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `nessus_pool_queue_depth` | Gauge | pool | Tasks queued per pool |
-| `nessus_pool_dlq_depth` | Gauge | pool | DLQ size per pool |
-| `nessus_validation_total` | Counter | pool, result | Validation counts |
-| `nessus_validation_failures_total` | Counter | pool, reason | Failure breakdown |
-| `nessus_auth_failures_total` | Counter | pool, scan_type | Auth failures |
-
-**Endpoint:** `GET /metrics` (Prometheus text format)
-
----
-
-### 5.3 Health Checks
-
-Dependency health verification.
-
-**Checks:**
-- Redis PING connectivity
-- Filesystem write test with auto-directory creation
-
-**Endpoints:**
-- `GET /health` - Returns 200 (healthy) or 503 (unhealthy)
-
-**Response:**
-```json
-{
-  "status": "healthy",
-  "redis_healthy": true,
-  "filesystem_healthy": true,
-  "redis_url": "redis://redis:6379",
-  "data_dir": "/app/data/tasks"
-}
-```
-
----
-
-## 6. Production Features
-
-### 6.1 Pool Architecture
-
-Isolated scanner groups for network segmentation.
-
-**Use Cases:**
-- Internal vs DMZ scanners
-- Geographic distribution
-- Workload isolation
-
-**Queue Isolation:**
-- Each pool has separate Redis queue
-- Worker can subscribe to multiple pools
-- Tasks routed to specified pool
-
----
-
-### 6.2 Load-Based Scanner Selection
-
-Automatic selection of least-loaded scanner in pool.
-
-**Algorithm:**
-1. Get all enabled scanners in pool
-2. Calculate utilization: `active_scans / max_concurrent_scans`
-3. Select scanner with lowest utilization
-4. Optionally specify `scanner_instance` to override
-
----
-
-### 6.3 Per-Scanner Concurrency Limits
-
-Configurable concurrent scan limits per scanner.
-
-**Default:** 2 concurrent scans per scanner
-
-**Rationale:**
-- Prevents scanner overload
-- Ensures predictable scan timing
-- Queue absorbs overflow
-
----
-
-### 6.4 Circuit Breaker
-
-Protection against cascading scanner failures.
-
-**States:**
-- `CLOSED` - Normal operation, tracking failures
-- `OPEN` - Too many failures, rejecting requests
-- `HALF_OPEN` - After cooldown, testing recovery
-
-**Configuration:**
-- `failure_threshold`: 5 failures to open
-- `cooldown_seconds`: 300 seconds before half-open
-- `success_threshold`: 2 successes to close
-
----
-
-### 6.5 Production Docker Configuration
-
-Multi-stage builds with resource limits.
-
-**Services:**
-- `redis` - Task queue with persistence
-- `mcp-api` - MCP HTTP server
-- `worker-main` - Scanner worker(s)
-
-**Features:**
-- Health checks on all services
-- Resource limits (CPU, memory)
-- Persistent Redis volume
-- Non-root user execution
-- Auto-restart policies
-
----
-
-## 7. Administration
-
-### 7.1 TTL Housekeeping
-
-Automatic cleanup of old task data.
-
-**Retention Periods:**
-- Completed tasks: 7 days (configurable)
-- Failed/timeout tasks: 30 days (configurable)
-- Running/queued tasks: Never deleted
-
-**Features:**
-- Hourly cleanup cycle
-- Disk space tracking
-- Metric recording (`ttl_deletions_total`)
-
----
-
-### 7.2 DLQ Handler CLI
-
-Admin tool for Dead Letter Queue management.
-
-**Commands:**
-```bash
-# Show queue statistics
-python -m tools.admin_cli stats --pool nessus
-
-# List failed tasks
-python -m tools.admin_cli list-dlq --pool nessus --limit 20
-
-# Inspect specific task
-python -m tools.admin_cli inspect-dlq <task_id> --pool nessus
-
-# Retry failed task
-python -m tools.admin_cli retry-dlq <task_id> --pool nessus
-
-# Clear all DLQ tasks
-python -m tools.admin_cli purge-dlq --pool nessus --confirm
-```
-
----
-
-### 7.3 Configuration Hot-Reload
-
-Live configuration updates without restart.
-
-**Mechanism:** SIGHUP signal to worker process
-
-**Reloadable Settings:**
-- Scanner instances
-- Pool membership
-- Concurrency limits
-- Enable/disable state
-
----
-
-## Appendix A: Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `REDIS_URL` | `redis://redis:6379` | Redis connection URL |
-| `DATA_DIR` | `/app/data/tasks` | Task data directory |
-| `SCANNER_CONFIG` | `/app/config/scanners.yaml` | Scanner registry config |
-| `LOG_LEVEL` | `INFO` | Logging level |
-| `MAX_CONCURRENT_SCANS` | `2` | Default scanner concurrency |
-| `WORKER_POOLS` | `nessus` | Comma-separated pool list |
-| `MCP_PORT` | `8836` | MCP server port |
-| `NESSUS_URL` | - | Nessus scanner URL |
-| `NESSUS_USERNAME` | - | Nessus credentials |
-| `NESSUS_PASSWORD` | - | Nessus credentials |
-
----
-
-## Appendix B: Implementation Status
-
-| Feature | Phase | Status |
-|---------|-------|--------|
-| Native Async Scanner | 0 | Complete |
-| Scanner Registry | 0 | Complete |
-| Redis Task Queue | 1 | Complete |
-| State Machine | 1 | Complete |
-| MCP Tools (scan/status) | 1 | Complete |
-| XML Parser | 2 | Complete |
-| Schema Profiles | 2 | Complete |
-| Filtering Engine | 2 | Complete |
-| JSON-NL Converter | 2 | Complete |
-| Structured Logging | 3 | Complete |
-| Prometheus Metrics | 3 | Complete |
-| Health Checks | 3 | Complete |
-| Pool Architecture | 4 | Complete |
-| Validation System | 4 | Complete |
-| Production Docker | 4 | Complete |
-| TTL Housekeeping | 4 | Complete |
-| DLQ CLI | 4 | Complete |
-| Circuit Breaker | 4 | Complete |
-| Authenticated Scans | 5 | Complete |
-| E2E Tests | 6 | Complete |
-
----
-
-## Appendix C: Test Coverage
-
-| Component | Tests |
-|-----------|-------|
-| Task Manager | 16 |
-| Nessus Validator | 18 |
-| Pool Registry | 17 |
-| Pool Queue | 15 |
-| Health Checks | 17 |
-| Metrics | 45 |
-| Housekeeping | 18 |
-| Admin CLI | 21 |
-| Circuit Breaker | 27 |
-| Authenticated Scans | 18 |
-| MCP E2E | 18 |
-| **Total** | **220+** |
+*Generated: 2025-12-01*
+*Source: Consolidated from Phase 0-6 documentation*
