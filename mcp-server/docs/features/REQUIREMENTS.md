@@ -1,6 +1,6 @@
 # Nessus MCP Server - Requirements
 
-> **[↑ Documentation Index](/mcp-server/docs/README.md)** | **[← Architecture](ARCHITECTURE.md)** | **[Features →](FEATURES.md)**
+> **[↑ Features Index](README.md)** | **[← Architecture](ARCHITECTURE.md)** | **[Features →](FEATURES.md)**
 
 ## Functional Requirements
 

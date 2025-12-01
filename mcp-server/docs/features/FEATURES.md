@@ -1,6 +1,6 @@
 # Nessus MCP Server - Feature Documentation
 
-> **[↑ Documentation Index](/mcp-server/docs/README.md)** | **[Architecture →](ARCHITECTURE.md)** | **[Requirements →](REQUIREMENTS.md)**
+> **[↑ Features Index](README.md)** | **[Architecture →](ARCHITECTURE.md)** | **[Requirements →](REQUIREMENTS.md)**
 
 ## Overview
 
@@ -17,6 +17,7 @@ The Nessus MCP Server provides an MCP (Model Context Protocol) interface for vul
 | [Results](#3-results-retrieval) | Schema-based result filtering |
 | [Observability](#4-observability) | Logging, metrics, health checks |
 | [Multi-Scanner](#5-multi-scanner-support) | Scanner pools and load balancing |
+| [Operations](OPERATIONS.md) | Admin CLI, TTL housekeeping, circuit breaker |
 
 ---
 
@@ -83,7 +84,7 @@ SSH-based authenticated scanning for deeper vulnerability detection.
 
 ### 1.3 Scan Lifecycle
 
-```
+```text
 QUEUED → RUNNING → COMPLETED
                  ↘ FAILED
                  ↘ TIMEOUT (24h)

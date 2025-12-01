@@ -1,10 +1,10 @@
 # Nessus MCP Server - Architecture
 
-> **[↑ Documentation Index](/mcp-server/docs/README.md)** | **[← Features](FEATURES.md)** | **[Requirements →](REQUIREMENTS.md)**
+> **[↑ Features Index](README.md)** | **[← Features](FEATURES.md)** | **[Requirements →](REQUIREMENTS.md)**
 
 ## System Overview
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                           MCP Clients                                    │
 │              (Claude Code, LLM Applications, CI/CD)                     │
@@ -58,6 +58,14 @@
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
+### Service Ports
+
+| Service | Internal Port | External Port | Purpose |
+|---------|---------------|---------------|---------|
+| MCP API | 8000 | 8836 | MCP protocol + HTTP endpoints |
+| Redis | 6379 | - | Internal only (not exposed) |
+| Nessus | 8834 | - | Scanner API (VPN network) |
+
 ---
 
 ## Component Architecture
@@ -89,14 +97,14 @@
 **Storage**: File-based JSON in `/app/data/tasks/{task_id}/`
 
 **Files per task**:
-```
+```text
 /app/data/tasks/{task_id}/
 ├── task.json           # Task metadata, state, validation
 └── scan_native.nessus  # Nessus XML results
 ```
 
 **Task State Machine**:
-```
+```text
            ┌─────────┐
            │ QUEUED  │
            └────┬────┘
@@ -114,6 +122,13 @@
 └─────────┘ └─────────┘ └─────────┘
 ```
 
+**Post-terminal state handling**:
+- **FAILED/TIMEOUT** → Moved to Dead Letter Queue (DLQ) for admin review
+- **COMPLETED** → Subject to TTL cleanup after 7 days
+- **FAILED/TIMEOUT** → Subject to TTL cleanup after 30 days
+
+See [Operations Guide](OPERATIONS.md) for DLQ CLI commands and TTL configuration.
+
 **Task ID Format**: `{scanner_type}_{instance}_{timestamp}_{random}`
 
 ### 3. Queue Layer
@@ -121,7 +136,7 @@
 **Technology**: Redis 7+ with FIFO lists
 
 **Queue Structure**:
-```
+```text
 Redis Keys:
 ├── {pool}:queue         # Main FIFO queue (LPUSH/BRPOP)
 ├── {pool}:queue:dead    # Dead Letter Queue (ZADD with timestamp)
@@ -190,7 +205,7 @@ class ScannerInterface:
 
 ### Scan Submission Flow
 
-```
+```text
 Client                MCP Server           Redis            Worker           Nessus
   │                       │                  │                 │                │
   │── run_untrusted_scan ─▶│                  │                 │                │
@@ -212,7 +227,7 @@ Client                MCP Server           Redis            Worker           Nes
 
 ### Result Retrieval Flow
 
-```
+```text
 Client                MCP Server           Task Manager        Parser
   │                       │                    │                  │
   │── get_scan_results ──▶│                    │                  │
@@ -295,7 +310,7 @@ services:
 
 ### Network Topology
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────┐
 │                     Docker Host                               │
 │                                                               │
