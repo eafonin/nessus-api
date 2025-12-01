@@ -675,3 +675,52 @@ When handling ANY markdown file, remember:
 10. **Context Efficiency** - Keep documents focused and appropriately sized
 
 **Mission Success**: All markdown in the project is LLM-optimized, semantically grouped, properly hierarchical, context-appropriate in length, with zero orphaned or broken documents.
+
+---
+
+## When to Suggest doc-architect Subagent
+
+This skill handles **content formatting**. For **structural reorganization**, suggest the `doc-architect` subagent.
+
+### Trigger Conditions
+
+Suggest doc-architect when you detect:
+
+1. **3+ directories without README.MD** - Major structural gap
+2. **5+ new .md files since last reorganization** - Needs hierarchy integration
+3. **Missing navigation headers** in multiple README.MD files
+4. **User requests documentation restructuring**
+
+### How to Suggest
+
+When conditions are met, inform the user:
+
+```
+I noticed structural issues that require the doc-architect subagent:
+- 4 directories are missing README.MD files
+- 3 README.MD files lack proper navigation headers
+
+To fix these, run: "Use the doc-architect subagent to reorganize documentation"
+
+I can continue fixing content issues in individual files, but the hierarchy
+structure should be addressed by doc-architect first.
+```
+
+### Separation of Concerns
+
+| Issue Type | Handler |
+|------------|---------|
+| Multiple H1 headings | markdown-writer |
+| Skipped heading levels | markdown-writer |
+| Code blocks without language | markdown-writer |
+| Broken links | markdown-writer |
+| Vague link text | markdown-writer |
+| Missing README.MD files | **doc-architect** |
+| Missing navigation headers | **doc-architect** |
+| Wrong hierarchy levels | **doc-architect** |
+| Missing Quick Navigation tables | **doc-architect** |
+
+### Reference
+
+- Subagent location: `.claude/agents/doc-architect.md`
+- Hierarchy requirements: `/DOCUMENTATION_HIERARCHY.md`
