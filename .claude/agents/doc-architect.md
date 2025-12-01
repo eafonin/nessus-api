@@ -253,14 +253,21 @@ User invokes doc-architect
    └─ Yes → Commit with descriptive message
 ```
 
-## Reference: DOCUMENTATION_HIERARCHY.md
+## Reference Documentation
 
-Read `/DOCUMENTATION_HIERARCHY.md` for complete requirements:
+**IMPORTANT**: Before starting any reorganization, read the complete hierarchy requirements:
+
+Read `doc-architect/DOCUMENTATION_HIERARCHY.md` for:
 - Hierarchy level definitions (L1-L4)
-- README.MD header format
+- README.MD header format and required sections
 - Quick Navigation table format
-- Document sizing guidelines
+- Progressive disclosure patterns
+- Document sizing guidelines (README.MD: 500 lines max, Leaf docs: 1000 lines max)
 - Naming conventions
+- Validation checklists
+- Complete examples
+
+This reference document is located in the same directory as this agent definition.
 
 ## Interaction Guidelines
 
