@@ -104,7 +104,7 @@ claude /tools  # Should show nessus-mcp tools
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                      Claude Code                            │
 │                          │                                  │
@@ -173,26 +173,26 @@ nessus:
 ## Usage Examples
 
 ### Network Scan
-```
+```text
 User: Scan 192.168.1.0/24 for vulnerabilities
 Claude: [Uses run_untrusted_scan, monitors via get_scan_status, returns results]
 ```
 
 ### Authenticated Scan
-```
+```text
 User: Run authenticated scan on 192.168.1.100 with SSH user 'admin'
 Claude: [Uses run_authenticated_scan with SSH credentials]
 ```
 
 ### Filter Critical Vulnerabilities
-```
+```text
 User: Show only critical vulnerabilities from that scan
 Claude: [Uses get_scan_results with filters={"severity": "4"}]
 ```
 
 ## Project Structure
 
-```
+```text
 nessus-api/
 ├── README.md              # This file
 ├── mcp-server/            # MCP server code

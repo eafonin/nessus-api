@@ -23,7 +23,7 @@ from tools.mcp_server import app
 if __name__ == "__main__":
     # Run uvicorn with the SSE app
     # host=0.0.0.0 allows connections from outside the container
-    # port=8000 is mapped to 8835 on host via docker-compose
+    # port=8000 is mapped to 8836 on host via docker-compose
     uvicorn.run(
         app,
         host="0.0.0.0",

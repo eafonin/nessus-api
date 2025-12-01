@@ -28,7 +28,7 @@ The main project documentation lives in the `mcp-server/docs/` directory:
 - [Monitoring](../mcp-server/docs/MONITORING.md) - Observability guide
 - [Testing](../mcp-server/docs/TESTING.md) - Test guide
 
-See [mcp-server/docs/README_NEW.MD](../mcp-server/docs/README_NEW.MD) for the complete documentation index.
+See [mcp-server/docs/README.md](../mcp-server/docs/README.md) for the complete documentation index.
 
 ## Directory Structure
 
@@ -52,5 +52,5 @@ docs/
 
 ## See Also
 
-- [MCP Server Documentation](../mcp-server/docs/README_NEW.MD) - Main project docs
+- [MCP Server Documentation](../mcp-server/docs/README.md) - Main project docs
 - [Development Environment](../dev1/README.MD) - Local development setup

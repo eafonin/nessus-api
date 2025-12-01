@@ -35,7 +35,7 @@ async def main():
     task_id = sys.argv[1]
 
     async with NessusFastMCPClient(
-        url="http://localhost:8835/mcp",
+        url="http://localhost:8836/mcp",
         debug=False
     ) as client:
 

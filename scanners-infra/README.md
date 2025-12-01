@@ -49,7 +49,7 @@ docker compose logs -f
 
 ## Network Topology
 
-```
+```text
 vpn_net (172.30.0.0/24)
 ├── 172.30.0.1  Docker bridge gateway
 ├── 172.30.0.2  VPN Gateway (Gluetun)
@@ -66,7 +66,7 @@ vpn_net (172.30.0.0/24)
 
 ## Directory Structure
 
-```
+```text
 scanners-infra/
 ├── docker-compose.yml      # Service definitions
 ├── ARCHITECTURE.md         # Technical deep-dive (start here)
@@ -98,7 +98,7 @@ scanners-infra/
 
 ### Traffic Flow
 
-```
+```text
 Browser (172.32.0.209:8443)
   ↓ HTTPS
 Nginx Proxy (172.30.0.8)
@@ -113,7 +113,7 @@ VPN Gateway (172.30.0.2)
 
 ### VPN Split Routing
 
-```
+```text
 Scanner Traffic:
 ├── 172.30.0.0/24 → Direct (container network)
 ├── 172.32.0.0/24 → Direct (LAN targets)

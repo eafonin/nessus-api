@@ -52,7 +52,7 @@ async def main():
 
     # Configuration
     target = sys.argv[1] if len(sys.argv) > 1 else "172.32.0.215"
-    mcp_url = "http://localhost:8835/mcp"
+    mcp_url = "http://localhost:8836/mcp"
 
     print_section("FastMCP Client - Complete E2E Workflow")
     print()

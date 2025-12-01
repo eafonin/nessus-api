@@ -34,7 +34,7 @@ async def main():
     """Wait for completion example."""
 
     async with NessusFastMCPClient(
-        url="http://localhost:8835/mcp",
+        url="http://localhost:8836/mcp",
         debug=False  # Disable debug for cleaner output
     ) as client:
 

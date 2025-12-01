@@ -27,7 +27,7 @@ async def main():
 
     # Create client (debug=True for verbose logging)
     async with NessusFastMCPClient(
-        url="http://localhost:8835/mcp",
+        url="http://localhost:8836/mcp",
         timeout=30.0,
         debug=True
     ) as client:

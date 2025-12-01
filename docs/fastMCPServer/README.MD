@@ -44,4 +44,4 @@ fastMCPServer/
 ## See Also
 
 - [MCP Server Tools](../../mcp-server/tools/README.MD) - Project tool implementations
-- [MCP Server README](../../mcp-server/README_NEW.MD) - Main server documentation
+- [MCP Server README](../../mcp-server/README.md) - Main server documentation

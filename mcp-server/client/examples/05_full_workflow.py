@@ -34,7 +34,7 @@ async def main():
 
     try:
         async with NessusFastMCPClient(
-            url="http://localhost:8835/mcp",
+            url="http://localhost:8836/mcp",
             timeout=60.0,
             debug=True
         ) as client:

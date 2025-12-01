@@ -14,7 +14,7 @@ claude mcp add --transport http nessus-mcp http://localhost:8836/mcp
 
 ## Directory Structure
 
-```
+```text
 mcp-server/
 ├── core/           # Task management, queue, metrics
 ├── schema/         # Result parsing and filtering
@@ -55,7 +55,7 @@ mcp-server/
 
 ## Architecture Overview
 
-```
+```text
 Claude Code
     │
     ↓ MCP Protocol
@@ -198,4 +198,4 @@ Key operational features:
 | [docs/HOUSEKEEPING.md](docs/HOUSEKEEPING.md) | Task cleanup and retention |
 | [docs/TESTING.md](docs/TESTING.md) | Test suite guide |
 | [tests/README.md](tests/README.md) | Detailed test documentation |
-| [mcp-server/docs/EXTERNAL_RESOURCES.md](mcp-server/docs/EXTERNAL_RESOURCES.md) | External documentation and resources for Nessus MCP Server development |
+| [EXTERNAL_RESOURCES.md](docs/EXTERNAL_RESOURCES.md) | External documentation and resources |

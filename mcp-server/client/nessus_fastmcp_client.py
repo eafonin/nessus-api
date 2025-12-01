@@ -13,7 +13,7 @@ This client provides:
 Reference: @docs/fastMCPServer for FastMCP client documentation
 
 Environment Variables:
-    MCP_SERVER_URL: MCP server URL (default: http://localhost:8835/mcp)
+    MCP_SERVER_URL: MCP server URL (default: http://localhost:8836/mcp)
                     Inside Docker: http://mcp-api:8000/mcp
 
 Usage:
@@ -40,7 +40,7 @@ from datetime import datetime
 from fastmcp import Client
 
 # Default URL - uses environment variable if set
-DEFAULT_MCP_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8835/mcp")
+DEFAULT_MCP_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8836/mcp")
 
 
 class NessusFastMCPClient:
@@ -54,7 +54,7 @@ class NessusFastMCPClient:
         Client (this class) → FastMCP Client → HTTP/SSE Transport → MCP Server
 
     Attributes:
-        url: MCP server HTTP endpoint (e.g., "http://localhost:8835/mcp")
+        url: MCP server HTTP endpoint (e.g., "http://localhost:8836/mcp")
         timeout: Default timeout for requests (seconds)
         client: Underlying FastMCP Client instance
 
@@ -77,7 +77,7 @@ class NessusFastMCPClient:
 
         Args:
             url: MCP server HTTP endpoint. Defaults to MCP_SERVER_URL env var
-                 or http://localhost:8835/mcp if not set.
+                 or http://localhost:8836/mcp if not set.
             timeout: Default timeout for requests (seconds)
             log_handler: Optional callback for server log messages
             progress_handler: Optional callback for progress updates
@@ -647,7 +647,7 @@ class NessusFastMCPClient:
 # =============================================================================
 
 async def create_client(
-    url: str = "http://localhost:8835/mcp",
+    url: str = "http://localhost:8836/mcp",
     timeout: float = 30.0,
     debug: bool = False
 ) -> NessusFastMCPClient:

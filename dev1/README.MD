@@ -264,7 +264,7 @@ docker exec nessus-mcp-api-dev ls -la /app/data/tasks/
 
 ## See Also
 
-- [MCP Server README](../mcp-server/README_NEW.MD) - Main server documentation
+- [MCP Server README](../mcp-server/README.md) - Main server documentation
 - [Docker Build Files](../mcp-server/docker/README.MD) - Dockerfile details
 - [Scanner Configuration](../mcp-server/config/README.MD) - Scanner pool setup
 - [Production Deployment](../mcp-server/prod/README.MD) - Production configuration

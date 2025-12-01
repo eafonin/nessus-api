@@ -21,13 +21,13 @@ class NessusMCPClient:
     def __init__(self, base_url: str = None):
         # Auto-detect environment:
         # - Inside Docker container: connect to mcp-api:8000 (Docker service name)
-        # - Outside Docker (host): connect to localhost:8835 (mapped port)
+        # - Outside Docker (host): connect to localhost:8836 (mapped port)
         import os
         if base_url is None:
             if os.path.exists('/.dockerenv') or os.environ.get('CONTAINER'):
                 base_url = "http://mcp-api:8000"  # Inside container, use Docker service name
             else:
-                base_url = "http://localhost:8835"  # On host
+                base_url = "http://localhost:8836"  # On host
 
         self.base_url = base_url.rstrip("/")
         # Use URL-based initialization (FastMCP auto-detects transport)
