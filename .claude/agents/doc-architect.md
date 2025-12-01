@@ -257,7 +257,7 @@ User invokes doc-architect
 
 **IMPORTANT**: Before starting any reorganization, read the complete hierarchy requirements:
 
-Read `doc-architect/DOCUMENTATION_HIERARCHY.md` for:
+Read `.claude/agentLibrary/doc-architect/DOCUMENTATION_HIERARCHY.md` for:
 - Hierarchy level definitions (L1-L4)
 - README.MD header format and required sections
 - Quick Navigation table format
@@ -266,8 +266,6 @@ Read `doc-architect/DOCUMENTATION_HIERARCHY.md` for:
 - Naming conventions
 - Validation checklists
 - Complete examples
-
-This reference document is located in the same directory as this agent definition.
 
 ## Interaction Guidelines
 

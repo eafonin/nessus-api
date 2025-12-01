@@ -723,4 +723,4 @@ structure should be addressed by doc-architect first.
 ### Reference
 
 - Subagent location: `.claude/agents/doc-architect.md`
-- Hierarchy requirements: `.claude/agents/doc-architect/DOCUMENTATION_HIERARCHY.md`
+- Hierarchy requirements: `.claude/agentLibrary/doc-architect/DOCUMENTATION_HIERARCHY.md`
