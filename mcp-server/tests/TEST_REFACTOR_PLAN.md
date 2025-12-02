@@ -284,31 +284,54 @@ pytest -m layer03 -v -s
 
 ## 6. Execution Plan
 
-### Phase 1: Preparation (non-breaking)
-1. Create new directory structure (empty)
-2. Create new README files
-3. Update TESTING.md (remove broken refs)
-4. Update conftest.py with new markers
+### Phase 1: Preparation (non-breaking) ✅ COMPLETE
+1. ✅ Create new directory structure (empty)
+2. ✅ Create new README files
+3. ✅ Update TESTING.md (remove broken refs)
+4. ✅ Update conftest.py with new markers
 
-### Phase 2: Migration (test by test)
-1. Copy tests to new locations with new names
-2. Update imports and fixtures
-3. Run both old and new to verify
-4. Delete old files
+### Phase 2: Migration (test by test) ✅ COMPLETE
+1. ✅ Copy tests to new locations with new names
+2. ⏳ Update imports and fixtures (in progress)
+3. ⏳ Run both old and new to verify
+4. ⏳ Delete old files (after verification)
 
-### Phase 3: New Tests
+### Phase 3: New Tests (TODO)
 1. Create coverage gap tests
 2. Run full suite
 3. Update run_test_pipeline.sh
 
-### Phase 4: Cleanup
-1. Delete deprecated directories
+### Phase 4: Cleanup (TODO)
+1. Delete deprecated directories (unit/, integration/)
 2. Remove old markers from conftest.py
 3. Final documentation update
 
 ---
 
-## 7. Risk Assessment
+## 7. Migration Status
+
+### Files Migrated
+
+| Source | Destination | Status |
+|--------|-------------|--------|
+| `integration/test_connectivity.py` | `layer01/test_nessus_connectivity.py` | ✅ Rewritten |
+| (new) | `layer01/test_redis_connectivity.py` | ✅ Created |
+| (new) | `layer01/test_target_accounts.py` | ✅ Created |
+| `integration/test_both_scanners.py` | `layer01/test_both_scanners.py` | ✅ Rewritten |
+| `unit/*.py` (12 files) | `layer02/*.py` | ✅ Copied |
+| `integration/test_idempotency.py` | `layer02/test_idempotency.py` | ✅ Copied |
+| `integration/test_fastmcp_client.py` | `layer03/test_mcp_tools_basic.py` | ✅ Copied |
+| `integration/test_nessus_scanner.py` | `layer03/test_scanner_operations.py` | ✅ Copied |
+| `integration/test_pool_workflow.py` | `layer03/test_pool_selection.py` | ✅ Copied |
+| `integration/test_phase2.py` | `layer03/test_schema_parsing.py` | ✅ Copied |
+| `integration/test_fastmcp_client_e2e.py` | `layer04/test_untrusted_scan_workflow.py` | ✅ Copied |
+| `integration/test_authenticated_scan_workflow.py` | `layer04/test_authenticated_scan_workflow.py` | ✅ Copied |
+| `integration/test_mcp_client_e2e.py` | `layer04/test_mcp_protocol_e2e.py` | ✅ Copied |
+| `integration/test_complete_scan_with_results.py` | `layer04/test_complete_scan_with_results.py` | ✅ Copied |
+
+---
+
+## 8. Risk Assessment
 
 | Risk | Mitigation |
 |------|------------|
@@ -319,13 +342,13 @@ pytest -m layer03 -v -s
 
 ---
 
-## 8. Approval Checklist
+## 9. Approval Checklist
 
-- [ ] Layer structure approved
-- [ ] File naming conventions approved
-- [ ] Coverage gap priorities approved
-- [ ] Timeline acceptable
-- [ ] Documentation approach approved
+- [x] Layer structure approved
+- [x] File naming conventions approved
+- [x] Coverage gap priorities approved
+- [x] Timeline acceptable
+- [x] Documentation approach approved
 
 ---
 
