@@ -15,7 +15,7 @@ import socket
 
 
 # Configuration from environment or defaults
-NESSUS_URL = os.getenv("NESSUS_URL", "https://vpn-gateway:8834")
+NESSUS_URL = os.getenv("NESSUS_URL", "https://nessus-pro-1:8834")
 
 
 class TestNessusConnectivity:
@@ -116,18 +116,18 @@ class TestNessusEndpoints:
             assert response.status_code in [200, 401, 403]
 
 
-class TestNessusVersionInfo:
-    """Version and properties tests."""
+class TestNessusServerProperties:
+    """Server properties and type tests."""
 
     @pytest.mark.asyncio
-    async def test_version_retrievable(self):
-        """Verify we can get version info."""
+    async def test_server_properties_retrievable(self):
+        """Verify we can get server properties."""
         async with httpx.AsyncClient(verify=False, timeout=10.0) as client:
             response = await client.get(f"{NESSUS_URL}/server/properties")
-            if response.status_code == 200:
-                data = response.json()
-                # At least one version field should be present
-                assert any(k in data for k in ["nessus_version", "server_version", "version"])
+            assert response.status_code == 200
+            data = response.json()
+            # Nessus returns nessus_type and other properties
+            assert "nessus_type" in data, f"Expected 'nessus_type' in {list(data.keys())}"
 
 
 if __name__ == "__main__":

@@ -1,40 +1,55 @@
 #!/bin/bash
 ##############################################################################
-# Nessus MCP Server - Integrated Test Pipeline
+# Nessus MCP Server - Layered Test Pipeline
 ##############################################################################
 #
-# This script runs the complete test pipeline in the recommended order:
-#   1. Basic unit tests (quick validation)
-#   2. Integration tests using direct Python API (no FastMCP)
-#   3. FastMCP client smoke test (quick connectivity check)
-#   4. Optional: Full E2E test with FastMCP client (5-10 min scan)
+# This script runs the test suite using a layered architecture:
+#
+#   Layer 01: Infrastructure     [<1s]    Connectivity checks (Nessus, Redis)
+#   Layer 02: Internal           [~30s]   Core modules with mocked dependencies
+#   Layer 03: External Basic     [~1min]  Single MCP tool calls with real services
+#   Layer 04: Full Workflow      [5-10m]  Complete E2E scan workflows
 #
 # Usage:
-#   ./run_test_pipeline.sh [--full]
+#   ./run_test_pipeline.sh [OPTIONS]
 #
 # Options:
-#   --full    Include full E2E test with scan completion (takes 5-10 minutes)
+#   --quick     Run only layer01 and layer02 (fastest)
+#   --standard  Run layer01, layer02, layer03 (default)
+#   --full      Run all layers including layer04 E2E tests
+#   --layer N   Run only specified layer (1-4)
 #
 # Run from inside Docker container:
 #   cd /app && tests/run_test_pipeline.sh
 #
 # Run from host:
-#   cd nessus-api && docker compose -f dev1/docker-compose.yml exec mcp-api tests/run_test_pipeline.sh
+#   docker compose exec mcp-api tests/run_test_pipeline.sh
 #
 ##############################################################################
 
-set -e  # Exit on error
+# Note: We don't use 'set -e' because we need to handle test failures gracefully
 
 # Parse arguments
-FULL_TEST=false
-QUICK_TEST=false
+RUN_MODE="standard"
+SPECIFIC_LAYER=""
 for arg in "$@"; do
     case $arg in
-        --full)
-            FULL_TEST=true
-            ;;
         --quick)
-            QUICK_TEST=true
+            RUN_MODE="quick"
+            ;;
+        --standard)
+            RUN_MODE="standard"
+            ;;
+        --full)
+            RUN_MODE="full"
+            ;;
+        --layer)
+            # Next arg is the layer number
+            ;;
+        1|2|3|4)
+            if [[ "$SPECIFIC_LAYER" == "" ]]; then
+                SPECIFIC_LAYER=$arg
+            fi
             ;;
     esac
 done
@@ -44,6 +59,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Helper functions
@@ -52,6 +68,14 @@ print_header() {
     echo "=============================================================================="
     echo -e "${BLUE}$1${NC}"
     echo "=============================================================================="
+    echo
+}
+
+print_layer() {
+    echo
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${CYAN}  $1${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo
 }
 
@@ -72,27 +96,27 @@ TESTS_PASSED=0
 TESTS_FAILED=0
 TESTS_SKIPPED=0
 
-run_test() {
-    local name="$1"
-    local command="$2"
-    local optional="${3:-false}"
+run_layer() {
+    local layer_num="$1"
+    local layer_name="$2"
+    local layer_dir="$3"
+    local optional="${4:-false}"
 
-    echo
-    echo "Running: $name"
-    echo "Command: $command"
+    print_layer "Layer $layer_num: $layer_name"
+    echo "Running: pytest tests/$layer_dir/ -v --tb=short"
     echo
 
-    if eval "$command"; then
-        print_success "$name PASSED"
+    if pytest tests/$layer_dir/ -v --tb=short; then
+        print_success "Layer $layer_num: $layer_name - PASSED"
         ((TESTS_PASSED++))
         return 0
     else
         if [[ "$optional" == "true" ]]; then
-            print_warning "$name SKIPPED (optional test failed)"
+            print_warning "Layer $layer_num: $layer_name - SKIPPED (optional)"
             ((TESTS_SKIPPED++))
             return 0
         else
-            print_error "$name FAILED"
+            print_error "Layer $layer_num: $layer_name - FAILED"
             ((TESTS_FAILED++))
             return 1
         fi
@@ -103,109 +127,76 @@ run_test() {
 # Start Test Pipeline
 ##############################################################################
 
-print_header "Nessus MCP Server - Test Pipeline"
+print_header "Nessus MCP Server - Layered Test Pipeline"
 
 echo "Configuration:"
-echo "  Quick Mode: $QUICK_TEST"
-echo "  Full E2E Test: $FULL_TEST"
+echo "  Mode: $RUN_MODE"
+if [[ -n "$SPECIFIC_LAYER" ]]; then
+    echo "  Specific Layer: $SPECIFIC_LAYER"
+fi
 echo "  Date: $(date)"
 echo "  Working Dir: $(pwd)"
 echo
 
-##############################################################################
-# Phase 1: Unit Tests (Quick)
-##############################################################################
-
-print_header "Phase 1: Unit Tests"
-
-run_test \
-    "Logging Configuration Tests" \
-    "pytest tests/unit/test_logging_config.py -v --tb=short"
-
-run_test \
-    "Prometheus Metrics Tests" \
-    "pytest tests/unit/test_metrics.py -v --tb=short"
-
-run_test \
-    "Health Check Tests" \
-    "pytest tests/unit/test_health.py -v --tb=short"
+# Show what will run based on mode
+case $RUN_MODE in
+    quick)
+        echo "Running: Layer 01 (Infrastructure) + Layer 02 (Internal)"
+        ;;
+    standard)
+        echo "Running: Layer 01-03 (Infrastructure → External Basic)"
+        ;;
+    full)
+        echo "Running: All Layers (01-04) including E2E workflows"
+        ;;
+esac
+echo
 
 ##############################################################################
-# Phase 2: Integration Tests (Python API)
+# Run Layers Based on Mode
 ##############################################################################
 
-print_header "Phase 2: Integration Tests (Direct Python API)"
-
-run_test \
-    "Phase 0: Queue and Task Management" \
-    "pytest tests/integration/test_phase0.py -v --tb=short"
-
-if [[ "$QUICK_TEST" != "true" ]]; then
-    run_test \
-        "Phase 1: Scanner Integration (Read Operations)" \
-        "pytest tests/integration/test_phase1.py::TestReadOperations -v --tb=short"
+if [[ -n "$SPECIFIC_LAYER" ]]; then
+    # Run specific layer only
+    case $SPECIFIC_LAYER in
+        1)
+            run_layer "01" "Infrastructure" "layer01_infrastructure"
+            ;;
+        2)
+            run_layer "02" "Internal" "layer02_internal"
+            ;;
+        3)
+            run_layer "03" "External Basic" "layer03_external_basic"
+            ;;
+        4)
+            run_layer "04" "Full Workflow" "layer04_full_workflow" "true"
+            ;;
+    esac
 else
-    print_warning "Skipping Phase 1 scanner tests in quick mode"
-    ((TESTS_SKIPPED++))
-fi
+    # Run based on mode
 
-run_test \
-    "Phase 2: Schema and Results" \
-    "pytest tests/integration/test_phase2.py -v --tb=short"
+    # Layer 01: Infrastructure (always runs)
+    run_layer "01" "Infrastructure" "layer01_infrastructure"
 
-run_test \
-    "Idempotency Tests" \
-    "pytest tests/integration/test_idempotency.py -v --tb=short"
+    # Layer 02: Internal (always runs)
+    run_layer "02" "Internal" "layer02_internal"
 
-##############################################################################
-# Phase 3: FastMCP Client Tests
-##############################################################################
+    # Layer 03: External Basic (standard and full modes)
+    if [[ "$RUN_MODE" == "standard" || "$RUN_MODE" == "full" ]]; then
+        run_layer "03" "External Basic" "layer03_external_basic"
+    else
+        print_warning "Layer 03: External Basic - SKIPPED (quick mode)"
+        ((TESTS_SKIPPED++))
+    fi
 
-print_header "Phase 3: FastMCP Client Tests"
-
-run_test \
-    "FastMCP Client Smoke Test" \
-    "pytest tests/integration/test_fastmcp_client_smoke.py -v -s --tb=short"
-
-run_test \
-    "FastMCP Client Connection Tests" \
-    "pytest tests/integration/test_fastmcp_client.py::TestClientConnection -v --tb=short"
-
-run_test \
-    "FastMCP Client Scan Submission Tests" \
-    "pytest tests/integration/test_fastmcp_client.py::TestScanSubmission -v --tb=short"
-
-run_test \
-    "FastMCP Client Queue Operations" \
-    "pytest tests/integration/test_fastmcp_client.py::TestQueueOperations -v --tb=short"
-
-##############################################################################
-# Phase 4: Full E2E Test (Optional, Long-Running)
-##############################################################################
-
-if [[ "$FULL_TEST" == "true" ]]; then
-    print_header "Phase 4: Full E2E Test (5-10 minutes)"
-
-    print_warning "This test will:"
-    print_warning "  - Submit a complete vulnerability scan"
-    print_warning "  - Wait for scan completion (5-10 minutes)"
-    print_warning "  - Validate results and filtering"
-    print_warning "  - Test all MCP client operations end-to-end"
-    echo
-
-    run_test \
-        "Full E2E Workflow Test" \
-        "pytest tests/integration/test_fastmcp_client_e2e.py::test_complete_e2e_workflow_untrusted_scan -v -s --tb=short" \
-        "true"
-
-    run_test \
-        "E2E Result Filtering Test" \
-        "pytest tests/integration/test_fastmcp_client_e2e.py::test_e2e_with_result_filtering -v -s --tb=short" \
-        "true"
-else
-    print_header "Phase 4: Full E2E Test (SKIPPED)"
-    echo "Run with --full flag to include long-running E2E tests"
-    echo "Example: ./run_test_pipeline.sh --full"
+    # Layer 04: Full Workflow (full mode only)
+    if [[ "$RUN_MODE" == "full" ]]; then
+        print_warning "Layer 04 tests take 5-10 minutes to complete..."
+        run_layer "04" "Full Workflow" "layer04_full_workflow" "true"
+    else
+        print_warning "Layer 04: Full Workflow - SKIPPED (use --full)"
+        ((TESTS_SKIPPED++))
+    fi
 fi
 
 ##############################################################################
@@ -223,22 +214,36 @@ echo
 if [[ $TESTS_FAILED -eq 0 ]]; then
     print_success "ALL TESTS PASSED!"
     echo
-    echo "Testing Pipeline Complete:"
-    echo "  1. ✓ Unit tests validated"
-    echo "  2. ✓ Integration tests validated"
-    echo "  3. ✓ FastMCP client validated"
-    if [[ "$FULL_TEST" == "true" ]]; then
-        echo "  4. ✓ Full E2E workflow validated"
+    echo "Layer Status:"
+    echo "  Layer 01: Infrastructure     ✓"
+    echo "  Layer 02: Internal           ✓"
+    if [[ "$RUN_MODE" != "quick" ]]; then
+        echo "  Layer 03: External Basic     ✓"
     else
-        echo "  4. ⊘ Full E2E test skipped (use --full)"
+        echo "  Layer 03: External Basic     ⊘ (quick mode)"
+    fi
+    if [[ "$RUN_MODE" == "full" ]]; then
+        echo "  Layer 04: Full Workflow      ✓"
+    else
+        echo "  Layer 04: Full Workflow      ⊘ (use --full)"
+    fi
+    echo
+    echo "Next steps:"
+    if [[ "$RUN_MODE" == "quick" ]]; then
+        echo "  - Run with --standard to include external tests"
+    elif [[ "$RUN_MODE" == "standard" ]]; then
+        echo "  - Run with --full to include E2E scan workflows"
     fi
     echo
     exit 0
 else
     print_error "SOME TESTS FAILED"
     echo
-    echo "Failed tests: $TESTS_FAILED"
-    echo "Please review the output above for details."
+    echo "Troubleshooting:"
+    echo "  - Layer 01 failures: Check Docker containers (Nessus, Redis)"
+    echo "  - Layer 02 failures: Check for code/import issues"
+    echo "  - Layer 03 failures: Check MCP server and worker status"
+    echo "  - Layer 04 failures: Check scanner connectivity and timeouts"
     echo
     exit 1
 fi

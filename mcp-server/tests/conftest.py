@@ -78,6 +78,14 @@ def pytest_configure(config):
         "markers",
         "real_nessus: Test uses real Nessus scanner (NOT mocks)"
     )
+    config.addinivalue_line(
+        "markers",
+        "mcp: Test exercises MCP protocol layer"
+    )
+    config.addinivalue_line(
+        "markers",
+        "timeout: Test timeout in seconds (requires pytest-timeout plugin)"
+    )
 
     # ==========================================================================
     # Legacy Phase Markers (Deprecated - kept for backwards compatibility)

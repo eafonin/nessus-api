@@ -292,19 +292,19 @@ pytest -m layer03 -v -s
 
 ### Phase 2: Migration (test by test) ✅ COMPLETE
 1. ✅ Copy tests to new locations with new names
-2. ⏳ Update imports and fixtures (in progress)
-3. ⏳ Run both old and new to verify
-4. ⏳ Delete old files (after verification)
+2. ✅ Update imports and fixtures
+3. ✅ Run both old and new to verify
+4. ✅ Delete old files (after verification)
 
 ### Phase 3: New Tests (TODO)
-1. Create coverage gap tests
-2. Run full suite
-3. Update run_test_pipeline.sh
+1. ⏳ Create coverage gap tests (Section 3.3)
+2. ⏳ Run full suite
+3. ✅ Update run_test_pipeline.sh
 
-### Phase 4: Cleanup (TODO)
-1. Delete deprecated directories (unit/, integration/)
-2. Remove old markers from conftest.py
-3. Final documentation update
+### Phase 4: Cleanup ✅ COMPLETE
+1. ✅ Delete deprecated directories (unit/, integration/)
+2. ✅ Update conftest.py with new markers (mcp, timeout)
+3. ✅ Final documentation update
 
 ---
 
@@ -352,36 +352,49 @@ pytest -m layer03 -v -s
 
 ---
 
-## 10. Next Steps (for new session)
+## 10. Current Status & Next Steps
 
-To continue this refactoring in a fresh session:
+**Status: Migration COMPLETE (2025-12-02)**
+
+The test suite has been fully migrated to the 4-layer architecture:
+- ✅ Layer 01: 25 tests (infrastructure)
+- ✅ Layer 02: 295 tests (internal)
+- ✅ Layer 03: 62 tests (external basic)
+- ✅ Layer 04: 30 tests (full workflow)
+- ✅ Old directories deleted (unit/, integration/)
+- ✅ Pipeline script updated
+
+### Running the Test Suite
 
 ```bash
-# 1. Verify layer02 tests run (internal, no dependencies)
-cd /home/nessus/projects/nessus-api/mcp-server
-pytest tests/layer02_internal/ -v --collect-only  # Check imports work
+# Quick validation (layers 01-02, ~30 seconds)
+docker compose exec mcp-api tests/run_test_pipeline.sh --quick
 
-# 2. Run layer02 tests
-pytest tests/layer02_internal/ -v
+# Standard tests (layers 01-03, ~2 minutes)
+docker compose exec mcp-api tests/run_test_pipeline.sh
 
-# 3. Verify layer01 tests (requires Docker)
+# Full E2E tests (all layers, 5-10 minutes)
+docker compose exec mcp-api tests/run_test_pipeline.sh --full
+
+# Run specific layer
 docker compose exec mcp-api pytest tests/layer01_infrastructure/ -v
+docker compose exec mcp-api pytest tests/layer02_internal/ -v
+docker compose exec mcp-api pytest tests/layer03_external_basic/ -v
+docker compose exec mcp-api pytest tests/layer04_full_workflow/ -v
 
-# 4. After verification, delete old directories:
-rm -rf tests/unit/
-rm -rf tests/integration/
-rm tests/test_phase0_integration.py
-rm tests/client/nessus_client.py  # stub file
-
-# 5. Create coverage gap tests (Section 3.3):
-#    - layer02_internal/test_list_tasks.py
-#    - layer02_internal/test_queue_status.py
-#    - layer02_internal/test_error_responses.py
-#    - layer03_external_basic/test_pool_operations.py
-#    - layer04_full_workflow/test_queue_position_accuracy.py
-
-# 6. Update run_test_pipeline.sh for new structure
+# Run by marker
+docker compose exec mcp-api pytest -m layer01 -v
+docker compose exec mcp-api pytest -m "layer01 or layer02" -v
 ```
+
+### Remaining Work (Phase 3)
+
+Create coverage gap tests:
+1. `layer02_internal/test_list_tasks.py` - Unit tests for list_tasks filtering
+2. `layer02_internal/test_queue_status.py` - Unit tests for get_queue_status
+3. `layer02_internal/test_error_responses.py` - Error response format validation
+4. `layer03_external_basic/test_pool_operations.py` - list_pools, get_pool_status
+5. `layer04_full_workflow/test_queue_position_accuracy.py` - Queue wait estimation E2E
 
 **Key files to reference:**
 - This plan: `tests/TEST_REFACTOR_PLAN.md`
