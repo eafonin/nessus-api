@@ -44,6 +44,8 @@ pytest -m "not layer04"              # Skip slow tests
 ```text
 tests/
 ├── README.MD                   # This file
+├── TEST_REPORT.md              # Test documentation (grep-optimized)
+├── reconcile_tests.py          # Documentation reconciliation script
 ├── conftest.py                 # Root pytest config, markers
 ├── TEST_REFACTOR_PLAN.md       # Migration plan (temporary)
 │
@@ -231,8 +233,102 @@ tests/
 
 ---
 
+## Test Documentation (TEST_REPORT.md)
+
+The [TEST_REPORT.md](TEST_REPORT.md) file contains detailed documentation for all 487 tests:
+- Test arguments (actual parameter values)
+- Expected return values
+- Pass/fail criteria descriptions
+
+### Documentation Format (Mandatory)
+
+All tests **must** be documented in TEST_REPORT.md using this format:
+
+```markdown
+### test_file_name.py (N tests)
+
+| Test | File | Arguments | Returns | Description |
+|------|------|-----------|---------|-------------|
+| `test_function_name` | `layer0X_dir/test_file.py` | `param=value` | `expected: type` | What is tested. Pass: condition. |
+```
+
+**File column**: Each test row includes the relative path from `tests/` directory for grep-friendly lookup.
+
+**Update requirement**: TEST_REPORT.md must be updated when tests are added, modified, or removed.
+
+### Reconciliation Script
+
+Use `reconcile_tests.py` to verify documentation completeness:
+
+```bash
+python3 tests/reconcile_tests.py           # Full detailed report
+python3 tests/reconcile_tests.py --summary # Summary statistics
+python3 tests/reconcile_tests.py --fix     # Show corrected header counts
+python3 tests/reconcile_tests.py --stubs   # Generate stub entries for missing tests
+```
+
+### Agent-Optimized Lookup (Grep Patterns)
+
+TEST_REPORT.md is structured for grep-based lookup. **Do NOT load the full file into context.**
+
+Each table row contains: `| Test | File | Arguments | Returns | Description |`
+
+#### Search by Test Name (Most Common)
+
+```bash
+# Find test by name - returns file path, args, returns, description
+grep "test_scanner_reachable" tests/TEST_REPORT.md
+# Output: | `test_scanner_reachable` | `layer01_infrastructure/test_both_scanners.py` | `url` param | `status_code: 200` | ... |
+```
+
+#### Search by File Name
+
+```bash
+# Find all tests in a specific file
+grep "test_queue.py" tests/TEST_REPORT.md
+
+# Find tests in a layer directory
+grep "layer03_external_basic" tests/TEST_REPORT.md
+```
+
+#### Search by Functionality
+
+```bash
+# Find DLQ-related tests
+grep -i "DLQ" tests/TEST_REPORT.md
+
+# Find authentication tests
+grep -i "auth\|credential\|ssh" tests/TEST_REPORT.md
+
+# Find error-handling tests
+grep "raises.*Error\|ValueError\|Exception" tests/TEST_REPORT.md
+```
+
+#### Layer Information
+
+```bash
+# Which layer is a test in? (extract from file path)
+grep "test_initial_state_closed" tests/TEST_REPORT.md | grep -oE "layer[0-9]+_[a-z_]+"
+# Output: layer02_internal
+
+# List all layers with test counts
+grep "^## Layer" tests/TEST_REPORT.md
+```
+
+### Quick Reference: Test File → Layer Mapping
+
+| Layer | Test Files | Tests |
+|-------|------------|-------|
+| 01 | `test_nessus_connectivity`, `test_redis_connectivity`, `test_both_scanners`, `test_target_accounts` | 23 |
+| 02 | `test_admin_cli`, `test_authenticated_scans`, `test_circuit_breaker`, `test_error_responses`, `test_health`, `test_housekeeping`, `test_idempotency`, `test_ip_utils`, `test_list_tasks`, `test_logging_config`, `test_metrics`, `test_nessus_validator`, `test_pool_registry`, `test_queue`, `test_queue_status`, `test_task_manager` | 343 |
+| 03 | `test_mcp_tools_basic`, `test_pool_operations`, `test_pool_selection`, `test_scanner_operations`, `test_schema_parsing` | 79 |
+| 04 | `test_authenticated_scan_workflow`, `test_complete_scan_with_results`, `test_mcp_protocol_e2e`, `test_queue_position_accuracy`, `test_untrusted_scan_workflow` | 42 |
+
+---
+
 ## See Also
 
+- [TEST_REPORT.md](TEST_REPORT.md) - Detailed test documentation (grep, don't load)
 - [Testing Guide](../docs/TESTING.md) - Detailed testing documentation
 - [FEATURES.md](../docs/FEATURES.md) - MCP tools being tested
 - [TEST_REFACTOR_PLAN.md](TEST_REFACTOR_PLAN.md) - Migration plan
