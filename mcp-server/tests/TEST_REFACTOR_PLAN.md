@@ -352,9 +352,39 @@ pytest -m layer03 -v -s
 
 ---
 
-## Questions for Approval
+## 10. Next Steps (for new session)
 
-1. **Layer naming**: Is `layer1_infrastructure` clear, or prefer `01_infrastructure`?
-2. **Marker prefix**: Keep `@pytest.mark.layer1` or use `@pytest.mark.l1`?
-3. **Priority**: Start with documentation fixes or test restructuring?
-4. **Dual scanner tests**: Keep `test_both_scanners.py` or merge into pool tests?
+To continue this refactoring in a fresh session:
+
+```bash
+# 1. Verify layer02 tests run (internal, no dependencies)
+cd /home/nessus/projects/nessus-api/mcp-server
+pytest tests/layer02_internal/ -v --collect-only  # Check imports work
+
+# 2. Run layer02 tests
+pytest tests/layer02_internal/ -v
+
+# 3. Verify layer01 tests (requires Docker)
+docker compose exec mcp-api pytest tests/layer01_infrastructure/ -v
+
+# 4. After verification, delete old directories:
+rm -rf tests/unit/
+rm -rf tests/integration/
+rm tests/test_phase0_integration.py
+rm tests/client/nessus_client.py  # stub file
+
+# 5. Create coverage gap tests (Section 3.3):
+#    - layer02_internal/test_list_tasks.py
+#    - layer02_internal/test_queue_status.py
+#    - layer02_internal/test_error_responses.py
+#    - layer03_external_basic/test_pool_operations.py
+#    - layer04_full_workflow/test_queue_position_accuracy.py
+
+# 6. Update run_test_pipeline.sh for new structure
+```
+
+**Key files to reference:**
+- This plan: `tests/TEST_REFACTOR_PLAN.md`
+- Layer docs: `tests/layer0X_*/README.MD`
+- Main testing guide: `docs/TESTING.md`
+- Feature coverage: `docs/FEATURES.md`
