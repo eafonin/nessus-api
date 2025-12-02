@@ -98,13 +98,13 @@ async def mcp_client():
     FastMCP client for MCP tool tests.
 
     Provides a connected client ready for tool calls.
+    Uses async context manager for proper connection handling.
     """
     from client.nessus_fastmcp_client import NessusFastMCPClient
 
     client = NessusFastMCPClient(MCP_SERVER_URL)
-    await client.connect()
-    yield client
-    await client.close()
+    async with client:
+        yield client
 
 
 # =============================================================================

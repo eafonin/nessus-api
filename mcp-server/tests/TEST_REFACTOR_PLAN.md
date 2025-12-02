@@ -296,9 +296,9 @@ pytest -m layer03 -v -s
 3. ✅ Run both old and new to verify
 4. ✅ Delete old files (after verification)
 
-### Phase 3: New Tests (TODO)
-1. ⏳ Create coverage gap tests (Section 3.3)
-2. ⏳ Run full suite
+### Phase 3: New Tests ✅ COMPLETE
+1. ✅ Create coverage gap tests (Section 3.3)
+2. ✅ Run full suite
 3. ✅ Update run_test_pipeline.sh
 
 ### Phase 4: Cleanup ✅ COMPLETE
@@ -358,11 +358,12 @@ pytest -m layer03 -v -s
 
 The test suite has been fully migrated to the 4-layer architecture:
 - ✅ Layer 01: 25 tests (infrastructure)
-- ✅ Layer 02: 295 tests (internal)
-- ✅ Layer 03: 62 tests (external basic)
-- ✅ Layer 04: 30 tests (full workflow)
+- ✅ Layer 02: 343 tests (internal) - includes 48 new coverage gap tests
+- ✅ Layer 03: 79 tests (external basic) - includes 17 new pool operations tests
+- ✅ Layer 04: 42 tests (full workflow) - includes 12 new queue position tests
 - ✅ Old directories deleted (unit/, integration/)
 - ✅ Pipeline script updated
+- ✅ Coverage gap tests created (Phase 3)
 
 ### Running the Test Suite
 
@@ -387,14 +388,14 @@ docker compose exec mcp-api pytest -m layer01 -v
 docker compose exec mcp-api pytest -m "layer01 or layer02" -v
 ```
 
-### Remaining Work (Phase 3)
+### Coverage Gap Tests Created (Phase 3 - COMPLETE)
 
-Create coverage gap tests:
-1. `layer02_internal/test_list_tasks.py` - Unit tests for list_tasks filtering
-2. `layer02_internal/test_queue_status.py` - Unit tests for get_queue_status
-3. `layer02_internal/test_error_responses.py` - Error response format validation
-4. `layer03_external_basic/test_pool_operations.py` - list_pools, get_pool_status
-5. `layer04_full_workflow/test_queue_position_accuracy.py` - Queue wait estimation E2E
+All coverage gap tests have been created and verified:
+1. ✅ `layer02_internal/test_list_tasks.py` - 14 tests for list_tasks filtering
+2. ✅ `layer02_internal/test_queue_status.py` - 16 tests for get_queue_status
+3. ✅ `layer02_internal/test_error_responses.py` - 18 tests for error response validation
+4. ✅ `layer03_external_basic/test_pool_operations.py` - 17 tests for pool operations
+5. ✅ `layer04_full_workflow/test_queue_position_accuracy.py` - 12 tests for queue accuracy
 
 **Key files to reference:**
 - This plan: `tests/TEST_REFACTOR_PLAN.md`
