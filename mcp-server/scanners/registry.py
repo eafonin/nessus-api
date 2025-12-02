@@ -80,16 +80,15 @@ class ScannerRegistry:
         """
         if not self.config_file.exists():
             logger.warning(
-                "scanner_config_missing",
-                config_file=str(self.config_file),
-                action="generating_example_config",
+                "scanner_config_missing: config_file=%s, action=generating_example_config",
+                str(self.config_file),
             )
             self._generate_example_config()
             msg = "ALERT: Example scanners.yaml generated. Edit with details and restart."
             logger.warning(
-                "scanner_config_generated",
-                config_file=str(self.config_file),
-                message=msg,
+                "scanner_config_generated: config_file=%s, message=%s",
+                str(self.config_file),
+                msg,
             )
             self._register_mock_scanner()
             return
@@ -250,9 +249,9 @@ nessus:
                 f.write(example_config)
         except Exception as e:
             logger.error(
-                "failed_to_generate_config",
-                config_file=str(self.config_file),
-                error=str(e),
+                "failed_to_generate_config: config_file=%s, error=%s",
+                str(self.config_file),
+                str(e),
             )
 
     def _expand_env(self, value: str) -> str:

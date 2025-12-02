@@ -130,27 +130,27 @@ docstring-code-format = true
 
 [tool.mypy]
 python_version = "3.11"
-# Start with incremental adoption rather than strict mode
 strict = false
-warn_return_any = false  # Too noisy with dict returns
+warn_return_any = false
 warn_unused_configs = true
 show_error_codes = true
 pretty = true
 incremental = true
 cache_dir = ".mypy_cache"
 plugins = ["pydantic.mypy"]
-# Relax for gradual adoption
 check_untyped_defs = true
-disallow_untyped_defs = false  # Will enable later
+disallow_untyped_defs = false
 disallow_incomplete_defs = false
-ignore_missing_imports = false  # Use per-module overrides instead
+ignore_missing_imports = false
 
+# Tests: relaxed type checking
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
-ignore_errors = true  # Tests can be messy
+ignore_errors = true
 
+# External libraries without type stubs
 [[tool.mypy.overrides]]
 module = [
     "fastmcp.*",
@@ -160,57 +160,16 @@ module = [
     "httpx.*",
     "prometheus_client.*",
     "structlog.*",
-    "redis.*",
-    "yaml.*",
 ]
 ignore_missing_imports = true
 
-# Client files with external MCP dependencies
-[[tool.mypy.overrides]]
-module = "client.*"
-ignore_errors = true
-
-# Tool files with external deps or complex patterns
+# Orphan stub files (not imported anywhere, kept as reference)
 [[tool.mypy.overrides]]
 module = [
     "tools.mcp_tools",
-    "tools.mcp_server",
-    "tools.admin_cli",
-    "tools.test_asgi_direct",
-    "tools.monitor_and_export",
-]
-ignore_errors = true
-
-# Scanner modules with complex httpx patterns
-[[tool.mypy.overrides]]
-module = [
     "scanners.nessus",
-    "scanners.nessus_scanner",
-    "scanners.nessus_validator",
-    "scanners.registry",
-]
-ignore_errors = true
-
-# Core modules with complex type patterns
-[[tool.mypy.overrides]]
-module = [
-    "core.ip_utils",
-    "core.housekeeping",
-]
-ignore_errors = true
-
-# Schema modules with stub bodies
-[[tool.mypy.overrides]]
-module = [
-    "schema.parser",
     "schema.jsonl_converter",
-    "schema.converter",
 ]
-ignore_errors = true
-
-# Worker module
-[[tool.mypy.overrides]]
-module = "worker.scanner_worker"
 ignore_errors = true
 
 [tool.pydantic-mypy]

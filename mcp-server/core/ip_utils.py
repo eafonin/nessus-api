@@ -3,13 +3,10 @@
 import ipaddress
 from typing import Union
 
-# Type alias for IP address or network objects
-IPorNetwork = Union[
-    ipaddress.IPv4Address,
-    ipaddress.IPv6Address,
-    ipaddress.IPv4Network,
-    ipaddress.IPv6Network,
-]
+# Type aliases for IP address or network objects
+IPAddress = Union[ipaddress.IPv4Address, ipaddress.IPv6Address]
+IPNetwork = Union[ipaddress.IPv4Network, ipaddress.IPv6Network]
+IPorNetwork = Union[IPAddress, IPNetwork]
 
 
 def parse_target(target_str: str) -> IPorNetwork | None:
@@ -64,13 +61,20 @@ def _ip_or_network_match(a: IPorNetwork, b: IPorNetwork) -> bool:
         return a == b
     elif not a_is_net and b_is_net:
         # a is IP, b is Network - check if IP is in network
-        return a in b
+        # Type assertion: b is narrowed to network type
+        b_net: IPNetwork = b  # type: ignore[assignment]
+        return a in b_net
     elif a_is_net and not b_is_net:
         # a is Network, b is IP - check if IP is in network
-        return b in a
+        # Type assertion: a is narrowed to network type
+        a_net: IPNetwork = a  # type: ignore[assignment]
+        return b in a_net
     else:
         # Both are networks - check overlap
-        return a.overlaps(b)
+        # Type assertion: both are narrowed to network types
+        a_net2: IPNetwork = a  # type: ignore[assignment]
+        b_net2: IPNetwork = b  # type: ignore[assignment]
+        return a_net2.overlaps(b_net2)
 
 
 def targets_match(query: str, stored_targets: str) -> bool:

@@ -31,6 +31,7 @@ class NessusToJsonNL:
         scan_meta = parsed["scan_metadata"]
 
         # Determine fields
+        fields: list[str] | None
         if custom_fields:
             fields = custom_fields
             profile = "custom"
@@ -39,7 +40,7 @@ class NessusToJsonNL:
                 fields = get_schema_fields(schema_profile, custom_fields)
                 profile = schema_profile
             except ValueError as e:
-                raise ValueError(str(e))
+                raise ValueError(str(e)) from e
 
         # Apply field projection
         if fields is not None:  # None means "full" schema (all fields)

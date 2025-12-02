@@ -8,7 +8,7 @@ from typing import Any
 import httpx
 
 # Scanner configurations
-SCANNERS = [
+SCANNERS: list[dict[str, Any]] = [
     {
         "name": "Scanner 1",
         "url": "https://172.30.0.3:8834",

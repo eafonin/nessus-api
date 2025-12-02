@@ -197,7 +197,7 @@ class ScannerWorker:
         import time
 
         metrics_interval = 30  # Update metrics every 30 seconds
-        last_metrics_update = 0
+        last_metrics_update = 0.0
 
         while self.running:
             try:
@@ -433,7 +433,7 @@ class ScannerWorker:
                         # Validation failed (e.g., auth failure)
                         self.task_manager.mark_failed_with_validation(
                             task_id,
-                            error_message=validation.error,
+                            error_message=validation.error or "Validation failed",
                             validation_stats=validation.stats,
                             authentication_status=validation.authentication_status,
                         )

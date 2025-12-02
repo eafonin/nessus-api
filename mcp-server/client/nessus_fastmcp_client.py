@@ -440,7 +440,7 @@ class NessusFastMCPClient:
             for task in tasks["tasks"]:
                 print(f"{task['task_id']}: {task['status']}")
         """
-        arguments = {"limit": limit}
+        arguments: dict[str, int | str] = {"limit": limit}
         if status:
             arguments["status_filter"] = status  # Server expects status_filter
 

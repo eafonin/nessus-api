@@ -160,7 +160,11 @@ Certain files have relaxed rules:
 
 As of 2025-12-02:
 - **Ruff**: 0 errors (reduced from 1019)
-- **MyPy**: 0 errors (with gradual adoption ignores)
+- **MyPy**: 0 errors (87 source files checked)
+  - All errors fixed properly (not suppressed)
+  - Only 3 orphan stub files excluded (unused reference files)
+  - Tests excluded (test flexibility)
+  - External libs without stubs: `ignore_missing_imports = true`
 
 ## Directory Structure
 

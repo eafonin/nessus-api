@@ -30,7 +30,7 @@ def parse_nessus_file(nessus_data: bytes) -> dict[str, Any]:
 
         for item in report_host.findall("ReportItem"):
             # Extract attributes
-            vuln = {
+            vuln: dict[str, Any] = {
                 "type": "vulnerability",
                 "host": host,
                 "plugin_id": item.get("pluginID"),

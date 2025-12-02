@@ -10,12 +10,28 @@ import logging
 import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, TypedDict
 
 from core.metrics import ttl_deletions_total
 
 if TYPE_CHECKING:
     from scanners.registry import ScannerRegistry
+
+
+class ExpiredStats(TypedDict):
+    """Expired task counts by category."""
+
+    completed: int
+    failed: int
+
+
+class HousekeepingStats(TypedDict):
+    """Statistics about task directories."""
+
+    total_tasks: int
+    total_size_mb: float
+    by_status: dict[str, int]
+    expired: ExpiredStats
 
 logger = logging.getLogger(__name__)
 
@@ -169,16 +185,16 @@ class Housekeeper:
             pass
         return total
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> HousekeepingStats:
         """
         Get statistics about task directories without deleting.
 
         Returns:
             Dict with task counts by status and size
         """
-        stats = {
+        stats: HousekeepingStats = {
             "total_tasks": 0,
-            "total_size_mb": 0,
+            "total_size_mb": 0.0,
             "by_status": {},
             "expired": {"completed": 0, "failed": 0},
         }

@@ -64,7 +64,7 @@ class NessusValidator:
             ValidationResult with is_valid, stats, authentication_status
         """
         warnings = []
-        stats = {}
+        stats: dict[str, Any] = {}
 
         # 1. File existence check
         if not nessus_file.exists():

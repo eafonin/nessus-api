@@ -23,8 +23,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.queue import TaskQueue, get_all_pool_stats, get_queue_stats
 
 
-def format_timestamp(ts_str: str) -> str:
+def format_timestamp(ts_str: str | None) -> str:
     """Format ISO timestamp to readable format."""
+    if ts_str is None:
+        return "N/A"
     try:
         dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
         return dt.strftime("%Y-%m-%d %H:%M:%S")

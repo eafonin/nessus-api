@@ -32,6 +32,7 @@
 | [HOUSEKEEPING.md](HOUSEKEEPING.md) | TTL cleanup, stale scan management |
 | [PER_POOL_BACKPRESSURE.md](PER_POOL_BACKPRESSURE.md) | Queue backpressure design |
 | [TESTING.md](TESTING.md) | Test suite guide |
+| [Static Analysis](../staticAnalysis/README.md) | Ruff + MyPy static code analysis |
 | [EXTERNAL_RESOURCES.md](EXTERNAL_RESOURCES.md) | External documentation links |
 
 ---
@@ -43,6 +44,7 @@
 - **Architecture**: [ARCHITECTURE.md](ARCHITECTURE.md) - Component overview, data flow, state machine
 - **Features**: [FEATURES.md](FEATURES.md) - MCP tools, schema profiles, filtering
 - **Testing**: [TESTING.md](TESTING.md) - Running tests, fixtures
+- **Static Analysis**: [staticAnalysis/](../staticAnalysis/README.md) - Ruff linting, MyPy type checking
 - **External Docs**: [EXTERNAL_RESOURCES.md](EXTERNAL_RESOURCES.md) - FastMCP, Nessus API, MCP Protocol
 
 ### For Operators

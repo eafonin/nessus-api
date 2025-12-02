@@ -145,15 +145,17 @@ async def run_untrusted_scan(
             if existing_task_id:
                 # Return existing task
                 existing_task = task_manager.get_task(existing_task_id)
-                return {
-                    "task_id": existing_task_id,
-                    "trace_id": existing_task.trace_id,
-                    "status": existing_task.status,
-                    "scanner_pool": existing_task.scanner_pool,
-                    "scanner_instance": existing_task.scanner_instance_id,
-                    "message": "Returning existing task (idempotency key matched)",
-                    "idempotent": True,
-                }
+                if existing_task is not None:
+                    return {
+                        "task_id": existing_task_id,
+                        "trace_id": existing_task.trace_id,
+                        "status": existing_task.status,
+                        "scanner_pool": existing_task.scanner_pool,
+                        "scanner_instance": existing_task.scanner_instance_id,
+                        "message": "Returning existing task (idempotency key matched)",
+                        "idempotent": True,
+                    }
+                # Task was deleted after idempotency check - proceed to create new
         except ConflictError as e:
             return {
                 "error": "Conflict",
@@ -396,16 +398,18 @@ async def run_authenticated_scan(
             )
             if existing_task_id:
                 existing_task = task_manager.get_task(existing_task_id)
-                return {
-                    "task_id": existing_task_id,
-                    "trace_id": existing_task.trace_id,
-                    "status": existing_task.status,
-                    "scan_type": existing_task.scan_type,
-                    "scanner_pool": existing_task.scanner_pool,
-                    "scanner_instance": existing_task.scanner_instance_id,
-                    "message": "Returning existing task (idempotency key matched)",
-                    "idempotent": True,
-                }
+                if existing_task is not None:
+                    return {
+                        "task_id": existing_task_id,
+                        "trace_id": existing_task.trace_id,
+                        "status": existing_task.status,
+                        "scan_type": existing_task.scan_type,
+                        "scanner_pool": existing_task.scanner_pool,
+                        "scanner_instance": existing_task.scanner_instance_id,
+                        "message": "Returning existing task (idempotency key matched)",
+                        "idempotent": True,
+                    }
+                # Task was deleted after idempotency check - proceed to create new
         except ConflictError as e:
             return {
                 "error": "Conflict",

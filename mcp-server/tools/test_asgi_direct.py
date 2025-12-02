@@ -35,8 +35,8 @@ async def test_asgi_call() -> None:
         "client": ("127.0.0.1", 50000),
     }
 
-    received_messages = []
-    sent_messages = []
+    received_messages: list[dict] = []
+    sent_messages: list[dict] = []
 
     async def receive():
         # Simulate receiving the request

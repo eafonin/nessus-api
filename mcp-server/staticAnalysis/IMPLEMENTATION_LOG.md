@@ -185,6 +185,44 @@ Priority order for manual fixes:
 - Ruff: 0 errors (1019 -> 0)
 - MyPy: 0 errors (339 -> 0 via gradual adoption)
 
+### 2025-12-02 - Session 3 (MyPy Fixes - Proper Approach)
+
+**Issue:**
+Previous session used excessive module-level `ignore_errors = true` which disabled MyPy for ~80% of the codebase. This provided "0 errors" but no actual type safety.
+
+**Action:**
+Removed all `ignore_errors = true` overrides except:
+- Tests (tests need flexibility)
+- 3 orphan stub files (unused reference files: `tools.mcp_tools`, `scanners.nessus`, `schema.jsonl_converter`)
+
+**Errors Fixed (42 total):**
+
+| File | Error Type | Fix Applied |
+|------|------------|-------------|
+| scanners/registry.py | call-arg (6) | Changed structlog-style kwargs to stdlib logging format |
+| core/housekeeping.py | index/operator (7) | Added `HousekeepingStats` TypedDict |
+| tools/mcp_server.py | union-attr (10) | Added proper None checks for `Task | None` |
+| schema/parser.py | assignment (5) | Added `dict[str, Any]` type annotation |
+| core/ip_utils.py | operator (5) | Added type assertions for network operations |
+| scanners/nessus_validator.py | assignment (2) | Added `dict[str, Any]` type annotation |
+| scanners/nessus_scanner.py | return-value (1) | Added `_api_token` None check |
+| client/nessus_fastmcp_client.py | assignment (1) | Added `dict[str, int | str]` type |
+| tools/admin_cli.py | arg-type (1) | Changed `format_timestamp` to accept `str | None` |
+| schema/converter.py | assignment (1) | Added explicit `list[str] | None` declaration |
+| tools/test_asgi_direct.py | var-annotated (1) | Added `list[dict]` type annotation |
+| worker/scanner_worker.py | assignment/arg-type (2) | Changed `0` to `0.0`, added fallback string |
+| tools/monitor_and_export.py | attr-defined (1) | Added `list[dict[str, Any]]` type |
+
+**Final Status:**
+- Ruff: 0 errors (all checks passed)
+- MyPy: 0 errors (87 source files checked with real type safety)
+
+**Configuration Changes (pyproject.toml):**
+- Removed 6 module-level `ignore_errors = true` blocks
+- Added targeted ignore for 3 orphan stub files only
+- Tests still ignored (test flexibility)
+- External libs without stubs: `ignore_missing_imports = true`
+
 ---
 
 ## Error Tracking

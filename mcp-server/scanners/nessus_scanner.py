@@ -176,7 +176,7 @@ class NessusScanner(ScannerInterface):
         Returns:
             Headers dict
         """
-        if not self._session_token:
+        if not self._session_token or not self._api_token:
             raise ValueError("Not authenticated - call _authenticate() first")
 
         headers = {
