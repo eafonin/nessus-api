@@ -1,248 +1,125 @@
-# Integration Testing Guide - Phase 0+1 with Real Nessus Scanner
+# Testing Guide
 
-This document explains how to run integration tests that validate the complete Phase 0 and Phase 1 workflows with a real Nessus scanner.
+[← README](README.MD) | [Architecture →](ARCHITECTURE.md)
 
 ---
 
 ## Overview
 
-### Test Categories
+The test suite is organized into 4 layers, from basic infrastructure checks to full E2E workflows. This layered approach enables systematic troubleshooting: if layer01 passes but layer03 fails, the issue is in external integration, not infrastructure.
 
-The test suite includes two types of tests, distinguished by pytest markers:
+### Test Layers
 
-1. **Lightweight Tests** (unit/integration)
-   - No markers or `@pytest.mark.unit`
-   - Run anywhere (host machine, CI/CD)
-   - No external dependencies (use mocks)
-   - Fast execution (< 1 minute)
-
-2. **Heavy Integration Tests**
-   - `@pytest.mark.real_nessus` - Uses actual Nessus scanner
-   - `@pytest.mark.requires_docker_network` - Must run inside Docker network
-   - `@pytest.mark.slow` - Takes several minutes to complete
-   - Requires Redis and Nessus scanner access
-
-### Key Test Files
-
-**`tests/integration/test_phase0_phase1_real_nessus.py`**
-- Complete end-to-end test of Phase 0 + Phase 1 workflow
-- Uses real Nessus scanner (NOT mocks)
-- Demonstrates structured logging throughout
-- Must run inside Docker network
-
-**`tests/integration/test_fastmcp_client.py`** ⭐ **RECOMMENDED**
-- FastMCP client integration tests
-- 8 test classes covering all client functionality
-- Type-safe, production-ready patterns
-- See [FASTMCP_CLIENT_REQUIREMENT.md](./FASTMCP_CLIENT_REQUIREMENT.md)
+| Layer | Directory | Duration | Purpose |
+|-------|-----------|----------|---------|
+| **Layer 01** | `layer01_infrastructure/` | <1s | WebUI accessible, Redis up, target accounts working |
+| **Layer 02** | `layer02_internal/` | ~30s | Queue, task manager, config parsing, validators |
+| **Layer 03** | `layer03_external_basic/` | ~1min | Single MCP tool calls, scanner operations |
+| **Layer 04** | `layer04_full_workflow/` | 5-10min | Complete scan→results E2E workflows |
 
 ---
 
-## ⚠️ MANDATORY: FastMCP Client for Testing
+## Quick Start
 
-**All future testing and integration MUST use the FastMCP Client:**
-
-```python
-# ✅ CORRECT - Use FastMCP Client
-from client.nessus_fastmcp_client import NessusFastMCPClient
-
-async def test_scan_workflow():
-    async with NessusFastMCPClient("http://localhost:8835/mcp") as client:
-        task = await client.submit_scan(
-            targets="192.168.1.1",
-            scan_name="Integration Test"
-        )
-        status = await client.get_status(task["task_id"])
-        assert status["status"] == "queued"
-```
-
-**Benefits**:
-- Type safety with method signatures
-- Built-in error handling
-- Progress callbacks
-- Helper methods for common workflows
-- 654 lines of production-ready code
-
-**See**:
-- [FASTMCP_CLIENT_REQUIREMENT.md](./FASTMCP_CLIENT_REQUIREMENT.md) - Mandatory requirement
-- [FASTMCP_CLIENT_ARCHITECTURE.md](./FASTMCP_CLIENT_ARCHITECTURE.md) - Architecture
-- [client/examples/](./client/examples/) - 5 progressive examples
-
----
-
-## Quick Start: Docker-Based Testing
-
-The easiest way to run integration tests is using the dedicated test environment:
+### Run All Tests by Layer
 
 ```bash
 cd /home/nessus/projects/nessus-api/mcp-server
 
-# Start test environment (Redis + test runner)
-docker compose -f docker-compose.test.yml up -d
+# Layer 01: Quick infrastructure validation
+pytest tests/layer01_infrastructure/ -v
 
-# Run complete Phase 0+1 integration test with real Nessus
-docker compose -f docker-compose.test.yml exec test-runner \
-  pytest tests/integration/test_phase0_phase1_real_nessus.py -v -s -m real_nessus
+# Layer 02: Internal functionality (no external services)
+pytest tests/layer02_internal/ -v
 
-# Run only lightweight Redis connectivity test
-docker compose -f docker-compose.test.yml exec test-runner \
-  pytest tests/integration/test_phase0_phase1_real_nessus.py::test_redis_connectivity_from_docker_network -v -s
+# Layer 03: External basic (requires Nessus, Redis, MCP)
+docker compose exec mcp-api pytest tests/layer03_external_basic/ -v -s
 
-# Cleanup when done
-docker compose -f docker-compose.test.yml down -v
+# Layer 04: Full E2E workflows (5-10 min)
+docker compose exec mcp-api pytest tests/layer04_full_workflow/ -v -s
 ```
 
----
-
-## Architecture: Docker Test Environment
-
-### Components
-
-1. **redis-test**
-   - Redis 7.4.7 instance for testing
-   - Isolated from production Redis
-   - Connected to both `test-internal` and `nessus_nessus_net` networks
-
-2. **test-runner**
-   - Python 3.11 container with all dependencies
-   - Has access to:
-     - Redis (via `redis-test:6379`)
-     - Nessus scanner (via `vpn-gateway:8834` on `nessus_nessus_net`)
-   - Mounts source code as read-only volume for live updates
-
-### Network Topology
-
-```text
-┌──────────────────────────────────────────────────────────────┐
-│ nessus_nessus_net (external network)                         │
-│                                                               │
-│  ┌─────────────────┐       ┌─────────────────┐              │
-│  │  vpn-gateway    │       │  test-runner    │              │
-│  │  (Nessus Pro)   │◄──────│  (pytest)       │              │
-│  │  :8834          │       │                 │              │
-│  └─────────────────┘       └────────┬────────┘              │
-│                                     │                        │
-└─────────────────────────────────────┼────────────────────────┘
-                                      │
-┌─────────────────────────────────────┼────────────────────────┐
-│ test-internal network               │                        │
-│                                     │                        │
-│                            ┌────────▼────────┐               │
-│                            │  redis-test     │               │
-│                            │  :6379          │               │
-│                            └─────────────────┘               │
-│                                                               │
-└───────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Test Workflow: Phase 0 + Phase 1
-
-The complete integration test validates:
-
-### Phase 0: Queue-Based Scan Execution
-
-1. **Tool Invocation**
-   - Simulates MCP tool call (`run_untrusted_scan`)
-   - Generates `trace_id` for correlation
-
-2. **Task Creation**
-   - Creates task in TaskManager
-   - Persists to filesystem
-
-3. **Queue Operations**
-   - Enqueues task to Redis queue
-   - Verifies queue depth
-   - Dequeues task (simulating worker)
-
-**Structured Logs Emitted:**
-```json
-{"event": "tool_invocation", "tool": "run_untrusted_scan", "trace_id": "...", ...}
-{"event": "task_created", "task_id": "...", "trace_id": "...", "status": "queued", ...}
-{"event": "scan_enqueued", "task_id": "...", "queue_position": 1, ...}
-{"event": "task_dequeued", "task_id": "...", "worker_id": "test-worker-01", ...}
-```
-
-### Phase 1: Scan Workflow with Real Nessus
-
-4. **Scan Creation**
-   - Creates scan in Nessus via API
-   - Targets: `172.32.0.215` (Ubuntu server)
-
-5. **Scan Launch**
-   - Launches scan
-   - State transition: `QUEUED → RUNNING`
-
-6. **Progress Monitoring**
-   - Polls scan status every 10 seconds
-   - Logs progress updates (25%, 50%, 75%, 100%)
-
-7. **Completion Handling**
-   - State transition: `RUNNING → COMPLETED`
-   - Exports scan results (.nessus XML)
-
-8. **Results Verification**
-   - Validates XML format
-   - Counts vulnerabilities by severity
-   - Saves results to task directory
-
-9. **Cleanup**
-   - Deletes scan from Nessus
-   - Removes task data
-
-**Structured Logs Emitted:**
-```json
-{"event": "scan_state_transition", "from_state": "queued", "to_state": "running", "nessus_scan_id": 42, ...}
-{"event": "scan_progress", "progress": 50, "scanner_status": "running", ...}
-{"event": "scan_state_transition", "from_state": "running", "to_state": "completed", ...}
-{"event": "scan_completed", "duration_seconds": 450, "vulnerabilities_found": 47, ...}
-```
-
----
-
-## Running Tests
-
-### Option 1: Docker Test Environment (Recommended)
+### Run Tests by Marker
 
 ```bash
-# Start environment
-docker compose -f docker-compose.test.yml up -d
+# Run specific layer
+pytest -m layer01
 
-# Run specific test
-docker compose -f docker-compose.test.yml exec test-runner \
-  pytest tests/integration/test_phase0_phase1_real_nessus.py::test_complete_phase0_phase1_workflow -v -s
+# Run layers 01 and 02 only (quick validation)
+pytest -m "layer01 or layer02"
 
-# Run all Phase 0 tests
-docker compose -f docker-compose.test.yml exec test-runner \
-  pytest -v -s -m phase0
+# Skip slow E2E tests
+pytest -m "not layer04"
 
-# Run all Phase 1 tests
-docker compose -f docker-compose.test.yml exec test-runner \
-  pytest -v -s -m phase1
-
-# Run all tests marked as 'real_nessus'
-docker compose -f docker-compose.test.yml exec test-runner \
-  pytest -v -s -m real_nessus
-
-# Cleanup
-docker compose -f docker-compose.test.yml down -v
+# Run tests requiring real Nessus scanner
+pytest -m requires_nessus
 ```
 
-### Option 2: Host Machine (Limited)
+---
 
-**Note:** Host-based testing will FAIL for tests requiring Docker network access due to Redis connection issues.
+## Test Categories
 
-```bash
-# Activate virtual environment
-source ../venv/bin/activate
+### Layer 01: Infrastructure Tests
 
-# Run lightweight tests only (no Docker network required)
-pytest tests/integration/test_queue.py -v -s -m "not requires_docker_network"
+Basic connectivity and access validation. These tests should pass before running any other layer.
 
-# Attempting to run tests marked 'requires_docker_network' will fail
-# with "Connection reset by peer" error due to Docker port forwarding issues
-```
+| Test File | Purpose |
+|-----------|---------|
+| `test_nessus_connectivity.py` | Nessus WebUI reachable, SSL works, endpoints respond |
+| `test_redis_connectivity.py` | Redis server accessible, basic operations work |
+| `test_target_accounts.py` | SSH test accounts accessible on scan targets |
+| `test_both_scanners.py` | Both scanner instances responding |
+
+**Markers**: `@pytest.mark.layer01`
+
+### Layer 02: Internal Tests
+
+Core functionality that doesn't require external services (uses mocks).
+
+| Test File | Purpose |
+|-----------|---------|
+| `test_task_manager.py` | State machine transitions, task persistence |
+| `test_queue.py` | FIFO operations, DLQ handling |
+| `test_pool_registry.py` | Scanner pool management, load balancing |
+| `test_circuit_breaker.py` | Scanner health detection |
+| `test_health.py` | Health endpoint responses |
+| `test_housekeeping.py` | Task cleanup, expiration |
+| `test_metrics.py` | Prometheus metrics |
+| `test_logging_config.py` | Structured logging |
+| `test_ip_utils.py` | CIDR parsing, IP validation |
+| `test_nessus_validator.py` | Authentication detection from results |
+| `test_admin_cli.py` | CLI command parsing |
+| `test_idempotency.py` | Idempotency key handling |
+
+**Markers**: `@pytest.mark.layer02`
+
+### Layer 03: External Basic Tests
+
+Single tool calls with real services. Each test validates one specific integration point.
+
+| Test File | Purpose |
+|-----------|---------|
+| `test_mcp_tools_basic.py` | MCP connection, tool listing, basic calls |
+| `test_scanner_operations.py` | Nessus API: create/launch/delete scan |
+| `test_pool_selection.py` | Pool-based scanner selection |
+| `test_schema_parsing.py` | XML parser, schema profiles, filters |
+| `test_authenticated_credentials.py` | Credential injection for SSH scans |
+
+**Markers**: `@pytest.mark.layer03`, `@pytest.mark.requires_nessus`, `@pytest.mark.requires_mcp`
+
+### Layer 04: Full Workflow Tests
+
+Complete E2E workflows that run real scans. These are slow (5-10 minutes each).
+
+| Test File | Purpose |
+|-----------|---------|
+| `test_untrusted_scan_workflow.py` | Full untrusted scan: submit→wait→results |
+| `test_authenticated_scan_workflow.py` | SSH authenticated scan with credential validation |
+| `test_mcp_protocol_e2e.py` | Full MCP protocol stack validation |
+| `test_result_filtering_workflow.py` | Scan with severity/CVSS filtering |
+| `test_pool_workflow.py` | Multi-scanner pool load distribution |
+
+**Markers**: `@pytest.mark.layer04`, `@pytest.mark.slow`, `@pytest.mark.e2e`
 
 ---
 
@@ -250,173 +127,169 @@ pytest tests/integration/test_queue.py -v -s -m "not requires_docker_network"
 
 | Marker | Purpose | Example |
 |--------|---------|---------|
-| `phase0` | Phase 0 tests (queue, task management) | `pytest -m phase0` |
-| `phase1` | Phase 1 tests (scan workflow) | `pytest -m phase1` |
-| `phase2` | Phase 2 tests (schema parsing) | `pytest -m phase2` |
-| `integration` | Integration tests (may use external services) | `pytest -m integration` |
-| `unit` | Unit tests (no external dependencies) | `pytest -m unit` |
-| `slow` | Long-running tests (> 1 minute) | `pytest -m "not slow"` |
-| `real_nessus` | Uses real Nessus scanner (NOT mocks) | `pytest -m real_nessus` |
-| `requires_docker_network` | Must run inside Docker network | `pytest -m requires_docker_network` |
+| `layer01` | Infrastructure checks | `pytest -m layer01` |
+| `layer02` | Internal functionality | `pytest -m layer02` |
+| `layer03` | External basic | `pytest -m layer03` |
+| `layer04` | Full workflow | `pytest -m layer04` |
+| `requires_nessus` | Needs real Nessus scanner | `pytest -m requires_nessus` |
+| `requires_redis` | Needs Redis connection | `pytest -m requires_redis` |
+| `requires_mcp` | Needs MCP server | `pytest -m requires_mcp` |
+| `slow` | Long-running tests (> 1 min) | `pytest -m "not slow"` |
+| `e2e` | End-to-end tests | `pytest -m e2e` |
+| `authenticated` | Uses SSH credentials | `pytest -m authenticated` |
 
 ### Combining Markers
 
 ```bash
-# Run all Phase 0 OR Phase 1 tests
-pytest -m "phase0 or phase1"
+# Run layer03 tests that don't require MCP
+pytest -m "layer03 and not requires_mcp"
 
-# Run integration tests that are NOT slow
-pytest -m "integration and not slow"
+# Run all tests except slow ones
+pytest -m "not slow"
 
-# Skip all tests requiring Docker network
-pytest -m "not requires_docker_network"
-
-# Run only quick unit tests
-pytest -m "unit and quick"
+# Run only authenticated scan tests
+pytest -m "authenticated and layer04"
 ```
+
+---
+
+## Running Tests
+
+### Docker Environment (Recommended)
+
+Most tests require Docker network access to reach Nessus, Redis, and MCP services.
+
+```bash
+# Start the stack
+cd /home/nessus/projects/nessus-api/dev1
+docker compose up -d
+
+# Run tests inside container
+docker compose exec mcp-api pytest tests/ -v -s
+
+# Run specific layer
+docker compose exec mcp-api pytest tests/layer03_external_basic/ -v -s
+
+# Run with coverage
+docker compose exec mcp-api pytest tests/ --cov=. --cov-report=term-missing
+```
+
+### Host Machine (Limited)
+
+Only layer02 tests work reliably from the host. Tests requiring Docker network will fail.
+
+```bash
+cd /home/nessus/projects/nessus-api/mcp-server
+source venv/bin/activate
+
+# Run only internal tests (no external dependencies)
+pytest tests/layer02_internal/ -v
+
+# Skip tests requiring Docker network
+pytest -m "not requires_nessus and not requires_redis and not requires_mcp"
+```
+
+---
+
+## Test Client
+
+The test suite uses `NessusFastMCPClient` for all MCP interactions:
+
+```python
+from client.nessus_fastmcp_client import NessusFastMCPClient
+
+async def test_scan_workflow():
+    async with NessusFastMCPClient("http://mcp-api:8000/mcp") as client:
+        # Submit scan
+        task = await client.submit_scan(
+            targets="192.168.1.1",
+            scan_name="Integration Test"
+        )
+
+        # Wait for completion
+        final = await client.wait_for_completion(
+            task["task_id"],
+            timeout=600,
+            poll_interval=10
+        )
+
+        # Get results
+        results = await client.get_results(
+            task["task_id"],
+            schema_profile="brief"
+        )
+```
+
+See `tests/client/nessus_fastmcp_client.py` for the full client implementation.
 
 ---
 
 ## Troubleshooting
 
-### Issue: Redis Connection Fails from Host
+### Redis Connection Fails from Host
 
-**Symptom:**
-```text
-redis.exceptions.ConnectionError: Error while reading from localhost:6379 : (104, 'Connection reset by peer')
-```
+**Symptom**: `ConnectionError: Connection reset by peer`
 
-**Cause:** Docker's NAT/port-forwarding interferes with Redis RESP protocol handshake.
+**Cause**: Docker's NAT interferes with Redis protocol.
 
-**Solution:** Run tests inside Docker network using `docker-compose.test.yml`.
+**Solution**: Run tests inside Docker: `docker compose exec mcp-api pytest ...`
 
-### Issue: Nessus Scanner Not Accessible
+### Nessus Scanner Not Accessible
 
-**Symptom:**
-```text
-httpx.ConnectError: All connection attempts failed
-```
+**Symptom**: `httpx.ConnectError: All connection attempts failed`
 
-**Cause:** Nessus scanner is only accessible from `nessus_nessus_net` Docker network.
+**Cause**: Nessus is only accessible from Docker network.
 
-**Solution:**
+**Solution**:
 1. Verify Nessus is running: `docker ps | grep nessus`
-2. Check network connectivity:
-   ```bash
-   docker compose -f docker-compose.test.yml exec test-runner \
-     curl -k https://vpn-gateway:8834/server/status
-   ```
+2. Run tests inside Docker network
 
-### Issue: Test Timeout
+### Test Timeout
 
-**Symptom:** Test exceeds 10-minute timeout.
+**Symptom**: Test exceeds timeout (default 600s).
 
-**Cause:** Nessus scan is taking longer than expected (large target, many plugins).
+**Cause**: Nessus scan taking longer than expected.
 
-**Solution:**
-- Increase `max_wait` in test (currently 600 seconds)
-- Use smaller target IP range
-- Check Nessus scanner performance
-
----
-
-## Redis Version Requirements
-
-**CRITICAL:** Redis client version MUST match Redis server version.
-
-- **Server:** Redis 7.4.7
-- **Client:** redis-py >= 7.0.0, < 8.0.0
-
-See `requirements-api.txt` for details.
+**Solution**:
+- Increase timeout in test: `@pytest.mark.timeout(900)`
+- Use smaller target range
+- Check scanner performance
 
 ---
 
 ## Environment Variables
 
-### Test Runner Container
-
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `REDIS_URL` | `redis://redis-test:6379` | Redis connection URL |
+| `REDIS_URL` | `redis://redis:6379` | Redis connection URL |
 | `NESSUS_URL` | `https://vpn-gateway:8834` | Nessus scanner URL |
-| `NESSUS_USERNAME` | `nessus` | Nessus login username |
-| `NESSUS_PASSWORD` | `nessus` | Nessus login password |
-| `LOG_LEVEL` | `INFO` | Structured logging level |
+| `NESSUS_USERNAME` | `nessus` | Nessus login |
+| `NESSUS_PASSWORD` | `nessus` | Nessus password |
+| `MCP_SERVER_URL` | `http://mcp-api:8000/mcp` | MCP server endpoint |
+| `SCAN_TARGET_IP` | `172.30.0.9` | Test target IP |
+| `LOG_LEVEL` | `INFO` | Logging level |
 
 ---
 
-## File Structure
+## Coverage
 
-```text
-mcp-server/
-├── docker-compose.test.yml          # Test environment configuration
-├── Dockerfile.test                  # Test runner container image
-├── TESTING.md                       # This file
-├── tests/
-│   └── integration/
-│       ├── test_phase0_phase1_real_nessus.py  # Main integration test
-│       ├── test_queue.py            # Queue tests
-│       ├── test_idempotency.py      # Idempotency tests
-│       └── ...
-├── pytest.ini                       # Pytest configuration & markers
-├── requirements-api.txt             # Python dependencies
-└── STRUCTURED_LOGGING_EXAMPLES.md   # JSON log examples
-```
-
----
-
-## Viewing Structured Logs
-
-All tests emit structured JSON logs. To filter and analyze:
+Run coverage report:
 
 ```bash
-# Run test and pipe logs through jq for formatting
-docker compose -f docker-compose.test.yml exec test-runner \
-  pytest tests/integration/test_phase0_phase1_real_nessus.py -v -s 2>&1 | \
-  grep -E '^\{' | jq
+docker compose exec mcp-api pytest tests/ \
+    --cov=core --cov=scanners --cov=tools --cov=schema \
+    --cov-report=term-missing \
+    --cov-report=html:coverage_html
 
-# Filter specific events
-... | jq 'select(.event == "scan_progress")'
-
-# Find all logs for specific trace_id
-... | jq 'select(.trace_id == "76ea3daf-da0a-4ffb-9f89-862b4f34a22c")'
-
-# Count events by type
-... | jq -s 'group_by(.event) | map({event: .[0].event, count: length})'
+# View HTML report
+open coverage_html/index.html
 ```
 
 ---
 
-## Next Steps
+## Related Documentation
 
-1. **Run the lightweight test** to verify Docker network connectivity:
-   ```bash
-   docker compose -f docker-compose.test.yml up -d
-   docker compose -f docker-compose.test.yml exec test-runner \
-     pytest tests/integration/test_phase0_phase1_real_nessus.py::test_redis_connectivity_from_docker_network -v -s
-   ```
-
-2. **Run the full integration test** (takes 5-10 minutes):
-   ```bash
-   docker compose -f docker-compose.test.yml exec test-runner \
-     pytest tests/integration/test_phase0_phase1_real_nessus.py::test_complete_phase0_phase1_workflow -v -s -m real_nessus
-   ```
-
-3. **Analyze structured logs** to see Phase 3 observability in action.
-
-4. **Integrate with CI/CD** by adding test commands to your pipeline.
-
----
-
-## Summary
-
-This testing infrastructure provides:
-
-- ✅ **Isolated test environment** (dedicated Docker network)
-- ✅ **Real Nessus integration** (not mocks)
-- ✅ **Redis connectivity** from within Docker network
-- ✅ **Structured logging** throughout entire workflow
-- ✅ **Pytest markers** for test categorization
-- ✅ **Long-term sustainability** (version-controlled, reproducible)
-
-All Phase 0 and Phase 1 functionality is validated with actual Nessus scans, demonstrating production-ready observability through structured JSON logs.
+- [FEATURES.md](FEATURES.md) - MCP tools being tested
+- [API.md](API.md) - API endpoints and responses
+- [ARCHITECTURE.md](ARCHITECTURE.md) - System design
+- [tests/README.MD](../tests/README.MD) - Test suite overview
