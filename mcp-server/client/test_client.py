@@ -1,16 +1,29 @@
 """Simple MCP client for testing MCP server."""
+
 import asyncio
+import os
 import sys
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
 # Add fastmcp to path if running outside of installed package
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "venv" / "lib" / "python3.12" / "site-packages"))
+sys.path.insert(
+    0,
+    str(
+        Path(__file__).parent.parent.parent
+        / "venv"
+        / "lib"
+        / "python3.12"
+        / "site-packages"
+    ),
+)
 
 try:
     from fastmcp import Client
 except ImportError as e:
-    print(f"Error: FastMCP client not installed. Please install with: pip install fastmcp")
+    print(
+        "Error: FastMCP client not installed. Please install with: pip install fastmcp"
+    )
     print(f"Details: {e}")
     sys.exit(1)
 
@@ -18,14 +31,15 @@ except ImportError as e:
 class NessusMCPClient:
     """MCP client for testing Nessus MCP server."""
 
-    def __init__(self, base_url: str = None):
+    def __init__(self, base_url: str | None = None) -> None:
         # Auto-detect environment:
         # - Inside Docker container: connect to mcp-api:8000 (Docker service name)
         # - Outside Docker (host): connect to localhost:8836 (mapped port)
-        import os
         if base_url is None:
-            if os.path.exists('/.dockerenv') or os.environ.get('CONTAINER'):
-                base_url = "http://mcp-api:8000"  # Inside container, use Docker service name
+            if Path("/.dockerenv").exists() or os.environ.get("CONTAINER"):
+                base_url = (
+                    "http://mcp-api:8000"  # Inside container, use Docker service name
+                )
             else:
                 base_url = "http://localhost:8836"  # On host
 
@@ -35,56 +49,49 @@ class NessusMCPClient:
         self.client = Client(self.url)
         self._context_entered = False
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "NessusMCPClient":
         """Async context manager entry."""
         await self.client.__aenter__()
         self._context_entered = True
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> bool:
         """Async context manager exit."""
         if self._context_entered:
             await self.client.__aexit__(exc_type, exc_val, exc_tb)
         return False
 
     async def submit_scan(
-        self,
-        targets: str,
-        name: str,
-        **kwargs
-    ) -> Dict[str, Any]:
+        self, targets: str, name: str, **kwargs: Any
+    ) -> dict[str, Any]:
         """Submit untrusted scan."""
         if not self._context_entered:
             raise RuntimeError("Client must be used within async context manager")
 
         result = await self.client.call_tool(
-            "run_untrusted_scan",
-            arguments={
-                "targets": targets,
-                "name": name,
-                **kwargs
-            }
+            "run_untrusted_scan", arguments={"targets": targets, "name": name, **kwargs}
         )
         # FastMCP ToolResult has .data attribute containing the actual response
-        return result.data if hasattr(result, 'data') else result
+        return result.data if hasattr(result, "data") else result
 
-    async def get_status(self, task_id: str) -> Dict[str, Any]:
+    async def get_status(self, task_id: str) -> dict[str, Any]:
         """Get scan status."""
         if not self._context_entered:
             raise RuntimeError("Client must be used within async context manager")
 
         result = await self.client.call_tool(
-            "get_scan_status",
-            arguments={"task_id": task_id}
+            "get_scan_status", arguments={"task_id": task_id}
         )
-        return result.data if hasattr(result, 'data') else result
+        return result.data if hasattr(result, "data") else result
 
     async def poll_until_complete(
-        self,
-        task_id: str,
-        timeout: int = 300,
-        poll_interval: int = 2
-    ) -> Dict[str, Any]:
+        self, task_id: str, timeout: int = 300, poll_interval: int = 2
+    ) -> dict[str, Any]:
         """Poll status until scan completes."""
         start_time = asyncio.get_event_loop().time()
 
@@ -101,18 +108,22 @@ class NessusMCPClient:
             if elapsed > timeout:
                 raise TimeoutError(f"Scan did not complete in {timeout}s")
 
-            progress_str = f"{status.get('progress', 'N/A')}%" if status.get('progress') else "N/A"
-            print(f"[{elapsed:.1f}s] Status: {status['status']}, Progress: {progress_str}")
+            progress_str = (
+                f"{status.get('progress', 'N/A')}%" if status.get("progress") else "N/A"
+            )
+            print(
+                f"[{elapsed:.1f}s] Status: {status['status']}, Progress: {progress_str}"
+            )
             await asyncio.sleep(poll_interval)
 
-    async def close(self):
+    async def close(self) -> None:
         """Cleanup - for backward compatibility."""
         if self._context_entered:
             await self.client.__aexit__(None, None, None)
 
 
 # Example usage
-async def main():
+async def main() -> None:
     """Example workflow."""
     print("=" * 60)
     print("Phase 0: Mock Scan Workflow Test")
@@ -123,8 +134,7 @@ async def main():
             # Submit scan
             print("\n1. Submitting scan...")
             task = await client.submit_scan(
-                targets="192.168.1.1",
-                name="Phase 0 Test Scan"
+                targets="192.168.1.1", name="Phase 0 Test Scan"
             )
             print(f"   ✓ Task submitted: {task['task_id']}")
             print(f"   ✓ Trace ID: {task['trace_id']}")
@@ -138,7 +148,9 @@ async def main():
             print(f"   ✓ Status: {final_status['status']}")
             print(f"   ✓ Progress: {final_status.get('progress', 'N/A')}%")
             print(f"   ✓ Scan ID: {final_status.get('nessus_scan_id')}")
-            print(f"   ✓ Duration: {final_status['started_at']} → {final_status['completed_at']}")
+            print(
+                f"   ✓ Duration: {final_status['started_at']} → {final_status['completed_at']}"
+            )
 
             print("\n" + "=" * 60)
             print("✓ Phase 0 Test PASSED")
@@ -147,6 +159,7 @@ async def main():
     except Exception as e:
         print(f"\n✗ Error: {e}")
         import traceback
+
         traceback.print_exc()
         raise
 

@@ -1,10 +1,10 @@
 """Parse Nessus .nessus XML files."""
 
 import xml.etree.ElementTree as ET
-from typing import List, Dict, Any
+from typing import Any
 
 
-def parse_nessus_file(nessus_data: bytes) -> Dict[str, Any]:
+def parse_nessus_file(nessus_data: bytes) -> dict[str, Any]:
     """
     Parse .nessus XML file.
 
@@ -67,7 +67,4 @@ def parse_nessus_file(nessus_data: bytes) -> Dict[str, Any]:
 
             vulnerabilities.append(vuln)
 
-    return {
-        "scan_metadata": scan_metadata,
-        "vulnerabilities": vulnerabilities
-    }
+    return {"scan_metadata": scan_metadata, "vulnerabilities": vulnerabilities}

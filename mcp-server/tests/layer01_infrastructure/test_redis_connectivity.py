@@ -8,10 +8,10 @@ Usage:
     pytest tests/layer01_infrastructure/test_redis_connectivity.py -v -s
 """
 
-import pytest
 import os
 import socket
 
+import pytest
 
 # Configuration
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
@@ -37,8 +37,10 @@ class TestRedisConnectivity:
         try:
             result = sock.connect_ex((REDIS_HOST, REDIS_PORT))
             sock.close()
-            assert result == 0, f"TCP port {REDIS_PORT} is closed (error code: {result})"
-        except socket.timeout:
+            assert result == 0, (
+                f"TCP port {REDIS_PORT} is closed (error code: {result})"
+            )
+        except TimeoutError:
             pytest.fail(f"Connection timeout to {REDIS_HOST}:{REDIS_PORT}")
 
 
@@ -49,12 +51,13 @@ class TestRedisOperations:
     def redis_client(self):
         """Create Redis client."""
         import redis
+
         client = redis.Redis(
             host=REDIS_HOST,
             port=REDIS_PORT,
             db=0,
             decode_responses=True,
-            socket_timeout=5
+            socket_timeout=5,
         )
         yield client
         client.close()

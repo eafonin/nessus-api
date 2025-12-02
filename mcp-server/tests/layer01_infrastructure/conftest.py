@@ -5,8 +5,8 @@ These fixtures support connectivity and access validation tests.
 """
 
 import os
-import pytest
 
+import pytest
 
 # =============================================================================
 # Configuration
@@ -26,6 +26,7 @@ EXTERNAL_HOST_IP = os.getenv("EXTERNAL_HOST_IP", "172.32.0.215")
 # Fixtures
 # =============================================================================
 
+
 @pytest.fixture
 def nessus_url():
     """Return configured Nessus URL."""
@@ -35,10 +36,7 @@ def nessus_url():
 @pytest.fixture
 def nessus_credentials():
     """Return Nessus credentials as dict."""
-    return {
-        "username": NESSUS_USERNAME,
-        "password": NESSUS_PASSWORD
-    }
+    return {"username": NESSUS_USERNAME, "password": NESSUS_PASSWORD}
 
 
 @pytest.fixture
@@ -78,7 +76,7 @@ def test_credentials():
                     "username": "testauth_nosudo",
                     "password": "TestPass123!",
                 },
-            }
+            },
         },
         "external_host": {
             "ip": EXTERNAL_HOST_IP,
@@ -87,6 +85,6 @@ def test_credentials():
                     "username": "randy",
                     "password": "randylovesgoldfish1998",
                 }
-            }
-        }
+            },
+        },
     }

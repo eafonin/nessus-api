@@ -1,9 +1,9 @@
 """Unit tests for Admin CLI (DLQ handler)."""
 
-import pytest
 import json
-from datetime import datetime
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 # Test helper imports
 from tools.admin_cli import format_timestamp, truncate
@@ -58,6 +58,7 @@ class TestQueueDLQMethods:
             mock_from_url.return_value = mock_client
 
             from core.queue import TaskQueue
+
             queue = TaskQueue(redis_url="redis://localhost:6379")
             queue.redis_client = mock_client
             return queue
@@ -96,7 +97,7 @@ class TestQueueDLQMethods:
             "task_id": "task123",
             "scan_type": "untrusted",
             "error": "old error",
-            "failed_at": "2024-01-01T00:00:00"
+            "failed_at": "2024-01-01T00:00:00",
         }
         mock_queue.redis_client.zrange.return_value = [
             (json.dumps(task_data), 1234567890.0)
@@ -162,7 +163,7 @@ class TestCLICommands:
                 "queue_depth": 5,
                 "dlq_size": 2,
                 "next_tasks": [],
-                "timestamp": "2024-01-15T10:00:00"
+                "timestamp": "2024-01-15T10:00:00",
             }
 
             result = cmd_stats(mock_queue, mock_args)
@@ -190,8 +191,18 @@ class TestCLICommands:
         from tools.admin_cli import cmd_list_dlq
 
         mock_queue.get_dlq_tasks.return_value = [
-            {"task_id": "t1", "scan_type": "untrusted", "error": "err1", "failed_at": "2024-01-01"},
-            {"task_id": "t2", "scan_type": "trusted", "error": "err2", "failed_at": "2024-01-02"},
+            {
+                "task_id": "t1",
+                "scan_type": "untrusted",
+                "error": "err1",
+                "failed_at": "2024-01-01",
+            },
+            {
+                "task_id": "t2",
+                "scan_type": "trusted",
+                "error": "err2",
+                "failed_at": "2024-01-02",
+            },
         ]
 
         mock_args = Mock()
@@ -209,7 +220,7 @@ class TestCLICommands:
         mock_queue.get_dlq_task.return_value = {
             "task_id": "task123",
             "scan_type": "untrusted",
-            "error": "connection failed"
+            "error": "connection failed",
         }
 
         mock_args = Mock()

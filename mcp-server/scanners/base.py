@@ -2,17 +2,18 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, Any, Optional
+from typing import Any
 
 
 @dataclass
 class ScanRequest:
     """Scan request parameters."""
+
     targets: str
     name: str
     scan_type: str = "untrusted"
     description: str = ""
-    credentials: Optional[Dict[str, Any]] = None
+    credentials: dict[str, Any] | None = None
     schema_profile: str = "brief"
 
 
@@ -30,7 +31,7 @@ class ScannerInterface(ABC):
         pass
 
     @abstractmethod
-    async def get_status(self, scan_id: int) -> Dict[str, Any]:
+    async def get_status(self, scan_id: int) -> dict[str, Any]:
         """
         Get scan status and progress.
 

@@ -23,21 +23,20 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from client.nessus_fastmcp_client import NessusFastMCPClient
 
 
-def progress_callback(status):
+def progress_callback(status: dict) -> None:
     """Callback function for progress updates."""
-    progress = status.get('progress', 0)
-    task_status = status['status']
+    progress = status.get("progress", 0)
+    task_status = status["status"]
     print(f"   Progress: {progress}% - Status: {task_status}")
 
 
-async def main():
+async def main() -> None:
     """Wait for completion example."""
 
     async with NessusFastMCPClient(
         url="http://localhost:8836/mcp",
-        debug=False  # Disable debug for cleaner output
+        debug=False,  # Disable debug for cleaner output
     ) as client:
-
         # Get task_id from command line or submit new scan
         if len(sys.argv) > 1:
             task_id = sys.argv[1]
@@ -47,7 +46,7 @@ async def main():
             task = await client.submit_scan(
                 targets="192.168.1.1",
                 scan_name="Example Wait Scan",
-                description="Demonstration scan from Example 2"
+                description="Demonstration scan from Example 2",
             )
             task_id = task["task_id"]
             print(f"Scan submitted: {task_id}\n")
@@ -61,23 +60,23 @@ async def main():
                 task_id=task_id,
                 timeout=600,  # 10 minutes
                 poll_interval=10,  # Check every 10 seconds
-                progress_callback=progress_callback
+                progress_callback=progress_callback,
             )
 
-            print(f"\n✓ Scan completed!")
+            print("\n✓ Scan completed!")
             print(f"   Status: {final_status['status']}")
             print(f"   Duration: {final_status.get('duration_seconds', 'N/A')} seconds")
 
-            if final_status['status'] == 'completed':
-                print(f"\nNext: Retrieve results with:")
+            if final_status["status"] == "completed":
+                print("\nNext: Retrieve results with:")
                 print(f"  python 04_get_critical_vulns.py {task_id}")
             else:
                 print(f"\n⚠ Scan finished with status: {final_status['status']}")
 
         except TimeoutError:
-            print(f"\n✗ Scan did not complete within 600 seconds")
-            print(f"   Task may still be running. Check status manually:")
-            print(f"   python 01_basic_usage.py")
+            print("\n✗ Scan did not complete within 600 seconds")
+            print("   Task may still be running. Check status manually:")
+            print("   python 01_basic_usage.py")
 
 
 if __name__ == "__main__":

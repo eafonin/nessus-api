@@ -34,8 +34,8 @@ import asyncio
 import json
 import os
 import time
-from typing import Any, Dict, List, Optional, Callable
-from datetime import datetime
+from collections.abc import Callable
+from typing import Any
 
 from fastmcp import Client
 
@@ -66,12 +66,12 @@ class NessusFastMCPClient:
 
     def __init__(
         self,
-        url: Optional[str] = None,
+        url: str | None = None,
         timeout: float = 30.0,
-        log_handler: Optional[Callable] = None,
-        progress_handler: Optional[Callable] = None,
-        debug: bool = False
-    ):
+        log_handler: Callable | None = None,
+        progress_handler: Callable | None = None,
+        debug: bool = False,
+    ) -> None:
         """
         Initialize Nessus FastMCP Client.
 
@@ -103,12 +103,12 @@ class NessusFastMCPClient:
             self.url,  # Use resolved URL (with env var default)
             log_handler=log_handler or self._default_log_handler,
             progress_handler=progress_handler or self._default_progress_handler,
-            timeout=timeout
+            timeout=timeout,
         )
 
         self._connected = False
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "NessusFastMCPClient":
         """Enter async context manager - establishes connection."""
         await self.client.__aenter__()
         self._connected = True
@@ -121,20 +121,30 @@ class NessusFastMCPClient:
 
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> bool:
         """Exit async context manager - closes connection."""
         self._connected = False
         await self.client.__aexit__(exc_type, exc_val, exc_tb)
 
         if self.debug:
-            print(f"[DEBUG] Disconnected from MCP server")
+            print("[DEBUG] Disconnected from MCP server")
+        return False
 
-    def _default_log_handler(self, message):
+    def _default_log_handler(self, message: object) -> None:
         """Default handler for server log messages."""
         if self.debug:
-            print(f"[SERVER LOG] {message.data if hasattr(message, 'data') else message}")
+            print(
+                f"[SERVER LOG] {message.data if hasattr(message, 'data') else message}"
+            )
 
-    def _default_progress_handler(self, progress: float, total: Optional[float], message: Optional[str]):
+    def _default_progress_handler(
+        self, progress: float, total: float | None, message: str | None
+    ) -> None:
         """Default handler for progress updates."""
         if self.debug:
             pct = (progress / total * 100) if total else 0
@@ -161,7 +171,7 @@ class NessusFastMCPClient:
         await self.client.ping()
         return True
 
-    async def list_tools(self) -> List[Dict[str, Any]]:
+    async def list_tools(self) -> list[dict[str, Any]]:
         """
         List all available MCP tools.
 
@@ -180,16 +190,15 @@ class NessusFastMCPClient:
             {
                 "name": tool.name,
                 "description": tool.description,
-                "inputSchema": tool.inputSchema if hasattr(tool, 'inputSchema') else None
+                "inputSchema": tool.inputSchema
+                if hasattr(tool, "inputSchema")
+                else None,
             }
             for tool in tools
         ]
 
     async def call_tool(
-        self,
-        tool_name: str,
-        arguments: Dict[str, Any],
-        timeout: Optional[float] = None
+        self, tool_name: str, arguments: dict[str, Any], timeout: float | None = None
     ) -> Any:
         """
         Call an MCP tool directly (low-level method).
@@ -212,13 +221,11 @@ class NessusFastMCPClient:
             )
         """
         result = await self.client.call_tool(
-            tool_name,
-            arguments,
-            timeout=timeout or self.timeout
+            tool_name, arguments, timeout=timeout or self.timeout
         )
 
         # Return the structured data
-        return result.data if hasattr(result, 'data') else result
+        return result.data if hasattr(result, "data") else result
 
     # ==========================================================================
     # High-Level Nessus Operations
@@ -228,11 +235,11 @@ class NessusFastMCPClient:
         self,
         targets: str,
         scan_name: str,
-        description: Optional[str] = None,
+        description: str | None = None,
         scan_type: str = "untrusted",
-        idempotency_key: Optional[str] = None,
-        timeout: Optional[float] = None
-    ) -> Dict[str, Any]:
+        idempotency_key: str | None = None,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
         """
         Submit a new Nessus scan.
 
@@ -259,10 +266,7 @@ class NessusFastMCPClient:
         tool_name = f"run_{scan_type}_scan"
 
         # Note: MCP tool parameter is 'name', not 'scan_name'
-        arguments = {
-            "targets": targets,
-            "name": scan_name
-        }
+        arguments = {"targets": targets, "name": scan_name}
 
         if description:
             arguments["description"] = description
@@ -278,10 +282,8 @@ class NessusFastMCPClient:
         return result
 
     async def get_status(
-        self,
-        task_id: str,
-        timeout: Optional[float] = None
-    ) -> Dict[str, Any]:
+        self, task_id: str, timeout: float | None = None
+    ) -> dict[str, Any]:
         """
         Get scan task status.
 
@@ -297,10 +299,14 @@ class NessusFastMCPClient:
             print(f"Status: {status['status']}")
             print(f"Progress: {status.get('progress', 0)}%")
         """
-        result = await self.call_tool("get_scan_status", {"task_id": task_id}, timeout=timeout)
+        result = await self.call_tool(
+            "get_scan_status", {"task_id": task_id}, timeout=timeout
+        )
 
         if self.debug:
-            print(f"[DEBUG] Task {task_id}: {result.get('status')} ({result.get('progress', 0)}%)")
+            print(
+                f"[DEBUG] Task {task_id}: {result.get('status')} ({result.get('progress', 0)}%)"
+            )
 
         return result
 
@@ -308,11 +314,11 @@ class NessusFastMCPClient:
         self,
         task_id: str,
         schema_profile: str = "brief",
-        custom_fields: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None,
+        custom_fields: list[str] | None = None,
+        filters: dict[str, Any] | None = None,
         page: int = 1,
         page_size: int = 40,
-        timeout: Optional[float] = None
+        timeout: float | None = None,
     ) -> str:
         """
         Get scan results in JSON-NL format.
@@ -348,7 +354,7 @@ class NessusFastMCPClient:
             "task_id": task_id,
             "schema_profile": schema_profile,
             "page": page,
-            "page_size": page_size
+            "page_size": page_size,
         }
 
         if custom_fields:
@@ -365,10 +371,7 @@ class NessusFastMCPClient:
 
         return result
 
-    async def list_scanners(
-        self,
-        timeout: Optional[float] = None
-    ) -> Dict[str, Any]:
+    async def list_scanners(self, timeout: float | None = None) -> dict[str, Any]:
         """
         List available Nessus scanners.
 
@@ -391,10 +394,7 @@ class NessusFastMCPClient:
 
         return result
 
-    async def get_queue_status(
-        self,
-        timeout: Optional[float] = None
-    ) -> Dict[str, Any]:
+    async def get_queue_status(self, timeout: float | None = None) -> dict[str, Any]:
         """
         Get Redis queue status.
 
@@ -412,16 +412,18 @@ class NessusFastMCPClient:
         result = await self.call_tool("get_queue_status", {}, timeout=timeout)
 
         if self.debug:
-            print(f"[DEBUG] Queue: {result.get('main_queue_depth')}, DLQ: {result.get('dlq_depth')}")
+            print(
+                f"[DEBUG] Queue: {result.get('main_queue_depth')}, DLQ: {result.get('dlq_depth')}"
+            )
 
         return result
 
     async def list_tasks(
         self,
-        status: Optional[str] = None,
+        status: str | None = None,
         limit: int = 100,
-        timeout: Optional[float] = None
-    ) -> Dict[str, Any]:
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
         """
         List scan tasks.
 
@@ -458,8 +460,8 @@ class NessusFastMCPClient:
         task_id: str,
         timeout: float = 600,
         poll_interval: float = 10,
-        progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None
-    ) -> Dict[str, Any]:
+        progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    ) -> dict[str, Any]:
         """
         Wait for a scan task to complete.
 
@@ -511,12 +513,12 @@ class NessusFastMCPClient:
         self,
         targets: str,
         scan_name: str,
-        description: Optional[str] = None,
+        description: str | None = None,
         scan_type: str = "untrusted",
         timeout: float = 600,
         poll_interval: float = 10,
-        progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None
-    ) -> Dict[str, Any]:
+        progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    ) -> dict[str, Any]:
         """
         Submit a scan and wait for it to complete (convenience method).
 
@@ -547,7 +549,7 @@ class NessusFastMCPClient:
             targets=targets,
             scan_name=scan_name,
             description=description,
-            scan_type=scan_type
+            scan_type=scan_type,
         )
 
         task_id = task["task_id"]
@@ -557,14 +559,12 @@ class NessusFastMCPClient:
             task_id=task_id,
             timeout=timeout,
             poll_interval=poll_interval,
-            progress_callback=progress_callback
+            progress_callback=progress_callback,
         )
 
     async def get_critical_vulnerabilities(
-        self,
-        task_id: str,
-        timeout: Optional[float] = None
-    ) -> List[Dict[str, Any]]:
+        self, task_id: str, timeout: float | None = None
+    ) -> list[dict[str, Any]]:
         """
         Get all critical vulnerabilities from a completed scan (helper method).
 
@@ -587,7 +587,7 @@ class NessusFastMCPClient:
             schema_profile="brief",
             filters={"severity": "4"},
             page=0,  # Get all data
-            timeout=timeout
+            timeout=timeout,
         )
 
         # Parse JSON-NL and extract vulnerabilities
@@ -600,10 +600,8 @@ class NessusFastMCPClient:
         return vulnerabilities
 
     async def get_vulnerability_summary(
-        self,
-        task_id: str,
-        timeout: Optional[float] = None
-    ) -> Dict[str, int]:
+        self, task_id: str, timeout: float | None = None
+    ) -> dict[str, int]:
         """
         Get vulnerability count by severity (helper method).
 
@@ -623,10 +621,7 @@ class NessusFastMCPClient:
         """
         # Get all results
         results = await self.get_results(
-            task_id=task_id,
-            schema_profile="minimal",
-            page=0,
-            timeout=timeout
+            task_id=task_id, schema_profile="minimal", page=0, timeout=timeout
         )
 
         # Count by severity
@@ -646,10 +641,9 @@ class NessusFastMCPClient:
 # Convenience Functions
 # =============================================================================
 
+
 async def create_client(
-    url: str = "http://localhost:8836/mcp",
-    timeout: float = 30.0,
-    debug: bool = False
+    url: str = "http://localhost:8836/mcp", timeout: float = 30.0, debug: bool = False
 ) -> NessusFastMCPClient:
     """
     Create and connect a Nessus FastMCP client (convenience function).

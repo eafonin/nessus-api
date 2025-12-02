@@ -1,11 +1,12 @@
 """Unit tests for TaskManager with validation metadata support."""
-import pytest
-import tempfile
-import shutil
-from pathlib import Path
 
-from core.types import Task, ScanState, StateTransitionError
+import shutil
+import tempfile
+
+import pytest
+
 from core.task_manager import TaskManager, generate_task_id
+from core.types import ScanState, StateTransitionError, Task
 
 
 class TestTaskManagerBasic:

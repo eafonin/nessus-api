@@ -1,9 +1,9 @@
 """Generic filtering engine."""
 
-from typing import List, Dict, Any
+from typing import Any
 
 
-def apply_filters(vulns: List[Dict], filters: Dict[str, Any]) -> List[Dict]:
+def apply_filters(vulns: list[dict], filters: dict[str, Any]) -> list[dict]:
     """
     Apply filters to vulnerability list.
 
@@ -15,7 +15,7 @@ def apply_filters(vulns: List[Dict], filters: Dict[str, Any]) -> List[Dict]:
     return [v for v in vulns if matches_all_filters(v, filters)]
 
 
-def matches_all_filters(vuln: Dict[str, Any], filters: Dict[str, Any]) -> bool:
+def matches_all_filters(vuln: dict[str, Any], filters: dict[str, Any]) -> bool:
     """Check if vulnerability matches all filters."""
     for field, filter_value in filters.items():
         if field not in vuln:
@@ -29,7 +29,11 @@ def matches_all_filters(vuln: Dict[str, Any], filters: Dict[str, Any]) -> bool:
                 return False
 
         # Number filter with operators (e.g., ">7.0", ">=5", "<10")
-        elif isinstance(filter_value, str) and len(filter_value) > 0 and filter_value[0] in "<>=":
+        elif (
+            isinstance(filter_value, str)
+            and len(filter_value) > 0
+            and filter_value[0] in "<>="
+        ):
             try:
                 num_value = float(vuln_value)
                 if not compare_number(num_value, filter_value):

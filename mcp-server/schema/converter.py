@@ -1,11 +1,11 @@
 """Convert Nessus data to JSON-NL format."""
 
 import json
-from typing import List, Dict, Any, Optional
+from typing import Any
 
+from .filters import apply_filters
 from .parser import parse_nessus_file
 from .profiles import get_schema_fields
-from .filters import apply_filters
 
 
 class NessusToJsonNL:
@@ -15,10 +15,10 @@ class NessusToJsonNL:
         self,
         nessus_data: bytes,
         schema_profile: str = "brief",
-        custom_fields: Optional[List[str]] = None,
-        filters: Optional[Dict[str, Any]] = None,
+        custom_fields: list[str] | None = None,
+        filters: dict[str, Any] | None = None,
         page: int = 1,
-        page_size: int = 40
+        page_size: int = 40,
     ) -> str:
         """
         Convert to JSON-NL format.
@@ -43,10 +43,7 @@ class NessusToJsonNL:
 
         # Apply field projection
         if fields is not None:  # None means "full" schema (all fields)
-            all_vulns = [
-                self._project_fields(vuln, fields)
-                for vuln in all_vulns
-            ]
+            all_vulns = [self._project_fields(vuln, fields) for vuln in all_vulns]
 
         # Apply filters
         if filters:
@@ -61,7 +58,9 @@ class NessusToJsonNL:
         else:
             # Clamp page_size
             page_size = max(10, min(100, page_size))
-            total_pages = (total_vulns + page_size - 1) // page_size if total_vulns > 0 else 1
+            total_pages = (
+                (total_vulns + page_size - 1) // page_size if total_vulns > 0 else 1
+            )
             start_idx = (page - 1) * page_size
             end_idx = start_idx + page_size
             page_vulns = all_vulns[start_idx:end_idx]
@@ -70,20 +69,21 @@ class NessusToJsonNL:
         lines = []
 
         # Line 1: Schema with filters_applied
-        lines.append(json.dumps({
-            "type": "schema",
-            "profile": profile,
-            "fields": fields if fields is not None else "all",
-            "filters_applied": filters or {},
-            "total_vulnerabilities": total_vulns,
-            "total_pages": total_pages
-        }))
+        lines.append(
+            json.dumps(
+                {
+                    "type": "schema",
+                    "profile": profile,
+                    "fields": fields if fields is not None else "all",
+                    "filters_applied": filters or {},
+                    "total_vulnerabilities": total_vulns,
+                    "total_pages": total_pages,
+                }
+            )
+        )
 
         # Line 2: Scan metadata
-        lines.append(json.dumps({
-            "type": "scan_metadata",
-            **scan_meta
-        }))
+        lines.append(json.dumps({"type": "scan_metadata", **scan_meta}))
 
         # Lines 3+: Vulnerabilities
         for vuln in page_vulns:
@@ -91,18 +91,22 @@ class NessusToJsonNL:
 
         # Last line: Pagination (only if not page=0)
         if page != 0:
-            lines.append(json.dumps({
-                "type": "pagination",
-                "page": page,
-                "page_size": page_size,
-                "total_pages": total_pages,
-                "has_next": page < total_pages,
-                "next_page": page + 1 if page < total_pages else None
-            }))
+            lines.append(
+                json.dumps(
+                    {
+                        "type": "pagination",
+                        "page": page,
+                        "page_size": page_size,
+                        "total_pages": total_pages,
+                        "has_next": page < total_pages,
+                        "next_page": page + 1 if page < total_pages else None,
+                    }
+                )
+            )
 
         return "\n".join(lines)
 
-    def _project_fields(self, vulnerability: Dict, fields: List[str]) -> Dict:
+    def _project_fields(self, vulnerability: dict, fields: list[str]) -> dict:
         """Project vulnerability to include only specified fields."""
         # Always include "type" field
         projected = {"type": vulnerability.get("type", "vulnerability")}

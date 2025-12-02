@@ -6,16 +6,21 @@ Phase 4 enhancements:
 - Load-based scanner selection (least loaded within pool)
 - Concurrent scan limit enforcement
 """
+
+import asyncio
+import logging
 import os
 import signal
-import yaml
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple, Set
-import logging
-import asyncio
-from .nessus_scanner import NessusScanner
+from types import FrameType
+from typing import Any
+
+import yaml
+
+from .base import ScannerInterface
 from .mock_scanner import MockNessusScanner
+from .nessus_scanner import NessusScanner
 
 logger = logging.getLogger(__name__)
 
@@ -46,10 +51,10 @@ class ScannerRegistry:
     - Environment variable substitution
     """
 
-    def __init__(self, config_file: str = "config/scanners.yaml"):
+    def __init__(self, config_file: str = "config/scanners.yaml") -> None:
         self.config_file = Path(config_file)
-        self._instances: Dict[str, Dict[str, Any]] = {}
-        self._pools: Set[str] = set()  # Track available pools
+        self._instances: dict[str, dict[str, Any]] = {}
+        self._pools: set[str] = set()  # Track available pools
         self._lock = asyncio.Lock()  # For thread-safe active_scans updates
         self._load_config()
 
@@ -77,19 +82,20 @@ class ScannerRegistry:
             logger.warning(
                 "scanner_config_missing",
                 config_file=str(self.config_file),
-                action="generating_example_config"
+                action="generating_example_config",
             )
             self._generate_example_config()
+            msg = "ALERT: Example scanners.yaml generated. Edit with details and restart."
             logger.warning(
                 "scanner_config_generated",
                 config_file=str(self.config_file),
-                message="ALERT: Example scanners.yaml generated. Edit with your scanner details and restart."
+                message=msg,
             )
             self._register_mock_scanner()
             return
 
         try:
-            with open(self.config_file) as f:
+            with self.config_file.open() as f:
                 config = yaml.safe_load(f)
 
             if not config:
@@ -101,7 +107,9 @@ class ScannerRegistry:
             # Each top-level key is a pool name (nessus, nessus_dmz, nuclei, etc.)
             for pool_name, pool_scanners in config.items():
                 if not isinstance(pool_scanners, list):
-                    logger.warning(f"Invalid pool config for '{pool_name}': expected list")
+                    logger.warning(
+                        f"Invalid pool config for '{pool_name}': expected list"
+                    )
                     continue
 
                 self._pools.add(pool_name)
@@ -109,12 +117,16 @@ class ScannerRegistry:
                 for scanner_config in pool_scanners:
                     instance_id = scanner_config.get("instance_id")
                     if not instance_id:
-                        logger.warning(f"Scanner in pool '{pool_name}' missing instance_id, skipping")
+                        logger.warning(
+                            f"Scanner in pool '{pool_name}' missing instance_id, skipping"
+                        )
                         continue
 
                     enabled = scanner_config.get("enabled", True)
                     if not enabled:
-                        logger.info(f"Skipping disabled scanner: {pool_name}:{instance_id}")
+                        logger.info(
+                            f"Skipping disabled scanner: {pool_name}:{instance_id}"
+                        )
                         continue
 
                     # Substitute environment variables
@@ -131,16 +143,20 @@ class ScannerRegistry:
                             url=url,
                             username=username,
                             password=password,
-                            verify_ssl=False  # Default to False for self-signed certs
+                            verify_ssl=False,  # Default to False for self-signed certs
                         )
                         scanner_type = "nessus"
                     else:
                         # Future: Add other scanner types here
-                        logger.warning(f"Unknown scanner type for pool '{pool_name}', skipping")
+                        logger.warning(
+                            f"Unknown scanner type for pool '{pool_name}', skipping"
+                        )
                         continue
 
                     key = f"{pool_name}:{instance_id}"
-                    max_concurrent = scanner_config.get("max_concurrent_scans", DEFAULT_MAX_CONCURRENT_SCANS)
+                    max_concurrent = scanner_config.get(
+                        "max_concurrent_scans", DEFAULT_MAX_CONCURRENT_SCANS
+                    )
                     self._instances[key] = {
                         "scanner": scanner,
                         "config": scanner_config,
@@ -230,13 +246,13 @@ nessus:
         try:
             # Ensure parent directory exists
             self.config_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.config_file, "w") as f:
+            with self.config_file.open("w") as f:
                 f.write(example_config)
         except Exception as e:
             logger.error(
                 "failed_to_generate_config",
                 config_file=str(self.config_file),
-                error=str(e)
+                error=str(e),
             )
 
     def _expand_env(self, value: str) -> str:
@@ -262,14 +278,14 @@ nessus:
 
         return value
 
-    def _handle_reload(self, signum, frame):
+    def _handle_reload(self, signum: int, frame: FrameType | None) -> None:
         """Handle SIGHUP for config reload."""
         logger.info("Received SIGHUP, reloading scanner config...")
         self._instances.clear()
         self._pools.clear()
         self._load_config()
 
-    def list_pools(self) -> List[str]:
+    def list_pools(self) -> list[str]:
         """List all available scanner pools."""
         return sorted(self._pools)
 
@@ -280,8 +296,8 @@ nessus:
     def get_instance(
         self,
         scanner_type: str = "nessus",
-        instance_id: Optional[str] = None,
-        pool: Optional[str] = None
+        instance_id: str | None = None,
+        pool: str | None = None,
     ) -> Any:
         """
         Get scanner instance by ID.
@@ -311,10 +327,8 @@ nessus:
         return scanner
 
     def get_available_scanner(
-        self,
-        scanner_type: str = "nessus",
-        pool: Optional[str] = None
-    ) -> Tuple[Any, str]:
+        self, scanner_type: str = "nessus", pool: str | None = None
+    ) -> tuple[Any, str]:
         """
         Get least loaded scanner with available capacity from a pool.
 
@@ -352,7 +366,8 @@ nessus:
         if not candidates:
             # No available scanners - return any scanner for queueing
             fallback = [
-                (key, data) for key, data in self._instances.items()
+                (key, data)
+                for key, data in self._instances.items()
                 if key.startswith(f"{target_pool}:")
             ]
             if not fallback:
@@ -376,9 +391,9 @@ nessus:
     async def acquire_scanner(
         self,
         scanner_type: str = "nessus",
-        instance_id: Optional[str] = None,
-        pool: Optional[str] = None
-    ) -> Tuple[Any, str]:
+        instance_id: str | None = None,
+        pool: str | None = None,
+    ) -> tuple[Any, str]:
         """
         Acquire scanner and increment active_scans count.
 
@@ -401,14 +416,16 @@ nessus:
                 data = self._instances[key]
                 data["active_scans"] += 1
                 data["last_used"] = time.time()
-                logger.info(f"Acquired scanner {key}: active_scans={data['active_scans']}/{data['max_concurrent_scans']}")
+                active, max_scans = data["active_scans"], data["max_concurrent_scans"]
+                logger.info(f"Acquired scanner {key}: active_scans={active}/{max_scans}")
                 return data["scanner"], key
 
             # Get least loaded scanner from pool
             scanner, key = self.get_available_scanner(pool=target_pool)
             data = self._instances[key]
             data["active_scans"] += 1
-            logger.info(f"Acquired scanner {key}: active_scans={data['active_scans']}/{data['max_concurrent_scans']}")
+            active, max_scans = data["active_scans"], data["max_concurrent_scans"]
+            logger.info(f"Acquired scanner {key}: active_scans={active}/{max_scans}")
             return scanner, key
 
     async def release_scanner(self, instance_key: str) -> None:
@@ -426,11 +443,14 @@ nessus:
             data = self._instances[instance_key]
             if data["active_scans"] > 0:
                 data["active_scans"] -= 1
-                logger.info(f"Released scanner {instance_key}: active_scans={data['active_scans']}/{data['max_concurrent_scans']}")
+                active, max_scans = data["active_scans"], data["max_concurrent_scans"]
+                logger.info(f"Released scanner {instance_key}: active_scans={active}/{max_scans}")
             else:
-                logger.warning(f"Attempted to release scanner {instance_key} with active_scans=0")
+                logger.warning(
+                    f"Attempted to release scanner {instance_key} with active_scans=0"
+                )
 
-    def get_scanner_load(self, instance_key: str) -> Dict[str, Any]:
+    def get_scanner_load(self, instance_key: str) -> dict[str, Any]:
         """
         Get load information for a specific scanner.
 
@@ -472,7 +492,9 @@ nessus:
                 total += data.get("max_concurrent_scans", 1)
         return total
 
-    def get_pool_status(self, scanner_type: str = "nessus", pool: Optional[str] = None) -> Dict[str, Any]:
+    def get_pool_status(
+        self, scanner_type: str = "nessus", pool: str | None = None
+    ) -> dict[str, Any]:
         """
         Get overall pool status.
 
@@ -513,11 +535,11 @@ nessus:
 
     def list_instances(
         self,
-        scanner_type: Optional[str] = None,
+        scanner_type: str | None = None,
         enabled_only: bool = True,
         include_load: bool = True,
-        pool: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        pool: str | None = None,
+    ) -> list[dict[str, Any]]:
         """List all registered scanner instances with optional load info.
 
         Args:
@@ -550,22 +572,24 @@ nessus:
             }
 
             if include_load:
-                utilization = (active / max_concurrent * 100) if max_concurrent > 0 else 0
-                instance_info.update({
-                    "active_scans": active,
-                    "available_capacity": max_concurrent - active,
-                    "utilization_pct": round(utilization, 1),
-                })
+                utilization = (
+                    (active / max_concurrent * 100) if max_concurrent > 0 else 0
+                )
+                instance_info.update(
+                    {
+                        "active_scans": active,
+                        "available_capacity": max_concurrent - active,
+                        "utilization_pct": round(utilization, 1),
+                    }
+                )
 
             results.append(instance_info)
 
         return results
 
     def get_instance_info(
-        self,
-        pool: str,
-        instance_id: str
-    ) -> Optional[Dict[str, Any]]:
+        self, pool: str, instance_id: str
+    ) -> dict[str, Any] | None:
         """Get info dict for a specific scanner instance.
 
         Args:
@@ -600,11 +624,8 @@ nessus:
         }
 
     async def get_scanner(
-        self,
-        pool: str,
-        instance_id: str,
-        fallback_to_pool: bool = True
-    ) -> Optional["BaseScanner"]:
+        self, pool: str, instance_id: str, fallback_to_pool: bool = True
+    ) -> ScannerInterface | None:
         """Get a scanner instance for direct API calls.
 
         Use this when you need to call scanner methods directly (e.g., stop_scan, delete_scan).
@@ -635,7 +656,9 @@ nessus:
         logger.warning(f"Scanner not found: {key} (no fallback available)")
         return None
 
-    def get_scanner_count(self, scanner_type: Optional[str] = None, pool: Optional[str] = None) -> int:
+    def get_scanner_count(
+        self, scanner_type: str | None = None, pool: str | None = None
+    ) -> int:
         """Get count of registered scanners.
 
         Args:
@@ -644,10 +667,10 @@ nessus:
         """
         filter_pool = pool or scanner_type
         if filter_pool:
-            return len([k for k in self._instances.keys() if k.startswith(f"{filter_pool}:")])
+            return len([k for k in self._instances if k.startswith(f"{filter_pool}:")])
         return len(self._instances)
 
-    def get_all_scanners(self) -> List[Tuple[str, Any]]:
+    def get_all_scanners(self) -> list[tuple[str, Any]]:
         """Get all registered scanner instances.
 
         Returns:

@@ -1,10 +1,11 @@
 """Unit tests for health check functions."""
-import pytest
-import tempfile
+
 import os
+import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-from core.health import check_redis, check_filesystem, check_all_dependencies
+from unittest.mock import MagicMock, patch
+
+from core.health import check_all_dependencies, check_filesystem, check_redis
 
 
 class TestRedisHealthCheck:
@@ -18,7 +19,7 @@ class TestRedisHealthCheck:
         # In unit tests, we should mock it
         assert isinstance(result, bool)
 
-    @patch('redis.from_url')
+    @patch("redis.from_url")
     def test_check_redis_connection_success(self, mock_redis_from_url):
         """Test check_redis with mocked successful connection."""
         # Mock Redis client
@@ -30,10 +31,12 @@ class TestRedisHealthCheck:
 
         assert result is True
         # check_redis includes socket_connect_timeout parameter
-        mock_redis_from_url.assert_called_once_with("redis://localhost:6379", socket_connect_timeout=2, decode_responses=True)
+        mock_redis_from_url.assert_called_once_with(
+            "redis://localhost:6379", socket_connect_timeout=2, decode_responses=True
+        )
         mock_client.ping.assert_called_once()
 
-    @patch('redis.from_url')
+    @patch("redis.from_url")
     def test_check_redis_connection_failure(self, mock_redis_from_url):
         """Test check_redis with mocked connection failure."""
         # Mock Redis client that raises exception
@@ -43,7 +46,7 @@ class TestRedisHealthCheck:
 
         assert result is False
 
-    @patch('redis.from_url')
+    @patch("redis.from_url")
     def test_check_redis_ping_failure(self, mock_redis_from_url):
         """Test check_redis when ping fails."""
         mock_client = MagicMock()
@@ -121,8 +124,8 @@ class TestFilesystemHealthCheck:
 class TestAllDependenciesCheck:
     """Test suite for combined dependency check."""
 
-    @patch('core.health.check_filesystem')
-    @patch('core.health.check_redis')
+    @patch("core.health.check_filesystem")
+    @patch("core.health.check_redis")
     def test_check_all_dependencies_all_healthy(self, mock_redis, mock_filesystem):
         """Test check_all_dependencies when all dependencies are healthy."""
         mock_redis.return_value = True
@@ -136,8 +139,8 @@ class TestAllDependenciesCheck:
         assert "redis_url" in result
         assert "data_dir" in result
 
-    @patch('core.health.check_filesystem')
-    @patch('core.health.check_redis')
+    @patch("core.health.check_filesystem")
+    @patch("core.health.check_redis")
     def test_check_all_dependencies_redis_unhealthy(self, mock_redis, mock_filesystem):
         """Test check_all_dependencies when Redis is unhealthy."""
         mock_redis.return_value = False
@@ -149,9 +152,11 @@ class TestAllDependenciesCheck:
         assert result["redis_healthy"] is False
         assert result["filesystem_healthy"] is True
 
-    @patch('core.health.check_filesystem')
-    @patch('core.health.check_redis')
-    def test_check_all_dependencies_filesystem_unhealthy(self, mock_redis, mock_filesystem):
+    @patch("core.health.check_filesystem")
+    @patch("core.health.check_redis")
+    def test_check_all_dependencies_filesystem_unhealthy(
+        self, mock_redis, mock_filesystem
+    ):
         """Test check_all_dependencies when filesystem is unhealthy."""
         mock_redis.return_value = True
         mock_filesystem.return_value = False
@@ -162,8 +167,8 @@ class TestAllDependenciesCheck:
         assert result["redis_healthy"] is True
         assert result["filesystem_healthy"] is False
 
-    @patch('core.health.check_filesystem')
-    @patch('core.health.check_redis')
+    @patch("core.health.check_filesystem")
+    @patch("core.health.check_redis")
     def test_check_all_dependencies_all_unhealthy(self, mock_redis, mock_filesystem):
         """Test check_all_dependencies when all dependencies are unhealthy."""
         mock_redis.return_value = False
@@ -175,8 +180,8 @@ class TestAllDependenciesCheck:
         assert result["redis_healthy"] is False
         assert result["filesystem_healthy"] is False
 
-    @patch('core.health.check_filesystem')
-    @patch('core.health.check_redis')
+    @patch("core.health.check_filesystem")
+    @patch("core.health.check_redis")
     def test_check_all_dependencies_returns_dict(self, mock_redis, mock_filesystem):
         """Test that check_all_dependencies returns proper dictionary structure."""
         mock_redis.return_value = True
@@ -185,12 +190,18 @@ class TestAllDependenciesCheck:
         result = check_all_dependencies("redis://localhost:6379", "/app/data")
 
         # Check required keys
-        required_keys = ["status", "redis_healthy", "filesystem_healthy", "redis_url", "data_dir"]
+        required_keys = [
+            "status",
+            "redis_healthy",
+            "filesystem_healthy",
+            "redis_url",
+            "data_dir",
+        ]
         for key in required_keys:
             assert key in result
 
-    @patch('core.health.check_filesystem')
-    @patch('core.health.check_redis')
+    @patch("core.health.check_filesystem")
+    @patch("core.health.check_redis")
     def test_check_all_dependencies_preserves_urls(self, mock_redis, mock_filesystem):
         """Test that check_all_dependencies includes URLs in response."""
         mock_redis.return_value = True

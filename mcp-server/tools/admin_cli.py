@@ -20,7 +20,7 @@ from datetime import datetime
 # Add parent to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.queue import TaskQueue, get_queue_stats, get_all_pool_stats
+from core.queue import TaskQueue, get_all_pool_stats, get_queue_stats
 
 
 def format_timestamp(ts_str: str) -> str:
@@ -38,7 +38,7 @@ def truncate(s: str, max_len: int = 50) -> str:
         return ""
     if len(s) <= max_len:
         return s
-    return s[:max_len - 3] + "..."
+    return s[: max_len - 3] + "..."
 
 
 def cmd_stats(queue: TaskQueue, args) -> int:
@@ -60,7 +60,9 @@ def cmd_stats(queue: TaskQueue, args) -> int:
         print("-" * 40)
         for ps in stats["pools"]:
             if ps["queue_depth"] > 0 or ps["dlq_size"] > 0:
-                print(f"  {ps['pool']:15} queue={ps['queue_depth']:3}  dlq={ps['dlq_size']:3}")
+                print(
+                    f"  {ps['pool']:15} queue={ps['queue_depth']:3}  dlq={ps['dlq_size']:3}"
+                )
 
     else:
         pool = args.pool
@@ -78,7 +80,9 @@ def cmd_stats(queue: TaskQueue, args) -> int:
             print("Next tasks in queue:")
             print("-" * 40)
             for i, task in enumerate(stats["next_tasks"], 1):
-                print(f"  {i}. {task.get('task_id', 'N/A')[:20]} - {task.get('scan_type', 'N/A')}")
+                print(
+                    f"  {i}. {task.get('task_id', 'N/A')[:20]} - {task.get('scan_type', 'N/A')}"
+                )
 
     print()
     return 0
@@ -191,12 +195,10 @@ def main() -> int:
     parser.add_argument(
         "--redis-url",
         default=os.getenv("REDIS_URL", "redis://localhost:6379"),
-        help="Redis URL (default: from REDIS_URL env or redis://localhost:6379)"
+        help="Redis URL (default: from REDIS_URL env or redis://localhost:6379)",
     )
     parser.add_argument(
-        "--pool",
-        default="nessus",
-        help="Scanner pool name (default: nessus)"
+        "--pool", default="nessus", help="Scanner pool name (default: nessus)"
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -204,18 +206,13 @@ def main() -> int:
     # stats command
     stats_parser = subparsers.add_parser("stats", help="Show queue statistics")
     stats_parser.add_argument(
-        "--all-pools",
-        action="store_true",
-        help="Show stats for all pools"
+        "--all-pools", action="store_true", help="Show stats for all pools"
     )
 
     # list-dlq command
     list_parser = subparsers.add_parser("list-dlq", help="List DLQ tasks")
     list_parser.add_argument(
-        "--limit",
-        type=int,
-        default=20,
-        help="Maximum tasks to show (default: 20)"
+        "--limit", type=int, default=20, help="Maximum tasks to show (default: 20)"
     )
 
     # inspect-dlq command
@@ -226,9 +223,7 @@ def main() -> int:
     retry_parser = subparsers.add_parser("retry-dlq", help="Retry DLQ task")
     retry_parser.add_argument("task_id", help="Task ID to retry")
     retry_parser.add_argument(
-        "-y", "--yes",
-        action="store_true",
-        help="Skip confirmation"
+        "-y", "--yes", action="store_true", help="Skip confirmation"
     )
 
     # purge-dlq command
@@ -237,7 +232,7 @@ def main() -> int:
         "--confirm",
         action="store_true",
         required=True,
-        help="Required flag to confirm purge operation"
+        help="Required flag to confirm purge operation",
     )
 
     args = parser.parse_args()

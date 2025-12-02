@@ -24,19 +24,18 @@ Markers:
     - integration: Integration test requiring external services
 """
 
-import pytest
-import asyncio
+import json
 import os
 import sys
-import json
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
+import pytest
 
 # Add mcp-server to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from client.nessus_fastmcp_client import NessusFastMCPClient
-
 
 # ============================================================================
 # Test Configuration
@@ -62,17 +61,18 @@ POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "10"))
 # ============================================================================
 
 pytestmark = [
-    pytest.mark.e2e,                      # End-to-end test
-    pytest.mark.real_nessus,              # Uses real Nessus scanner
-    pytest.mark.slow,                     # Takes several minutes
-    pytest.mark.integration,              # Integration test
-    pytest.mark.asyncio,                  # Async test
+    pytest.mark.e2e,  # End-to-end test
+    pytest.mark.real_nessus,  # Uses real Nessus scanner
+    pytest.mark.slow,  # Takes several minutes
+    pytest.mark.integration,  # Integration test
+    pytest.mark.asyncio,  # Async test
 ]
 
 
 # ============================================================================
 # Test Helpers
 # ============================================================================
+
 
 def print_section(title: str):
     """Print formatted section header."""
@@ -89,24 +89,24 @@ def print_status(status: dict):
     print(f"  Progress:     {status.get('progress', 0)}%")
     print(f"  Scan Name:    {status.get('scan_name', 'N/A')}")
 
-    if status.get('nessus_scan_id'):
+    if status.get("nessus_scan_id"):
         print(f"  Nessus Scan:  {status['nessus_scan_id']}")
 
-    if status.get('error'):
+    if status.get("error"):
         print(f"  Error:        {status['error']}")
 
 
 def print_progress(status: dict):
     """Print progress bar."""
-    progress = status.get('progress', 0)
-    task_status = status.get('status', 'unknown')
+    progress = status.get("progress", 0)
+    task_status = status.get("status", "unknown")
 
     # Create progress bar
     bar_length = 40
     filled = int(bar_length * progress / 100)
-    bar = '█' * filled + '░' * (bar_length - filled)
+    bar = "█" * filled + "░" * (bar_length - filled)
 
-    print(f"\r  [{bar}] {progress:3d}% - {task_status:<12}", end='', flush=True)
+    print(f"\r  [{bar}] {progress:3d}% - {task_status:<12}", end="", flush=True)
 
 
 def parse_jsonl_results(jsonl_data: str) -> dict:
@@ -115,10 +115,10 @@ def parse_jsonl_results(jsonl_data: str) -> dict:
         "schema": None,
         "metadata": None,
         "vulnerabilities": [],
-        "pagination": None
+        "pagination": None,
     }
 
-    for line in jsonl_data.strip().split('\n'):
+    for line in jsonl_data.strip().split("\n"):
         if not line.strip():
             continue
 
@@ -140,6 +140,7 @@ def parse_jsonl_results(jsonl_data: str) -> dict:
 # ============================================================================
 # Test: Complete E2E Workflow with FastMCP Client
 # ============================================================================
+
 
 @pytest.mark.asyncio
 async def test_complete_e2e_workflow_untrusted_scan():
@@ -171,7 +172,6 @@ async def test_complete_e2e_workflow_untrusted_scan():
     print(f"  MCP Server: {MCP_SERVER_URL}")
 
     async with NessusFastMCPClient(url=MCP_SERVER_URL, debug=False) as client:
-
         # Verify connection
         ping_result = await client.ping()
         assert ping_result is True, "Failed to ping MCP server"
@@ -198,15 +198,17 @@ async def test_complete_e2e_workflow_untrusted_scan():
             targets=TARGET_HOST,
             scan_name=scan_name,
             description="End-to-end integration test using FastMCP client",
-            scan_type="untrusted"
+            scan_type="untrusted",
         )
 
         # Validate submission response
         assert "task_id" in task, "task_id missing from submission response"
-        assert task["status"] == "queued", f"Expected status 'queued', got '{task['status']}'"
+        assert task["status"] == "queued", (
+            f"Expected status 'queued', got '{task['status']}'"
+        )
 
         task_id = task["task_id"]
-        print(f"  ✓ Scan submitted successfully")
+        print("  ✓ Scan submitted successfully")
         print(f"  Task ID: {task_id}")
         print(f"  Status:  {task['status']}")
 
@@ -233,9 +235,9 @@ async def test_complete_e2e_workflow_untrusted_scan():
                 task_id=task_id,
                 timeout=SCAN_TIMEOUT,
                 poll_interval=POLL_INTERVAL,
-                progress_callback=on_progress
+                progress_callback=on_progress,
             )
-        except TimeoutError as e:
+        except TimeoutError:
             print()
             print()
             print(f"  ✗ Timeout: Scan did not complete within {SCAN_TIMEOUT}s")
@@ -251,8 +253,9 @@ async def test_complete_e2e_workflow_untrusted_scan():
         print()
 
         # Validate completion
-        assert final_status["status"] in ["completed", "failed"], \
+        assert final_status["status"] in ["completed", "failed"], (
             f"Expected terminal state, got '{final_status['status']}'"
+        )
 
         if final_status["status"] == "failed":
             print("  ✗ Scan failed")
@@ -273,10 +276,7 @@ async def test_complete_e2e_workflow_untrusted_scan():
         print_section("Step 4: Retrieve Results (Minimal Schema)")
 
         results_minimal = await client.get_results(
-            task_id=task_id,
-            schema_profile="minimal",
-            page=1,
-            page_size=100
+            task_id=task_id, schema_profile="minimal", page=1, page_size=100
         )
 
         # Validate results format
@@ -308,12 +308,14 @@ async def test_complete_e2e_workflow_untrusted_scan():
             assert "host" in sample_vuln
             assert "plugin_id" in sample_vuln
             assert "severity" in sample_vuln
-            print(f"  ✓ Sample vulnerability fields: host, plugin_id, severity")
+            print("  ✓ Sample vulnerability fields: host, plugin_id, severity")
 
         # Validate pagination
         assert parsed_minimal["pagination"] is not None, "Pagination missing"
         assert parsed_minimal["pagination"]["type"] == "pagination"
-        print(f"  ✓ Pagination: page {parsed_minimal['pagination']['page']} of {parsed_minimal['pagination']['total_pages']}")
+        print(
+            f"  ✓ Pagination: page {parsed_minimal['pagination']['page']} of {parsed_minimal['pagination']['total_pages']}"
+        )
 
         # ====================================================================
         # Step 5: Retrieve Results - Brief Schema
@@ -324,14 +326,14 @@ async def test_complete_e2e_workflow_untrusted_scan():
         results_brief = await client.get_results(
             task_id=task_id,
             schema_profile="brief",
-            page=0  # Get all data
+            page=0,  # Get all data
         )
 
         parsed_brief = parse_jsonl_results(results_brief)
 
         assert parsed_brief["schema"]["profile"] == "brief"
         vuln_count_brief = len(parsed_brief["vulnerabilities"])
-        print(f"  ✓ Schema: brief")
+        print("  ✓ Schema: brief")
         print(f"  ✓ Vulnerabilities: {vuln_count_brief}")
 
         # Validate brief schema has more fields than minimal
@@ -342,7 +344,7 @@ async def test_complete_e2e_workflow_untrusted_scan():
             assert "severity" in sample_vuln
             assert "plugin_name" in sample_vuln
             assert "cvss_score" in sample_vuln
-            print(f"  ✓ Sample vulnerability has extended fields")
+            print("  ✓ Sample vulnerability has extended fields")
 
         # ====================================================================
         # Step 6: Get Vulnerability Summary
@@ -372,34 +374,38 @@ async def test_complete_e2e_workflow_untrusted_scan():
 
         print_section("Step 7: Get Critical Vulnerabilities")
 
-        if summary.get('4', 0) > 0:
+        if summary.get("4", 0) > 0:
             critical_vulns = await client.get_critical_vulnerabilities(task_id)
 
             assert isinstance(critical_vulns, list), "Critical vulns should be a list"
-            assert len(critical_vulns) == summary['4'], \
+            assert len(critical_vulns) == summary["4"], (
                 f"Expected {summary['4']} critical, got {len(critical_vulns)}"
+            )
 
             print(f"  ✓ Retrieved {len(critical_vulns)} critical vulnerabilities")
 
             # Validate all have severity="4"
             for vuln in critical_vulns:
-                assert vuln.get("severity") == "4", \
+                assert vuln.get("severity") == "4", (
                     f"Expected severity '4', got '{vuln.get('severity')}'"
+                )
 
-            print(f"  ✓ All critical vulnerabilities have severity='4'")
+            print("  ✓ All critical vulnerabilities have severity='4'")
 
             # Print sample critical vulnerability
             if critical_vulns:
                 sample = critical_vulns[0]
                 print()
                 print("  Sample Critical Vulnerability:")
-                print(f"    Plugin:   {sample.get('plugin_id')} - {sample.get('plugin_name', 'N/A')}")
+                print(
+                    f"    Plugin:   {sample.get('plugin_id')} - {sample.get('plugin_name', 'N/A')}"
+                )
                 print(f"    Host:     {sample.get('host')}")
                 print(f"    CVSS:     {sample.get('cvss_score', 'N/A')}")
-                if sample.get('cve'):
+                if sample.get("cve"):
                     print(f"    CVE:      {sample.get('cve')}")
         else:
-            print(f"  ⚠ No critical vulnerabilities found (this is OK)")
+            print("  ⚠ No critical vulnerabilities found (this is OK)")
 
         # ====================================================================
         # Step 8: Validate Queue Status
@@ -414,7 +420,7 @@ async def test_complete_e2e_workflow_untrusted_scan():
 
         print(f"  Main Queue Depth: {queue_status['main_queue_depth']}")
         print(f"  DLQ Depth:        {queue_status['dlq_depth']}")
-        print(f"  ✓ Queue status retrieved successfully")
+        print("  ✓ Queue status retrieved successfully")
 
         # ====================================================================
         # Step 9: Validate Scanner Registry
@@ -430,7 +436,9 @@ async def test_complete_e2e_workflow_untrusted_scan():
         print(f"  ✓ Found {scanner_count} registered scanner(s)")
 
         for scanner in scanners["scanners"]:
-            print(f"    - {scanner.get('instance_id', 'unknown')}: {scanner.get('enabled', False)}")
+            print(
+                f"    - {scanner.get('instance_id', 'unknown')}: {scanner.get('enabled', False)}"
+            )
 
         # ====================================================================
         # Final Summary
@@ -439,25 +447,28 @@ async def test_complete_e2e_workflow_untrusted_scan():
         print_section("✓ E2E Test PASSED")
         print()
         print("  Complete workflow validated:")
-        print(f"    ✓ Client connection")
-        print(f"    ✓ Scan submission")
+        print("    ✓ Client connection")
+        print("    ✓ Scan submission")
         print(f"    ✓ Progress monitoring ({len(progress_updates)} updates)")
         print(f"    ✓ Scan completion ({final_status['progress']}%)")
-        print(f"    ✓ Result retrieval (minimal + brief schemas)")
+        print("    ✓ Result retrieval (minimal + brief schemas)")
         print(f"    ✓ Vulnerability summary ({total_vulns} total)")
-        print(f"    ✓ Critical vulnerability filtering")
-        print(f"    ✓ Queue status validation")
-        print(f"    ✓ Scanner registry validation")
+        print("    ✓ Critical vulnerability filtering")
+        print("    ✓ Queue status validation")
+        print("    ✓ Scanner registry validation")
         print()
         print(f"  Task ID: {task_id}")
         print(f"  Scan Name: {scan_name}")
-        print(f"  Duration: ~{SCAN_TIMEOUT - (SCAN_TIMEOUT - len(progress_updates) * POLL_INTERVAL)}s")
+        print(
+            f"  Duration: ~{SCAN_TIMEOUT - (SCAN_TIMEOUT - len(progress_updates) * POLL_INTERVAL)}s"
+        )
         print()
 
 
 # ============================================================================
 # Test: E2E with Filters
 # ============================================================================
+
 
 @pytest.mark.asyncio
 async def test_e2e_with_result_filtering():
@@ -474,7 +485,6 @@ async def test_e2e_with_result_filtering():
     print_section("Phase 3 E2E Test: Result Filtering")
 
     async with NessusFastMCPClient(url=MCP_SERVER_URL, debug=False) as client:
-
         # ====================================================================
         # Submit and Wait
         # ====================================================================
@@ -489,7 +499,7 @@ async def test_e2e_with_result_filtering():
             description="E2E test with result filtering",
             timeout=SCAN_TIMEOUT,
             poll_interval=POLL_INTERVAL,
-            progress_callback=lambda s: print_progress(s)
+            progress_callback=lambda s: print_progress(s),
         )
 
         print()
@@ -507,10 +517,7 @@ async def test_e2e_with_result_filtering():
         print_section("Filter: Critical Vulnerabilities (Severity=4)")
 
         results_critical = await client.get_results(
-            task_id=task_id,
-            schema_profile="minimal",
-            filters={"severity": "4"},
-            page=0
+            task_id=task_id, schema_profile="minimal", filters={"severity": "4"}, page=0
         )
 
         parsed_critical = parse_jsonl_results(results_critical)
@@ -532,7 +539,7 @@ async def test_e2e_with_result_filtering():
             task_id=task_id,
             schema_profile="brief",
             filters={"cvss_score": ">7.0"},
-            page=0
+            page=0,
         )
 
         parsed_high_cvss = parse_jsonl_results(results_high_cvss)
@@ -555,7 +562,7 @@ async def test_e2e_with_result_filtering():
             task_id=task_id,
             custom_fields=["host", "plugin_id", "plugin_name", "cve"],
             page=1,
-            page_size=10
+            page_size=10,
         )
 
         parsed_custom = parse_jsonl_results(results_custom)
@@ -570,7 +577,7 @@ async def test_e2e_with_result_filtering():
             assert "plugin_id" in sample
             assert "plugin_name" in sample
             # cve may not be present in all vulnerabilities
-            print(f"  ✓ Custom fields validated")
+            print("  ✓ Custom fields validated")
 
         print_section("✓ Filtering Test PASSED")
 

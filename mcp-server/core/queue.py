@@ -4,10 +4,11 @@ Phase 4: Supports per-pool queues for scanner pool isolation.
 """
 
 import json
-import redis
-from typing import Optional, Dict, Any, List
-from datetime import datetime
 import logging
+from datetime import datetime
+from typing import Any
+
+import redis
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +40,8 @@ class TaskQueue:
     def __init__(
         self,
         redis_url: str = "redis://localhost:6379",
-        default_pool: str = DEFAULT_POOL
-    ):
+        default_pool: str = DEFAULT_POOL,
+    ) -> None:
         """
         Initialize TaskQueue with Redis connection.
 
@@ -78,7 +79,7 @@ class TaskQueue:
         """Default DLQ key (backward compatibility)."""
         return self._dlq_key(self.default_pool)
 
-    def enqueue(self, task: Dict[str, Any], pool: Optional[str] = None) -> int:
+    def enqueue(self, task: dict[str, Any], pool: str | None = None) -> int:
         """
         Enqueue task for processing in specified pool.
 
@@ -119,7 +120,9 @@ class TaskQueue:
             logger.error(f"Redis error during enqueue: {e}")
             raise
 
-    def dequeue(self, pool: Optional[str] = None, timeout: int = 5) -> Optional[Dict[str, Any]]:
+    def dequeue(
+        self, pool: str | None = None, timeout: int = 5
+    ) -> dict[str, Any] | None:
         """
         Dequeue task from pool (blocking with timeout).
 
@@ -164,14 +167,16 @@ class TaskQueue:
             self.move_to_dlq(
                 {"error": "corrupted_json", "raw_data": task_json},
                 f"JSON decode error: {e}",
-                pool=target_pool
+                pool=target_pool,
             )
             return None
         except redis.RedisError as e:
             logger.error(f"Redis error during dequeue: {e}")
             raise
 
-    def dequeue_any(self, pools: List[str], timeout: int = 5) -> Optional[Dict[str, Any]]:
+    def dequeue_any(
+        self, pools: list[str], timeout: int = 5
+    ) -> dict[str, Any] | None:
         """
         Dequeue task from any of the specified pools (blocking with timeout).
 
@@ -217,10 +222,7 @@ class TaskQueue:
             raise
 
     def move_to_dlq(
-        self,
-        task: Dict[str, Any],
-        error: str,
-        pool: Optional[str] = None
+        self, task: dict[str, Any], error: str, pool: str | None = None
     ) -> None:
         """
         Move failed task to Dead Letter Queue.
@@ -260,7 +262,7 @@ class TaskQueue:
             # Last resort: log error but don't fail
             logger.error(f"Failed to move task to DLQ: {e}", exc_info=True)
 
-    def get_queue_depth(self, pool: Optional[str] = None) -> int:
+    def get_queue_depth(self, pool: str | None = None) -> int:
         """
         Get number of tasks waiting in queue.
 
@@ -280,7 +282,7 @@ class TaskQueue:
             logger.error(f"Failed to get queue depth for pool {target_pool}: {e}")
             return -1
 
-    def get_dlq_size(self, pool: Optional[str] = None) -> int:
+    def get_dlq_size(self, pool: str | None = None) -> int:
         """
         Get number of tasks in Dead Letter Queue.
 
@@ -300,7 +302,7 @@ class TaskQueue:
             logger.error(f"Failed to get DLQ size for pool {target_pool}: {e}")
             return -1
 
-    def peek(self, count: int = 1, pool: Optional[str] = None) -> list[Dict[str, Any]]:
+    def peek(self, count: int = 1, pool: str | None = None) -> list[dict[str, Any]]:
         """
         Peek at next tasks in queue without removing them.
 
@@ -327,11 +329,8 @@ class TaskQueue:
             return []
 
     def get_dlq_tasks(
-        self,
-        start: int = 0,
-        end: int = 9,
-        pool: Optional[str] = None
-    ) -> list[Dict[str, Any]]:
+        self, start: int = 0, end: int = 9, pool: str | None = None
+    ) -> list[dict[str, Any]]:
         """
         Get tasks from Dead Letter Queue (most recent first).
 
@@ -356,10 +355,8 @@ class TaskQueue:
             return []
 
     def get_dlq_task(
-        self,
-        task_id: str,
-        pool: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
+        self, task_id: str, pool: str | None = None
+    ) -> dict[str, Any] | None:
         """
         Get a specific task from DLQ by task_id.
 
@@ -382,14 +379,12 @@ class TaskQueue:
                     return task
             return None
         except Exception as e:
-            logger.error(f"Failed to get DLQ task {task_id} for pool {target_pool}: {e}")
+            logger.error(
+                f"Failed to get DLQ task {task_id} for pool {target_pool}: {e}"
+            )
             return None
 
-    def retry_dlq_task(
-        self,
-        task_id: str,
-        pool: Optional[str] = None
-    ) -> bool:
+    def retry_dlq_task(self, task_id: str, pool: str | None = None) -> bool:
         """
         Move a task from DLQ back to main queue for retry.
 
@@ -406,7 +401,7 @@ class TaskQueue:
         try:
             # Find the task in DLQ
             task_jsons = self.redis_client.zrange(dlq_key, 0, -1, withscores=True)
-            for tj, score in task_jsons:
+            for tj, _score in task_jsons:
                 task = json.loads(tj)
                 if task.get("task_id") == task_id:
                     # Remove from DLQ
@@ -417,19 +412,21 @@ class TaskQueue:
                     task.pop("failed_at", None)
                     self.enqueue(task, pool=target_pool)
 
-                    logger.info(f"Retried task {task_id} from DLQ for pool {target_pool}")
+                    logger.info(
+                        f"Retried task {task_id} from DLQ for pool {target_pool}"
+                    )
                     return True
 
             logger.warning(f"Task {task_id} not found in DLQ for pool {target_pool}")
             return False
         except Exception as e:
-            logger.error(f"Failed to retry DLQ task {task_id} for pool {target_pool}: {e}")
+            logger.error(
+                f"Failed to retry DLQ task {task_id} for pool {target_pool}: {e}"
+            )
             return False
 
     def clear_dlq(
-        self,
-        before_timestamp: Optional[float] = None,
-        pool: Optional[str] = None
+        self, before_timestamp: float | None = None, pool: str | None = None
     ) -> int:
         """
         Clear Dead Letter Queue entries.
@@ -449,9 +446,7 @@ class TaskQueue:
             if before_timestamp:
                 # Remove entries with score < before_timestamp
                 removed = self.redis_client.zremrangebyscore(
-                    dlq_key,
-                    '-inf',
-                    before_timestamp
+                    dlq_key, "-inf", before_timestamp
                 )
             else:
                 # Remove all entries
@@ -473,7 +468,7 @@ class TaskQueue:
 
 
 # Queue statistics helper
-def get_queue_stats(queue: TaskQueue, pool: Optional[str] = None) -> Dict[str, Any]:
+def get_queue_stats(queue: TaskQueue, pool: str | None = None) -> dict[str, Any]:
     """
     Get comprehensive queue statistics for a pool.
 
@@ -490,11 +485,11 @@ def get_queue_stats(queue: TaskQueue, pool: Optional[str] = None) -> Dict[str, A
         "queue_depth": queue.get_queue_depth(pool=target_pool),
         "dlq_size": queue.get_dlq_size(pool=target_pool),
         "next_tasks": queue.peek(count=3, pool=target_pool),
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat(),
     }
 
 
-def get_all_pool_stats(queue: TaskQueue, pools: List[str]) -> Dict[str, Any]:
+def get_all_pool_stats(queue: TaskQueue, pools: list[str]) -> dict[str, Any]:
     """
     Get queue statistics across all specified pools.
 
@@ -514,15 +509,17 @@ def get_all_pool_stats(queue: TaskQueue, pools: List[str]) -> Dict[str, Any]:
         dlq = queue.get_dlq_size(pool=pool)
         total_depth += depth
         total_dlq += dlq
-        pool_stats.append({
-            "pool": pool,
-            "queue_depth": depth,
-            "dlq_size": dlq,
-        })
+        pool_stats.append(
+            {
+                "pool": pool,
+                "queue_depth": depth,
+                "dlq_size": dlq,
+            }
+        )
 
     return {
         "total_queue_depth": total_depth,
         "total_dlq_size": total_dlq,
         "pools": pool_stats,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat(),
     }

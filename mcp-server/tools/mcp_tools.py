@@ -1,8 +1,8 @@
 """MCP tool implementations for Nessus scanner."""
 
-from fastmcp import FastMCP
-from typing import Dict, Any, Optional
+from typing import Any
 
+from fastmcp import FastMCP
 
 # Initialize FastMCP server
 mcp = FastMCP("nessus-mcp-server")
@@ -15,10 +15,10 @@ async def run_untrusted_scan(
     description: str = "",
     schema_profile: str = "brief",
     scanner_type: str = "nessus",
-    scanner_instance: Optional[str] = None,
+    scanner_instance: str | None = None,
     debug_mode: bool = False,
-    idempotency_key: Optional[str] = None
-) -> Dict[str, Any]:
+    idempotency_key: str | None = None,
+) -> dict[str, Any]:
     """
     Submit untrusted (unauthenticated) vulnerability scan.
 
@@ -35,7 +35,7 @@ async def run_untrusted_scan(
 
 
 @mcp.tool()
-async def get_scan_status(task_id: str) -> Dict[str, Any]:
+async def get_scan_status(task_id: str) -> dict[str, Any]:
     """
     Get current scan status and progress.
 
@@ -51,8 +51,8 @@ async def get_scan_results(
     page: int = 1,
     page_size: int = 40,
     schema_profile: str = "brief",
-    custom_fields: Optional[list] = None,
-    filters: Optional[Dict[str, Any]] = None
+    custom_fields: list | None = None,
+    filters: dict[str, Any] | None = None,
 ) -> str:
     """
     Retrieve scan results in JSON-NL format.
@@ -83,28 +83,28 @@ async def get_scan_results(
 
 
 @mcp.tool()
-async def pause_scan(task_id: str) -> Dict[str, Any]:
+async def pause_scan(task_id: str) -> dict[str, Any]:
     """Pause a running scan."""
     # TODO: Implement pause
     pass
 
 
 @mcp.tool()
-async def resume_scan(task_id: str) -> Dict[str, Any]:
+async def resume_scan(task_id: str) -> dict[str, Any]:
     """Resume a paused scan."""
     # TODO: Implement resume
     pass
 
 
 @mcp.tool()
-async def stop_scan(task_id: str) -> Dict[str, Any]:
+async def stop_scan(task_id: str) -> dict[str, Any]:
     """Stop a running scan."""
     # TODO: Implement stop
     pass
 
 
 @mcp.tool()
-async def delete_scan(task_id: str, force: bool = False) -> Dict[str, Any]:
+async def delete_scan(task_id: str, force: bool = False) -> dict[str, Any]:
     """Delete scan and all associated data."""
     # TODO: Implement deletion
     pass
@@ -112,9 +112,7 @@ async def delete_scan(task_id: str, force: bool = False) -> Dict[str, Any]:
 
 @mcp.tool()
 async def list_scans(
-    status: Optional[str] = None,
-    scan_type: Optional[str] = None,
-    limit: int = 50
+    status: str | None = None, scan_type: str | None = None, limit: int = 50
 ) -> list:
     """List scans with optional filtering."""
     # TODO: Implement scan listing
@@ -123,8 +121,7 @@ async def list_scans(
 
 @mcp.tool()
 async def list_scanners(
-    scanner_type: Optional[str] = None,
-    enabled_only: bool = True
+    scanner_type: str | None = None, enabled_only: bool = True
 ) -> list:
     """List available scanner instances."""
     # TODO: Implement scanner listing
@@ -132,7 +129,7 @@ async def list_scanners(
 
 
 @mcp.tool()
-async def get_scanner_health() -> Dict[str, Any]:
+async def get_scanner_health() -> dict[str, Any]:
     """Get overall scanner system health."""
     # TODO: Implement health check
     pass

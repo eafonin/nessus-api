@@ -9,11 +9,12 @@ Tests the queue status reporting:
 - Timestamp generation
 """
 
-import pytest
-from unittest.mock import MagicMock, patch
 from datetime import datetime
+from unittest.mock import MagicMock
 
-from core.queue import TaskQueue, get_queue_stats, DEFAULT_POOL
+import pytest
+
+from core.queue import TaskQueue, get_queue_stats
 
 
 class TestGetQueueStatsBasic:
@@ -172,11 +173,9 @@ class TestQueueStatsResponseFormat:
 
     def test_next_tasks_limited_to_three(self, mock_queue):
         """Test that next_tasks preview is limited."""
-        mock_queue.peek.return_value = [
-            {"task_id": f"task_{i}"} for i in range(10)
-        ]
+        mock_queue.peek.return_value = [{"task_id": f"task_{i}"} for i in range(10)]
 
-        stats = get_queue_stats(mock_queue)
+        get_queue_stats(mock_queue)
 
         # peek is called with count=3
         mock_queue.peek.assert_called_with(count=3, pool="nessus")

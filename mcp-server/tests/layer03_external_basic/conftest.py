@@ -5,12 +5,12 @@ These fixtures support single-operation integration tests with real services.
 """
 
 import os
+
 import pytest
 import pytest_asyncio
 import redis
 
 from scanners.nessus_scanner import NessusScanner
-
 
 # =============================================================================
 # Configuration
@@ -31,6 +31,7 @@ MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://mcp-api:8000/mcp")
 # Scanner Fixtures
 # =============================================================================
 
+
 @pytest.fixture
 def scanner():
     """
@@ -43,7 +44,7 @@ def scanner():
         url=NESSUS_URL,
         username=NESSUS_USERNAME,
         password=NESSUS_PASSWORD,
-        verify_ssl=False
+        verify_ssl=False,
     )
     yield s
 
@@ -59,7 +60,7 @@ async def async_scanner():
         url=NESSUS_URL,
         username=NESSUS_USERNAME,
         password=NESSUS_PASSWORD,
-        verify_ssl=False
+        verify_ssl=False,
     )
     yield scanner
     await scanner.close()
@@ -69,14 +70,12 @@ async def async_scanner():
 # Redis Fixtures
 # =============================================================================
 
+
 @pytest.fixture
 def redis_client():
     """Redis client for queue operation tests."""
     client = redis.Redis(
-        host=REDIS_HOST,
-        port=REDIS_PORT,
-        db=REDIS_DB,
-        decode_responses=True
+        host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True
     )
     yield client
     client.close()
@@ -85,6 +84,7 @@ def redis_client():
 # =============================================================================
 # MCP Client Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def mcp_url():
@@ -111,6 +111,7 @@ async def mcp_client():
 # Configuration Fixtures
 # =============================================================================
 
+
 @pytest.fixture
 def nessus_config():
     """Nessus configuration as dict."""
@@ -135,6 +136,7 @@ def redis_config():
 # =============================================================================
 # Test Data Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def sample_target():

@@ -1,7 +1,6 @@
 """JSON-NL converter for Nessus results with filter echo capability."""
 
-import json
-from typing import Dict, Any, Optional, List
+from typing import Any
 
 
 class NessusToJsonNL:
@@ -9,12 +8,12 @@ class NessusToJsonNL:
 
     def convert(
         self,
-        nessus_data: Dict[str, Any],
+        nessus_data: dict[str, Any],
         schema_profile: str,
-        custom_fields: Optional[List[str]],
-        filters: Optional[Dict[str, Any]],
+        custom_fields: list[str] | None,
+        filters: dict[str, Any] | None,
         page: int,
-        page_size: int
+        page_size: int,
     ) -> str:
         """
         Convert Nessus results to JSON-NL format.
@@ -47,13 +46,15 @@ class NessusToJsonNL:
         #    - Last: {"type": "pagination", ...}
         pass
 
-    def _apply_filters(self, vulnerabilities: List[Dict], filters: Dict[str, Any]) -> List[Dict]:
+    def _apply_filters(
+        self, vulnerabilities: list[dict], filters: dict[str, Any]
+    ) -> list[dict]:
         """Apply generic filters to vulnerability list."""
         # TODO: Implement filtering logic
         # Support string (substring), numeric (>, >=, <, <=, =), boolean, list matching
         pass
 
-    def _project_fields(self, vulnerability: Dict, fields: Optional[List[str]]) -> Dict:
+    def _project_fields(self, vulnerability: dict, fields: list[str] | None) -> dict:
         """Project vulnerability to include only specified fields."""
         # TODO: Implement field projection
         # If fields is None, return all (full schema)

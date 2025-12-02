@@ -18,8 +18,8 @@ Exit codes:
 
 import re
 import sys
-from pathlib import Path
 from dataclasses import dataclass, field
+from pathlib import Path
 
 TESTS_DIR = Path(__file__).parent
 REPORT_FILE = TESTS_DIR / "TEST_REPORT.md"
@@ -36,6 +36,7 @@ LAYERS = {
 @dataclass
 class TestFile:
     """Represents a test file with counts from source and docs."""
+
     name: str
     layer: str
     source_tests: list = field(default_factory=list)
@@ -62,8 +63,11 @@ class TestFile:
 
     @property
     def is_ok(self) -> bool:
-        return (self.source_count == self.doc_count == self.doc_header_count
-                and not self.missing_in_docs and not self.extra_in_docs)
+        return (
+            self.source_count == self.doc_count == self.doc_header_count
+            and not self.missing_in_docs
+            and not self.extra_in_docs
+        )
 
 
 def extract_tests_from_source(filepath: Path) -> list[str]:
@@ -73,32 +77,36 @@ def extract_tests_from_source(filepath: Path) -> list[str]:
 
     # Match test functions - both top-level and inside classes
     # Handles: def test_foo(...) and    def test_foo(...)
-    for match in re.finditer(r'^\s*(?:async )?def (test_\w+)\s*\(', content, re.MULTILINE):
+    for match in re.finditer(
+        r"^\s*(?:async )?def (test_\w+)\s*\(", content, re.MULTILINE
+    ):
         tests.append(match.group(1))
 
     return sorted(set(tests))
 
 
-def extract_tests_from_docs(report_content: str, filename: str) -> tuple[list[str], int]:
+def extract_tests_from_docs(
+    report_content: str, filename: str
+) -> tuple[list[str], int]:
     """Extract documented tests and header count for a file from TEST_REPORT.md."""
     tests = []
     header_count = 0
 
     # Find header with count: ### test_foo.py (N tests)
-    header_pattern = rf'^### {re.escape(filename)}\s*\((\d+) tests?\)'
+    header_pattern = rf"^### {re.escape(filename)}\s*\((\d+) tests?\)"
     header_match = re.search(header_pattern, report_content, re.MULTILINE)
     if header_match:
         header_count = int(header_match.group(1))
 
     # Find section for this file and extract test names from table
     # Pattern: | `test_name` | ... |
-    section_pattern = rf'^### {re.escape(filename)}.*?(?=^### |\Z)'
+    section_pattern = rf"^### {re.escape(filename)}.*?(?=^### |\Z)"
     section_match = re.search(section_pattern, report_content, re.MULTILINE | re.DOTALL)
 
     if section_match:
         section = section_match.group(0)
         # Extract test names from table rows
-        for match in re.finditer(r'^\|\s*`(test_\w+)`', section, re.MULTILINE):
+        for match in re.finditer(r"^\|\s*`(test_\w+)`", section, re.MULTILINE):
             tests.append(match.group(1))
 
     return sorted(set(tests)), header_count
@@ -106,7 +114,7 @@ def extract_tests_from_docs(report_content: str, filename: str) -> tuple[list[st
 
 def extract_layer_header_count(report_content: str, layer: str) -> int:
     """Extract test count from layer header."""
-    pattern = rf'^## Layer {layer}:.*?\((\d+) tests?\)'
+    pattern = rf"^## Layer {layer}:.*?\((\d+) tests?\)"
     match = re.search(pattern, report_content, re.MULTILINE)
     return int(match.group(1)) if match else 0
 
@@ -125,7 +133,9 @@ def reconcile() -> dict[str, TestFile]:
 
             tf = TestFile(name=filename, layer=layer)
             tf.source_tests = extract_tests_from_source(test_file)
-            tf.doc_tests, tf.doc_header_count = extract_tests_from_docs(report_content, filename)
+            tf.doc_tests, tf.doc_header_count = extract_tests_from_docs(
+                report_content, filename
+            )
 
             results[filename] = tf
 
@@ -148,7 +158,7 @@ def print_summary(results: dict[str, TestFile]):
     print(f"\nFiles analyzed: {len(results)}")
     print(f"Files OK: {len(ok_files)}")
     print(f"Files with issues: {len(problem_files)}")
-    print(f"\nTest counts:")
+    print("\nTest counts:")
     print(f"  Source files:     {total_source}")
     print(f"  Documented:       {total_documented}")
     print(f"  Header claims:    {total_header}")
@@ -224,7 +234,9 @@ def print_fix_suggestions(results: dict[str, TestFile]):
     print("-" * 70)
     for tf in sorted(results.values(), key=lambda x: (x.layer, x.name)):
         if tf.source_count != tf.doc_header_count:
-            print(f"  {tf.name}: ({tf.doc_header_count} tests) → ({tf.source_count} tests)")
+            print(
+                f"  {tf.name}: ({tf.doc_header_count} tests) → ({tf.source_count} tests)"
+            )
 
 
 def print_missing_stubs(results: dict[str, TestFile]):

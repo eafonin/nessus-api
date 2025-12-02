@@ -14,31 +14,28 @@ Usage:
 """
 
 import asyncio
-import sys
 import json
-from pathlib import Path
+import sys
 from datetime import datetime
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from client.nessus_fastmcp_client import NessusFastMCPClient
 
 
-async def main():
+async def main() -> None:
     """Complete workflow example with error handling."""
 
-    print("="  * 70)
+    print("=" * 70)
     print(" " * 15 + "NESSUS MCP CLIENT - FULL WORKFLOW")
     print("=" * 70)
     print()
 
     try:
         async with NessusFastMCPClient(
-            url="http://localhost:8836/mcp",
-            timeout=60.0,
-            debug=True
+            url="http://localhost:8836/mcp", timeout=60.0, debug=True
         ) as client:
-
             # Step 1: Server health check
             print("STEP 1: Server Health Check")
             print("-" * 70)
@@ -54,11 +51,13 @@ async def main():
             print("STEP 2: Available Scanners")
             print("-" * 70)
             scanners_info = await client.list_scanners()
-            scanners = scanners_info.get('scanners', [])
+            scanners = scanners_info.get("scanners", [])
             print(f"Registered scanners: {len(scanners)}")
             for scanner in scanners:
-                status = "✓ Enabled" if scanner.get('enabled') else "✗ Disabled"
-                print(f"  - {scanner.get('name')} ({scanner.get('scanner_type')}): {status}")
+                status = "✓ Enabled" if scanner.get("enabled") else "✗ Disabled"
+                print(
+                    f"  - {scanner.get('name')} ({scanner.get('scanner_type')}): {status}"
+                )
             print()
 
             # Step 3: Check queue status
@@ -67,7 +66,7 @@ async def main():
             queue = await client.get_queue_status()
             print(f"Main queue depth: {queue.get('main_queue_depth', 0)}")
             print(f"Dead letter queue: {queue.get('dlq_depth', 0)}")
-            if queue.get('main_queue_depth', 0) > 0:
+            if queue.get("main_queue_depth", 0) > 0:
                 print("⚠ Queue has pending tasks. Your scan will be queued.")
             print()
 
@@ -75,17 +74,22 @@ async def main():
             print("STEP 4: Submit Scan")
             print("-" * 70)
 
-            targets = input("Enter target IP/range (default: 192.168.1.1): ").strip() or "192.168.1.1"
-            scan_name = f"Full Workflow Scan - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            targets = (
+                input("Enter target IP/range (default: 192.168.1.1): ").strip()
+                or "192.168.1.1"
+            )
+            scan_name = (
+                f"Full Workflow Scan - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            )
 
             task = await client.submit_scan(
                 targets=targets,
                 scan_name=scan_name,
-                description="Complete workflow demonstration"
+                description="Complete workflow demonstration",
             )
 
             task_id = task["task_id"]
-            print(f"✓ Scan submitted successfully")
+            print("✓ Scan submitted successfully")
             print(f"  Task ID: {task_id}")
             print(f"  Status: {task['status']}")
             print(f"  Idempotent: {task.get('idempotent', False)}")
@@ -97,20 +101,20 @@ async def main():
             print("Waiting for scan to complete (timeout: 10 minutes)...")
             print()
 
-            def progress_callback(status):
-                progress = status.get('progress', 0)
-                task_status = status['status']
+            def progress_callback(status: dict) -> None:
+                progress = status.get("progress", 0)
+                task_status = status["status"]
                 bar_length = 50
                 filled = int(bar_length * progress / 100)
-                bar = '█' * filled + '░' * (bar_length - filled)
-                print(f"\r  [{bar}] {progress}% - {task_status}", end='', flush=True)
+                bar = "█" * filled + "░" * (bar_length - filled)
+                print(f"\r  [{bar}] {progress}% - {task_status}", end="", flush=True)
 
             try:
                 final_status = await client.wait_for_completion(
                     task_id=task_id,
                     timeout=600,
                     poll_interval=10,
-                    progress_callback=progress_callback
+                    progress_callback=progress_callback,
                 )
                 print()  # New line after progress bar
                 print()
@@ -140,7 +144,7 @@ async def main():
             print(f"  Total:        {total}")
             print()
 
-            if summary.get('4', 0) > 0:
+            if summary.get("4", 0) > 0:
                 # Get critical vulnerabilities
                 print("Critical Vulnerabilities:")
                 critical = await client.get_critical_vulnerabilities(task_id)
@@ -149,14 +153,18 @@ async def main():
                     print(f"\n  {i}. {vuln.get('plugin_name', 'Unknown')}")
                     print(f"     Host: {vuln.get('host')}")
                     print(f"     CVSS: {vuln.get('cvss_score', 'N/A')}")
-                    cve = vuln.get('cve', [])
+                    cve = vuln.get("cve", [])
                     if cve:
-                        print(f"     CVE: {', '.join(cve if isinstance(cve, list) else [cve])}")
-                    if vuln.get('exploit_available'):
-                        print(f"     ⚠ EXPLOIT AVAILABLE")
+                        print(
+                            f"     CVE: {', '.join(cve if isinstance(cve, list) else [cve])}"
+                        )
+                    if vuln.get("exploit_available"):
+                        print("     ⚠ EXPLOIT AVAILABLE")
 
                 if len(critical) > 5:
-                    print(f"\n  ... and {len(critical) - 5} more critical vulnerabilities")
+                    print(
+                        f"\n  ... and {len(critical) - 5} more critical vulnerabilities"
+                    )
             else:
                 print("No critical vulnerabilities found.")
             print()
@@ -165,20 +173,17 @@ async def main():
             print("STEP 7: Export Options")
             print("-" * 70)
             print("JSON-NL format available for export:")
-            print(f"  - All data: page=0")
-            print(f"  - Paginated: page=1, page_size=40")
-            print(f"  - Filtered: filters={{'severity': '4'}}")
+            print("  - All data: page=0")
+            print("  - Paginated: page=1, page_size=40")
+            print("  - Filtered: filters={'severity': '4'}")
             print()
 
             # Get first page of all vulns
             results = await client.get_results(
-                task_id=task_id,
-                schema_profile="minimal",
-                page=1,
-                page_size=5
+                task_id=task_id, schema_profile="minimal", page=1, page_size=5
             )
 
-            lines = results.strip().split('\n')
+            lines = results.strip().split("\n")
             print(f"Sample output ({len(lines)} lines):")
             for line in lines[:3]:
                 data = json.loads(line)
@@ -203,6 +208,7 @@ async def main():
         print()
         print(f"✗ Error: {e}")
         import traceback
+
         traceback.print_exc()
 
 

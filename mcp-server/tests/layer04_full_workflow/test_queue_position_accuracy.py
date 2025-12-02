@@ -14,13 +14,12 @@ Usage:
 Note: These tests may take several minutes as they submit actual scans.
 """
 
-import pytest
-import pytest_asyncio
-import asyncio
 import os
 
-from client.nessus_fastmcp_client import NessusFastMCPClient
+import pytest
+import pytest_asyncio
 
+from client.nessus_fastmcp_client import NessusFastMCPClient
 
 # Configuration
 MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://mcp-api:8000/mcp")
@@ -50,7 +49,7 @@ class TestQueuePositionReporting:
                 "targets": TEST_TARGET,
                 "name": "Queue Position Test",
                 "description": "Testing queue position reporting",
-            }
+            },
         )
 
         # Response should include queue position
@@ -70,7 +69,7 @@ class TestQueuePositionReporting:
                     "targets": TEST_TARGET,
                     "name": f"Queue Test {i}",
                     "description": f"Testing queue position {i}",
-                }
+                },
             )
             if "queue_position" in result:
                 positions.append(result["queue_position"])
@@ -86,7 +85,7 @@ class TestQueuePositionReporting:
         """Test that queue status updates after submissions."""
         # Get initial queue depth
         initial_status = await mcp_client.call_tool("get_queue_status", {})
-        initial_depth = initial_status.get("queue_depth", 0)
+        initial_status.get("queue_depth", 0)
 
         # Submit a scan
         await mcp_client.call_tool(
@@ -94,7 +93,7 @@ class TestQueuePositionReporting:
             {
                 "targets": TEST_TARGET,
                 "name": "Queue Depth Test",
-            }
+            },
         )
 
         # Check queue status again
@@ -193,17 +192,14 @@ class TestQueuePositionWithRealScans:
             {
                 "targets": TEST_TARGET,
                 "name": "Queue Position Tracking Test",
-            }
+            },
         )
 
         task_id = result.get("task_id")
         assert task_id is not None
 
         # Check initial status
-        status = await mcp_client.call_tool(
-            "get_scan_status",
-            {"task_id": task_id}
-        )
+        status = await mcp_client.call_tool("get_scan_status", {"task_id": task_id})
 
         # Status should show queued or running
         assert status["status"] in ["queued", "running", "completed"]
@@ -219,7 +215,7 @@ class TestQueuePositionWithRealScans:
                 {
                     "targets": TEST_TARGET,
                     "name": f"Order Test {i}",
-                }
+                },
             )
             if "task_id" in result:
                 task_ids.append(result["task_id"])
@@ -230,16 +226,13 @@ class TestQueuePositionWithRealScans:
         # Verify all tasks exist in list_tasks
         tasks_result = await mcp_client.call_tool("list_tasks", {"limit": 10})
 
-        task_ids_in_list = {t["task_id"] for t in tasks_result.get("tasks", [])}
+        {t["task_id"] for t in tasks_result.get("tasks", [])}
 
         # At least some of our submitted tasks should appear
         # (depending on how fast they complete)
         for tid in task_ids:
             # Task should either be in list or have completed
-            status = await mcp_client.call_tool(
-                "get_scan_status",
-                {"task_id": tid}
-            )
+            status = await mcp_client.call_tool("get_scan_status", {"task_id": tid})
             assert "status" in status
 
 

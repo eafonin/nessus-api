@@ -1,8 +1,10 @@
 """Unit tests for NessusValidator with authentication detection."""
-import pytest
-import tempfile
+
 import shutil
+import tempfile
 from pathlib import Path
+
+import pytest
 
 from scanners.nessus_validator import (
     NessusValidator,
@@ -126,10 +128,7 @@ Credentialed checks : no
 
     def test_untrusted_scan_success(self, validator, untrusted_scan_xml):
         """Test untrusted scan validation succeeds."""
-        result = validator.validate(
-            untrusted_scan_xml,
-            scan_type="untrusted"
-        )
+        result = validator.validate(untrusted_scan_xml, scan_type="untrusted")
 
         assert result.is_valid is True
         assert result.authentication_status == "not_applicable"
@@ -138,10 +137,7 @@ Credentialed checks : no
 
     def test_untrusted_scan_severity_counts(self, validator, untrusted_scan_xml):
         """Test untrusted scan severity counting."""
-        result = validator.validate(
-            untrusted_scan_xml,
-            scan_type="untrusted"
-        )
+        result = validator.validate(untrusted_scan_xml, scan_type="untrusted")
 
         severity = result.stats["severity_counts"]
         assert severity["critical"] == 0
@@ -266,10 +262,7 @@ Credentialed checks : partial
 
     def test_trusted_scan_auth_success(self, validator, trusted_scan_success_xml):
         """Test trusted scan with successful authentication."""
-        result = validator.validate(
-            trusted_scan_success_xml,
-            scan_type="trusted_basic"
-        )
+        result = validator.validate(trusted_scan_success_xml, scan_type="trusted_basic")
 
         assert result.is_valid is True
         assert result.authentication_status == "success"
@@ -278,10 +271,7 @@ Credentialed checks : partial
 
     def test_trusted_scan_auth_failed(self, validator, trusted_scan_failed_xml):
         """Test trusted scan with failed authentication."""
-        result = validator.validate(
-            trusted_scan_failed_xml,
-            scan_type="trusted_basic"
-        )
+        result = validator.validate(trusted_scan_failed_xml, scan_type="trusted_basic")
 
         assert result.is_valid is False
         assert result.authentication_status == "failed"
@@ -292,8 +282,7 @@ Credentialed checks : partial
     def test_trusted_scan_auth_partial(self, validator, trusted_scan_partial_xml):
         """Test trusted scan with partial authentication."""
         result = validator.validate(
-            trusted_scan_partial_xml,
-            scan_type="trusted_privileged"
+            trusted_scan_partial_xml, scan_type="trusted_privileged"
         )
 
         assert result.is_valid is True  # Partial is still valid
@@ -304,8 +293,7 @@ Credentialed checks : partial
     def test_trusted_privileged_scan_failed(self, validator, trusted_scan_failed_xml):
         """Test trusted_privileged scan also fails on auth failure."""
         result = validator.validate(
-            trusted_scan_failed_xml,
-            scan_type="trusted_privileged"
+            trusted_scan_failed_xml, scan_type="trusted_privileged"
         )
 
         assert result.is_valid is False
@@ -314,10 +302,7 @@ Credentialed checks : partial
 
     def test_severity_counts_trusted(self, validator, trusted_scan_success_xml):
         """Test severity counts for trusted scan."""
-        result = validator.validate(
-            trusted_scan_success_xml,
-            scan_type="trusted_basic"
-        )
+        result = validator.validate(trusted_scan_success_xml, scan_type="trusted_basic")
 
         severity = result.stats["severity_counts"]
         assert severity["critical"] == 1  # Windows Security Update
@@ -377,10 +362,7 @@ class TestNessusValidatorHostCounts:
 
     def test_expected_hosts_warning(self, validator, multi_host_xml):
         """Test warning when fewer hosts than expected."""
-        result = validator.validate(
-            multi_host_xml,
-            expected_hosts=5
-        )
+        result = validator.validate(multi_host_xml, expected_hosts=5)
 
         assert result.is_valid is True  # Still valid, just warning
         assert len(result.warnings) == 1
@@ -388,10 +370,7 @@ class TestNessusValidatorHostCounts:
 
     def test_expected_hosts_met(self, validator, multi_host_xml):
         """Test no warning when host count meets expectation."""
-        result = validator.validate(
-            multi_host_xml,
-            expected_hosts=3
-        )
+        result = validator.validate(multi_host_xml, expected_hosts=3)
 
         assert result.is_valid is True
         assert len(result.warnings) == 0
@@ -443,10 +422,7 @@ class TestNessusValidatorAuthInference:
 
     def test_auth_inferred_from_plugins(self, validator, auth_inferred_xml):
         """Test auth status inferred from plugin count when 19506 missing."""
-        result = validator.validate(
-            auth_inferred_xml,
-            scan_type="trusted_basic"
-        )
+        result = validator.validate(auth_inferred_xml, scan_type="trusted_basic")
 
         assert result.is_valid is True
         assert result.authentication_status == "success"
@@ -506,7 +482,7 @@ class TestValidationResultDataclass:
             error="Test error",
             warnings=["warning1", "warning2"],
             stats={"hosts": 5},
-            authentication_status="success"
+            authentication_status="success",
         )
 
         assert result.is_valid is False

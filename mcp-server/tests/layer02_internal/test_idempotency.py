@@ -2,7 +2,8 @@
 
 import pytest
 import redis
-from core.idempotency import IdempotencyManager, ConflictError
+
+from core.idempotency import ConflictError, IdempotencyManager
 
 
 @pytest.fixture

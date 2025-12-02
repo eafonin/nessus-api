@@ -11,16 +11,20 @@ References:
 - nessusAPIWrapper/export_vulnerabilities.py - Export workflow
 - HTTPX_READERROR_INVESTIGATION.md - ReadError workaround (Option 4)
 """
+
 import asyncio
-import httpx
 import logging
-from typing import Dict, Any, Optional, Callable, Awaitable, TypeVar, List
-from .base import ScannerInterface, ScanRequest
+from collections.abc import Awaitable, Callable
+from typing import Any, ClassVar, TypeVar
+
+import httpx
+
 from .api_token_fetcher import fetch_and_verify_token
+from .base import ScannerInterface, ScanRequest
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class NessusScanner(ScannerInterface):
@@ -44,20 +48,20 @@ class NessusScanner(ScannerInterface):
     SCANNER_LOCAL = 1
 
     # Valid SSH privilege escalation methods (from nessusAPIWrapper/manage_credentials.py)
-    VALID_ESCALATION_METHODS = {
-        "Nothing",           # No privilege escalation
-        "sudo",              # Most common - sudo to root
-        "su",                # Switch user
-        "su+sudo",           # Combined su then sudo
-        "pbrun",             # PowerBroker
-        "dzdo",              # Centrify DirectAuthorize
-        ".k5login",          # Kerberos
-        "Cisco 'enable'",    # Network devices
-        "Checkpoint Gaia 'expert'"  # Checkpoint firewalls
+    VALID_ESCALATION_METHODS: ClassVar[set[str]] = {
+        "Nothing",  # No privilege escalation
+        "sudo",  # Most common - sudo to root
+        "su",  # Switch user
+        "su+sudo",  # Combined su then sudo
+        "pbrun",  # PowerBroker
+        "dzdo",  # Centrify DirectAuthorize
+        ".k5login",  # Kerberos
+        "Cisco 'enable'",  # Network devices
+        "Checkpoint Gaia 'expert'",  # Checkpoint firewalls
     }
 
-    # Status mapping: Nessus → MCP
-    STATUS_MAP = {
+    # Status mapping: Nessus -> MCP
+    STATUS_MAP: ClassVar[dict[str, str]] = {
         "pending": "queued",
         "running": "running",
         "paused": "running",  # Treat paused as still running
@@ -69,12 +73,8 @@ class NessusScanner(ScannerInterface):
     }
 
     def __init__(
-        self,
-        url: str,
-        username: str,
-        password: str,
-        verify_ssl: bool = False
-    ):
+        self, url: str, username: str, password: str, verify_ssl: bool = False
+    ) -> None:
         """
         Initialize Nessus scanner.
 
@@ -90,17 +90,15 @@ class NessusScanner(ScannerInterface):
         self.verify_ssl = verify_ssl
 
         # HTTP session and tokens
-        self._session: Optional[httpx.AsyncClient] = None
-        self._session_token: Optional[str] = None
-        self._api_token: Optional[str] = None  # Dynamically fetched X-API-Token
+        self._session: httpx.AsyncClient | None = None
+        self._session_token: str | None = None
+        self._api_token: str | None = None  # Dynamically fetched X-API-Token
 
     async def _get_session(self) -> httpx.AsyncClient:
         """Get or create async HTTP session."""
         if not self._session:
             self._session = httpx.AsyncClient(
-                verify=self.verify_ssl,
-                timeout=30.0,
-                follow_redirects=True
+                verify=self.verify_ssl, timeout=30.0, follow_redirects=True
             )
         return self._session
 
@@ -116,10 +114,7 @@ class NessusScanner(ScannerInterface):
 
         logger.info("Fetching X-API-Token from Nessus Web UI...")
         token = await fetch_and_verify_token(
-            self.url,
-            self.username,
-            self.password,
-            self.verify_ssl
+            self.url, self.username, self.password, self.verify_ssl
         )
 
         if not token:
@@ -146,26 +141,18 @@ class NessusScanner(ScannerInterface):
         client = await self._get_session()
 
         # Minimal headers for authentication
-        headers = {
-            'Content-Type': 'application/json',
-            'X-API-Token': self._api_token
-        }
+        headers = {"Content-Type": "application/json", "X-API-Token": self._api_token}
 
-        payload = {
-            'username': self.username,
-            'password': self.password
-        }
+        payload = {"username": self.username, "password": self.password}
 
         try:
             response = await client.post(
-                f"{self.url}/session",
-                json=payload,
-                headers=headers
+                f"{self.url}/session", json=payload, headers=headers
             )
             response.raise_for_status()
 
             data = response.json()
-            self._session_token = data.get('token')
+            self._session_token = data.get("token")
 
             if not self._session_token:
                 raise ValueError("No session token in response")
@@ -174,12 +161,12 @@ class NessusScanner(ScannerInterface):
 
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 401:
-                raise ValueError(f"Authentication failed: invalid credentials")
+                raise ValueError("Authentication failed: invalid credentials") from e
             elif e.response.status_code == 403:
-                raise ValueError(f"Authentication forbidden: check Nessus permissions")
-            raise ValueError(f"Authentication failed: HTTP {e.response.status_code}")
+                raise ValueError("Authentication forbidden: check Nessus permissions") from e
+            raise ValueError(f"Authentication failed: HTTP {e.response.status_code}") from e
 
-    def _build_headers(self, web_ui_marker: bool = False) -> Dict[str, str]:
+    def _build_headers(self, web_ui_marker: bool = False) -> dict[str, str]:
         """
         Build authenticated request headers.
 
@@ -193,14 +180,14 @@ class NessusScanner(ScannerInterface):
             raise ValueError("Not authenticated - call _authenticate() first")
 
         headers = {
-            'Content-Type': 'application/json',
-            'X-API-Token': self._api_token,
-            'X-Cookie': f'token={self._session_token}'
+            "Content-Type": "application/json",
+            "X-API-Token": self._api_token,
+            "X-Cookie": f"token={self._session_token}",
         }
 
         if web_ui_marker:
             # CRITICAL: Web UI simulation marker for launch/stop operations
-            headers['X-KL-kfa-Ajax-Request'] = 'Ajax_Request'
+            headers["X-KL-kfa-Ajax-Request"] = "Ajax_Request"
 
         return headers
 
@@ -219,7 +206,7 @@ class NessusScanner(ScannerInterface):
         self,
         operation_name: str,
         request_func: Callable[[], Awaitable[T]],
-        max_retries: int = 1
+        max_retries: int = 1,
     ) -> T:
         """
         Execute authenticated request with automatic retry on 401.
@@ -259,8 +246,8 @@ class NessusScanner(ScannerInterface):
         self,
         operation_name: str,
         request_func: Callable[[], Awaitable[T]],
-        verify_func: Optional[Callable[[], Awaitable[Optional[T]]]] = None,
-        allow_412: bool = True
+        verify_func: Callable[[], Awaitable[T | None]] | None = None,
+        allow_412: bool = True,
     ) -> T:
         """
         Execute write operation with ReadError workaround.
@@ -309,7 +296,7 @@ class NessusScanner(ScannerInterface):
             raise ValueError(
                 f"{operation_name} failed: Nessus API unavailable "
                 "(scan_api: false restriction causes HTTP 412 + connection drop)"
-            )
+            ) from e
 
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 412 and allow_412:
@@ -320,7 +307,7 @@ class NessusScanner(ScannerInterface):
                 )
                 raise ValueError(
                     f"{operation_name} blocked: Nessus Essentials (scan_api: false)"
-                )
+                ) from e
             # Re-raise other HTTP errors
             raise
 
@@ -356,14 +343,16 @@ class NessusScanner(ScannerInterface):
                 "enabled": True,
                 "folder_id": self.FOLDER_MY_SCANS,
                 "scanner_id": self.SCANNER_LOCAL,
-                "launch_now": False  # Always explicit launch
-            }
+                "launch_now": False,  # Always explicit launch
+            },
         }
 
         # Phase 5: Add credentials if provided (authenticated/authenticated_privileged scans)
         if request.credentials:
             self._validate_credentials(request.credentials)
-            payload["credentials"] = self._build_credentials_payload(request.credentials)
+            payload["credentials"] = self._build_credentials_payload(
+                request.credentials
+            )
             logger.info(
                 f"Creating authenticated scan '{request.name}' with SSH credentials "
                 f"(user={request.credentials.get('username')}, "
@@ -373,9 +362,7 @@ class NessusScanner(ScannerInterface):
         async def _do_create() -> int:
             """Execute create scan HTTP request."""
             response = await client.post(
-                f"{self.url}/scans",
-                json=payload,
-                headers=self._build_headers()
+                f"{self.url}/scans", json=payload, headers=self._build_headers()
             )
             response.raise_for_status()
 
@@ -387,13 +374,12 @@ class NessusScanner(ScannerInterface):
 
             return scan_id
 
-        async def _verify_create() -> Optional[int]:
+        async def _verify_create() -> int | None:
             """Verify scan was created by checking scan list."""
             try:
                 # List all scans and find one with matching name
                 response = await client.get(
-                    f"{self.url}/scans",
-                    headers=self._build_headers()
+                    f"{self.url}/scans", headers=self._build_headers()
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -422,20 +408,19 @@ class NessusScanner(ScannerInterface):
                 operation_name="create_scan",
                 request_func=_do_create,
                 verify_func=_verify_create,
-                allow_412=True
+                allow_412=True,
             )
 
         try:
             return await self._with_auth_retry(
-                "create_scan",
-                _create_with_read_error_handling
+                "create_scan", _create_with_read_error_handling
             )
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 403:
-                raise ValueError("Forbidden: API restriction (use Web UI headers)")
+                raise ValueError("Forbidden: API restriction (use Web UI headers)") from e
             elif e.response.status_code == 400:
-                raise ValueError(f"Bad request: {e.response.text[:200]}")
-            raise ValueError(f"Scan creation failed: HTTP {e.response.status_code}")
+                raise ValueError(f"Bad request: {e.response.text[:200]}") from e
+            raise ValueError(f"Scan creation failed: HTTP {e.response.status_code}") from e
 
     async def launch_scan(self, scan_id: int) -> str:
         """
@@ -461,7 +446,7 @@ class NessusScanner(ScannerInterface):
             response = await client.post(
                 f"{self.url}/scans/{scan_id}/launch",
                 json={},  # Empty payload
-                headers=self._build_headers(web_ui_marker=True)  # CRITICAL!
+                headers=self._build_headers(web_ui_marker=True),  # CRITICAL!
             )
             response.raise_for_status()
 
@@ -477,14 +462,14 @@ class NessusScanner(ScannerInterface):
             return await self._with_auth_retry("launch_scan", _do_launch)
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 403:
-                raise ValueError("Forbidden: Missing X-KL-kfa-Ajax-Request header")
+                raise ValueError("Forbidden: Missing X-KL-kfa-Ajax-Request header") from e
             elif e.response.status_code == 404:
-                raise ValueError(f"Scan {scan_id} not found")
+                raise ValueError(f"Scan {scan_id} not found") from e
             elif e.response.status_code == 409:
-                raise ValueError(f"Scan {scan_id} already running")
-            raise ValueError(f"Scan launch failed: HTTP {e.response.status_code}")
+                raise ValueError(f"Scan {scan_id} already running") from e
+            raise ValueError(f"Scan launch failed: HTTP {e.response.status_code}") from e
 
-    async def get_status(self, scan_id: int) -> Dict[str, Any]:
+    async def get_status(self, scan_id: int) -> dict[str, Any]:
         """
         Get scan status and progress.
 
@@ -511,8 +496,7 @@ class NessusScanner(ScannerInterface):
         for attempt in range(2):
             try:
                 response = await client.get(
-                    f"{self.url}/scans/{scan_id}",
-                    headers=self._build_headers()
+                    f"{self.url}/scans/{scan_id}", headers=self._build_headers()
                 )
                 response.raise_for_status()
 
@@ -538,22 +522,24 @@ class NessusScanner(ScannerInterface):
                     "progress": progress,
                     "uuid": info.get("uuid", ""),
                     "host_count": len(hosts),
-                    "info": info  # Full response for debugging
+                    "info": info,  # Full response for debugging
                 }
 
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == 401 and attempt == 0:
                     # Session expired - clear tokens and retry with fresh authentication
-                    logger.warning(f"Session expired for scan {scan_id}, re-authenticating...")
+                    logger.warning(
+                        f"Session expired for scan {scan_id}, re-authenticating..."
+                    )
                     self._session_token = None
                     self._api_token = None
                     await self._authenticate()
                     continue  # Retry
                 elif e.response.status_code == 404:
-                    raise ValueError(f"Scan {scan_id} not found")
-                raise ValueError(f"Status check failed: HTTP {e.response.status_code}")
+                    raise ValueError(f"Scan {scan_id} not found") from e
+                raise ValueError(f"Status check failed: HTTP {e.response.status_code}") from e
 
-        raise ValueError(f"Status check failed after retry")
+        raise ValueError("Status check failed after retry")
 
     async def export_results(self, scan_id: int) -> bytes:
         """
@@ -584,7 +570,7 @@ class NessusScanner(ScannerInterface):
             response = await client.post(
                 f"{self.url}/scans/{scan_id}/export",
                 json={"format": "nessus"},
-                headers=self._build_headers()
+                headers=self._build_headers(),
             )
             response.raise_for_status()
 
@@ -593,13 +579,13 @@ class NessusScanner(ScannerInterface):
                 raise ValueError("No file ID in export response")
 
             # Step 2: Poll export status (max 5 minutes)
-            max_iterations = 150  # 150 × 2 seconds = 5 minutes
-            for iteration in range(max_iterations):
+            max_iterations = 150  # 150 x 2 seconds = 5 minutes
+            for _iteration in range(max_iterations):
                 await asyncio.sleep(2)
 
                 status_response = await client.get(
                     f"{self.url}/scans/{scan_id}/export/{file_id}/status",
-                    headers=self._build_headers()
+                    headers=self._build_headers(),
                 )
                 status_response.raise_for_status()
 
@@ -607,12 +593,14 @@ class NessusScanner(ScannerInterface):
                 if status == "ready":
                     break
             else:
-                raise TimeoutError(f"Export did not complete in {max_iterations * 2} seconds")
+                raise TimeoutError(
+                    f"Export did not complete in {max_iterations * 2} seconds"
+                )
 
             # Step 3: Download export
             download_response = await client.get(
                 f"{self.url}/scans/{scan_id}/export/{file_id}/download",
-                headers=self._build_headers()
+                headers=self._build_headers(),
             )
             download_response.raise_for_status()
 
@@ -622,8 +610,8 @@ class NessusScanner(ScannerInterface):
             return await self._with_auth_retry("export_results", _do_export)
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
-                raise ValueError(f"Scan {scan_id} not found or no results available")
-            raise ValueError(f"Export failed: HTTP {e.response.status_code}")
+                raise ValueError(f"Scan {scan_id} not found or no results available") from e
+            raise ValueError(f"Export failed: HTTP {e.response.status_code}") from e
 
     async def stop_scan(self, scan_id: int) -> bool:
         """
@@ -647,7 +635,7 @@ class NessusScanner(ScannerInterface):
             response = await client.post(
                 f"{self.url}/scans/{scan_id}/stop",
                 json={},
-                headers=self._build_headers(web_ui_marker=True)  # Requires marker
+                headers=self._build_headers(web_ui_marker=True),  # Requires marker
             )
             response.raise_for_status()
             return True
@@ -656,11 +644,11 @@ class NessusScanner(ScannerInterface):
             return await self._with_auth_retry("stop_scan", _do_stop)
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
-                raise ValueError(f"Scan {scan_id} not found")
+                raise ValueError(f"Scan {scan_id} not found") from e
             elif e.response.status_code == 409:
                 # Already stopped or not running
                 return True
-            raise ValueError(f"Stop scan failed: HTTP {e.response.status_code}")
+            raise ValueError(f"Stop scan failed: HTTP {e.response.status_code}") from e
 
     async def delete_scan(self, scan_id: int) -> bool:
         """
@@ -685,13 +673,12 @@ class NessusScanner(ScannerInterface):
             await client.put(
                 f"{self.url}/scans/{scan_id}",
                 json={"folder_id": 2},  # Folder 2 = Trash
-                headers=self._build_headers()
+                headers=self._build_headers(),
             )
 
             # Step 2: Delete from trash
             response = await client.delete(
-                f"{self.url}/scans/{scan_id}",
-                headers=self._build_headers()
+                f"{self.url}/scans/{scan_id}", headers=self._build_headers()
             )
             response.raise_for_status()
             return True
@@ -705,11 +692,13 @@ class NessusScanner(ScannerInterface):
             elif e.response.status_code == 409:
                 # Scan in transitional state (just stopped, being processed, etc.)
                 # This is expected behavior - scan will be deleted eventually
-                logger.warning(f"Scan {scan_id} in transitional state (HTTP 409), marked for deletion")
+                logger.warning(
+                    f"Scan {scan_id} in transitional state (HTTP 409), marked for deletion"
+                )
                 return True
-            raise ValueError(f"Delete scan failed: HTTP {e.response.status_code}")
+            raise ValueError(f"Delete scan failed: HTTP {e.response.status_code}") from e
 
-    async def list_scans(self) -> List[Dict[str, Any]]:
+    async def list_scans(self) -> list[dict[str, Any]]:
         """
         List all scans on this Nessus instance.
 
@@ -728,10 +717,9 @@ class NessusScanner(ScannerInterface):
         await self._authenticate()
         client = await self._get_session()
 
-        async def _do_list():
+        async def _do_list() -> list[dict[str, Any]]:
             response = await client.get(
-                f"{self.url}/scans",
-                headers=self._build_headers()
+                f"{self.url}/scans", headers=self._build_headers()
             )
             response.raise_for_status()
             data = response.json()
@@ -743,9 +731,9 @@ class NessusScanner(ScannerInterface):
         try:
             return await self._with_auth_retry("list_scans", _do_list)
         except httpx.HTTPStatusError as e:
-            raise ValueError(f"List scans failed: HTTP {e.response.status_code}")
+            raise ValueError(f"List scans failed: HTTP {e.response.status_code}") from e
 
-    def _validate_credentials(self, credentials: Dict[str, Any]) -> None:
+    def _validate_credentials(self, credentials: dict[str, Any]) -> None:
         """
         Validate credential structure before use.
 
@@ -777,10 +765,7 @@ class NessusScanner(ScannerInterface):
         else:
             raise ValueError(f"Unsupported credential type: {cred_type}")
 
-    def _build_credentials_payload(
-        self,
-        credentials: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _build_credentials_payload(self, credentials: dict[str, Any]) -> dict[str, Any]:
         """
         Build Nessus credentials payload from request credentials.
 
@@ -803,7 +788,7 @@ class NessusScanner(ScannerInterface):
                     "elevate_privileges_with", "Nothing"
                 ),
                 "custom_password_prompt": "",
-                "target_priority_list": ""
+                "target_priority_list": "",
             }
 
             # Add escalation fields if using sudo/su
@@ -814,15 +799,7 @@ class NessusScanner(ScannerInterface):
                 if credentials.get("escalation_account"):
                     ssh_cred["escalation_account"] = credentials["escalation_account"]
 
-            return {
-                "add": {
-                    "Host": {
-                        "SSH": [ssh_cred]
-                    }
-                },
-                "edit": {},
-                "delete": []
-            }
+            return {"add": {"Host": {"SSH": [ssh_cred]}}, "edit": {}, "delete": []}
 
         raise ValueError(f"Unsupported credential type: {cred_type}")
 

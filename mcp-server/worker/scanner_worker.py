@@ -4,32 +4,35 @@ Phase 4: Supports pool-based queue consumption.
 """
 
 import asyncio
-import signal
-import os
+import contextlib
 import logging
-from typing import Optional, List, Dict, Set
-from pathlib import Path
+import os
+import signal
+from types import FrameType
 
+from core.housekeeping import (
+    run_nessus_scan_cleanup,
+    run_periodic_cleanup,
+    run_stale_scan_cleanup,
+)
+from core.metrics import (
+    record_auth_failure,
+    record_validation_failure,
+    record_validation_result,
+    update_all_scanner_metrics,
+    update_pool_dlq_depth,
+    update_pool_queue_depth,
+)
 from core.queue import TaskQueue
 from core.task_manager import TaskManager
 from core.types import ScanState
-from core.metrics import (
-    record_validation_result,
-    record_validation_failure,
-    record_auth_failure,
-    update_pool_queue_depth,
-    update_pool_dlq_depth,
-    update_all_scanner_metrics,
-)
-from scanners.registry import ScannerRegistry
-from scanners.base import ScanRequest
+from scanners.base import ScannerInterface, ScanRequest
 from scanners.nessus_validator import validate_scan_results
-from core.housekeeping import run_periodic_cleanup, run_stale_scan_cleanup, run_nessus_scan_cleanup
+from scanners.registry import ScannerRegistry
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -57,8 +60,8 @@ class ScannerWorker:
         queue: TaskQueue,
         task_manager: TaskManager,
         scanner_registry: ScannerRegistry,
-        pools: Optional[List[str]] = None
-    ):
+        pools: list[str] | None = None,
+    ) -> None:
         """
         Initialize scanner worker.
 
@@ -90,7 +93,7 @@ class ScannerWorker:
 
         # Per-pool active task tracking for backpressure control
         # Capacity for each pool is derived from scanner_registry.get_pool_capacity()
-        self.active_tasks_per_pool: Dict[str, Set[asyncio.Task]] = {
+        self.active_tasks_per_pool: dict[str, set[asyncio.Task]] = {
             pool: set() for pool in self.pools
         }
 
@@ -102,7 +105,7 @@ class ScannerWorker:
         """Get capacity for pool from scanner registry."""
         return self.scanner_registry.get_pool_capacity(pool)
 
-    def _get_pools_with_capacity(self) -> List[str]:
+    def _get_pools_with_capacity(self) -> list[str]:
         """Return pools that have available capacity for new scans."""
         available = []
         for pool in self.pools:
@@ -112,12 +115,14 @@ class ScannerWorker:
                 available.append(pool)
         return available
 
-    def _get_capacity_status(self) -> Dict[str, str]:
+    def _get_capacity_status(self) -> dict[str, str]:
         """Get human-readable capacity status for all pools."""
-        return {
-            pool: f"{len(self.active_tasks_per_pool.get(pool, set()))}/{self._get_pool_capacity(pool)}"
-            for pool in self.pools
-        }
+        result = {}
+        for pool in self.pools:
+            active = len(self.active_tasks_per_pool.get(pool, set()))
+            cap = self._get_pool_capacity(pool)
+            result[pool] = f"{active}/{cap}"
+        return result
 
     def _cleanup_completed_tasks(self) -> None:
         """Remove completed tasks from per-pool tracking."""
@@ -126,7 +131,7 @@ class ScannerWorker:
                 t for t in self.active_tasks_per_pool[pool] if not t.done()
             }
 
-    def _handle_shutdown(self, signum, frame):
+    def _handle_shutdown(self, signum: int, frame: FrameType | None) -> None:
         """Handle shutdown signals gracefully."""
         logger.info(f"Received signal {signum}, initiating graceful shutdown...")
         self.running = False
@@ -190,6 +195,7 @@ class ScannerWorker:
         # Would require checking target CIDR against limits before allowing scan.
         """
         import time
+
         metrics_interval = 30  # Update metrics every 30 seconds
         last_metrics_update = 0
 
@@ -215,9 +221,7 @@ class ScannerWorker:
                 # Dequeue task from pools with available capacity (blocking with 5s timeout)
                 # Run blocking Redis call in thread pool to avoid blocking event loop
                 task_data = await asyncio.to_thread(
-                    self.queue.dequeue_any,
-                    pools=pools_with_capacity,
-                    timeout=5
+                    self.queue.dequeue_any, pools=pools_with_capacity, timeout=5
                 )
 
                 if not task_data:
@@ -264,26 +268,26 @@ class ScannerWorker:
         """
         task_id = task_data.get("task_id", "unknown")
         trace_id = task_data.get("trace_id", "unknown")
-        scanner_pool = task_data.get("scanner_pool") or task_data.get("scanner_type", "nessus")
+        scanner_pool = task_data.get("scanner_pool") or task_data.get(
+            "scanner_type", "nessus"
+        )
         scanner_instance_id = task_data.get("scanner_instance_id")
 
-        logger.info(f"Processing task: {task_id}, trace_id: {trace_id}, pool: {scanner_pool}")
+        logger.info(
+            f"Processing task: {task_id}, trace_id: {trace_id}, pool: {scanner_pool}"
+        )
 
         scanner = None
         instance_key = None
         try:
             # Acquire scanner from pool (increments active_scans)
             scanner, instance_key = await self.scanner_registry.acquire_scanner(
-                pool=scanner_pool,
-                instance_id=scanner_instance_id
+                pool=scanner_pool, instance_id=scanner_instance_id
             )
             logger.info(f"[{task_id}] Acquired scanner: {instance_key}")
 
             # Transition to RUNNING
-            self.task_manager.update_status(
-                task_id,
-                ScanState.RUNNING
-            )
+            self.task_manager.update_status(task_id, ScanState.RUNNING)
 
             # Create scan request
             payload = task_data["payload"]
@@ -293,7 +297,7 @@ class ScannerWorker:
                 scan_type=task_data.get("scan_type", "untrusted"),
                 description=payload.get("description", ""),
                 credentials=payload.get("credentials"),
-                schema_profile=payload.get("schema_profile", "brief")
+                schema_profile=payload.get("schema_profile", "brief"),
             )
 
             # Create scan in Nessus
@@ -303,9 +307,7 @@ class ScannerWorker:
 
             # Update task with scan_id
             self.task_manager.update_status(
-                task_id,
-                ScanState.RUNNING,
-                nessus_scan_id=scan_id
+                task_id, ScanState.RUNNING, nessus_scan_id=scan_id
             )
 
             # Launch scan
@@ -319,7 +321,7 @@ class ScannerWorker:
                 scanner=scanner,
                 scan_id=scan_id,
                 scanner_pool=scanner_pool,
-                timeout_seconds=24 * 3600  # 24 hours
+                timeout_seconds=24 * 3600,  # 24 hours
             )
 
         except Exception as e:
@@ -350,10 +352,10 @@ class ScannerWorker:
     async def _poll_until_complete(
         self,
         task_id: str,
-        scanner,
+        scanner: ScannerInterface,
         scan_id: int,
         scanner_pool: str = "nessus",
-        timeout_seconds: int = 86400  # 24 hours
+        timeout_seconds: int = 86400,  # 24 hours
     ) -> None:
         """
         Poll scan status until completion or timeout.
@@ -371,7 +373,9 @@ class ScannerWorker:
         poll_interval = 30  # 30 seconds
         elapsed = 0
 
-        logger.info(f"[{task_id}] Polling scan {scan_id} (timeout: {timeout_seconds}s)...")
+        logger.info(
+            f"[{task_id}] Polling scan {scan_id} (timeout: {timeout_seconds}s)..."
+        )
 
         while elapsed < timeout_seconds:
             await asyncio.sleep(poll_interval)
@@ -406,8 +410,7 @@ class ScannerWorker:
                     # Phase 4: Validate scan results
                     scan_type = self._get_scan_type_from_task(task_id)
                     validation = validate_scan_results(
-                        nessus_file=results_file,
-                        scan_type=scan_type
+                        nessus_file=results_file, scan_type=scan_type
                     )
 
                     if validation.is_valid:
@@ -416,7 +419,7 @@ class ScannerWorker:
                             task_id,
                             validation_stats=validation.stats,
                             validation_warnings=validation.warnings,
-                            authentication_status=validation.authentication_status
+                            authentication_status=validation.authentication_status,
                         )
                         # Record validation success metric
                         record_validation_result(scanner_pool, is_valid=True)
@@ -432,7 +435,7 @@ class ScannerWorker:
                             task_id,
                             error_message=validation.error,
                             validation_stats=validation.stats,
-                            authentication_status=validation.authentication_status
+                            authentication_status=validation.authentication_status,
                         )
                         # Record validation failure metrics
                         record_validation_result(scanner_pool, is_valid=False)
@@ -463,9 +466,7 @@ class ScannerWorker:
                     logger.warning(f"[{task_id}] {error_msg}")
 
                     self.task_manager.update_status(
-                        task_id,
-                        ScanState.FAILED,
-                        error_message=error_msg
+                        task_id, ScanState.FAILED, error_message=error_msg
                     )
                     return
 
@@ -484,7 +485,7 @@ class ScannerWorker:
         self.task_manager.update_status(
             task_id,
             ScanState.TIMEOUT,
-            error_message=f"Scan timeout after {timeout_seconds}s"
+            error_message=f"Scan timeout after {timeout_seconds}s",
         )
 
     async def _handle_error(self, task_data: dict, error: Exception) -> None:
@@ -496,17 +497,17 @@ class ScannerWorker:
             error: Exception that occurred
         """
         task_id = task_data.get("task_id", "unknown")
-        scanner_pool = task_data.get("scanner_pool") or task_data.get("scanner_type", "nessus")
-        error_msg = f"{error.__class__.__name__}: {str(error)}"
+        scanner_pool = task_data.get("scanner_pool") or task_data.get(
+            "scanner_type", "nessus"
+        )
+        error_msg = f"{error.__class__.__name__}: {error!s}"
 
         logger.error(f"[{task_id}] Moving to DLQ (pool={scanner_pool}): {error_msg}")
 
         # Update task state to FAILED
         try:
             self.task_manager.update_status(
-                task_id,
-                ScanState.FAILED,
-                error_message=error_msg
+                task_id, ScanState.FAILED, error_message=error_msg
             )
         except Exception as e:
             logger.error(f"[{task_id}] Failed to update task state: {e}")
@@ -521,22 +522,24 @@ class ScannerWorker:
         for pool_tasks in self.active_tasks_per_pool.values():
             all_tasks.update(pool_tasks)
 
-        logger.info(f"Cleanup: waiting for {len(all_tasks)} active tasks across {len(self.pools)} pools...")
+        logger.info(
+            f"Cleanup: waiting for {len(all_tasks)} active tasks across {len(self.pools)} pools..."
+        )
 
         if all_tasks:
             # Wait for active tasks with timeout
             try:
                 await asyncio.wait_for(
                     asyncio.gather(*all_tasks, return_exceptions=True),
-                    timeout=60  # 1 minute timeout for cleanup
+                    timeout=60,  # 1 minute timeout for cleanup
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("Cleanup timeout - some tasks may not have finished")
 
         logger.info("Worker shutdown complete")
 
 
-async def main():
+async def main() -> int:
     """Worker entry point."""
     # Load configuration from environment
     redis_url = os.getenv("REDIS_URL", "redis://redis:6379")
@@ -547,7 +550,9 @@ async def main():
     # Pool configuration (comma-separated list or empty for all pools)
     # Example: WORKER_POOLS=nessus,nessus_dmz
     pools_env = os.getenv("WORKER_POOLS", "")
-    pools = [p.strip() for p in pools_env.split(",") if p.strip()] if pools_env else None
+    pools = (
+        [p.strip() for p in pools_env.split(",") if p.strip()] if pools_env else None
+    )
 
     # Housekeeping configuration
     housekeeping_enabled = os.getenv("HOUSEKEEPING_ENABLED", "true").lower() == "true"
@@ -556,12 +561,18 @@ async def main():
     failed_ttl_days = int(os.getenv("FAILED_TTL_DAYS", "30"))
 
     # Stale scan cleanup configuration
-    stale_scan_cleanup_enabled = os.getenv("STALE_SCAN_CLEANUP_ENABLED", "true").lower() == "true"
+    stale_scan_cleanup_enabled = (
+        os.getenv("STALE_SCAN_CLEANUP_ENABLED", "true").lower() == "true"
+    )
     stale_scan_hours = int(os.getenv("STALE_SCAN_HOURS", "24"))
-    stale_scan_delete_from_nessus = os.getenv("STALE_SCAN_DELETE_FROM_NESSUS", "true").lower() == "true"
+    stale_scan_delete_from_nessus = (
+        os.getenv("STALE_SCAN_DELETE_FROM_NESSUS", "true").lower() == "true"
+    )
 
     # Nessus scan cleanup configuration (delete finished scans from Nessus)
-    nessus_scan_cleanup_enabled = os.getenv("NESSUS_SCAN_CLEANUP_ENABLED", "true").lower() == "true"
+    nessus_scan_cleanup_enabled = (
+        os.getenv("NESSUS_SCAN_CLEANUP_ENABLED", "true").lower() == "true"
+    )
     nessus_scan_retention_hours = int(os.getenv("NESSUS_SCAN_RETENTION_HOURS", "24"))
 
     # Configure logging
@@ -597,7 +608,7 @@ async def main():
         queue=queue,
         task_manager=task_manager,
         scanner_registry=scanner_registry,
-        pools=pools
+        pools=pools,
     )
 
     # Start housekeeping background task if enabled
@@ -612,7 +623,7 @@ async def main():
                 data_dir=data_dir,
                 interval_hours=housekeeping_interval_hours,
                 completed_ttl_days=completed_ttl_days,
-                failed_ttl_days=failed_ttl_days
+                failed_ttl_days=failed_ttl_days,
             )
         )
 
@@ -629,7 +640,7 @@ async def main():
                 data_dir=data_dir,
                 interval_hours=housekeeping_interval_hours,  # Run at same interval
                 stale_hours=stale_scan_hours,
-                delete_from_nessus=stale_scan_delete_from_nessus
+                delete_from_nessus=stale_scan_delete_from_nessus,
             )
         )
 
@@ -644,7 +655,7 @@ async def main():
                 scanner_registry=scanner_registry,
                 interval_hours=housekeeping_interval_hours,  # Run at same interval
                 retention_hours=nessus_scan_retention_hours,
-                stale_running_hours=stale_scan_hours  # Use same threshold for stale running scans
+                stale_running_hours=stale_scan_hours,  # Use same threshold for stale running scans
             )
         )
 
@@ -658,22 +669,16 @@ async def main():
         # Cancel background tasks
         if housekeeping_task:
             housekeeping_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await housekeeping_task
-            except asyncio.CancelledError:
-                pass
         if stale_scan_task:
             stale_scan_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await stale_scan_task
-            except asyncio.CancelledError:
-                pass
         if nessus_scan_task:
             nessus_scan_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await nessus_scan_task
-            except asyncio.CancelledError:
-                pass
 
         queue.close()
         logger.info("Worker stopped")

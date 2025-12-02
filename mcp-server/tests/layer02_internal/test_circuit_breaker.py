@@ -1,15 +1,12 @@
 """Unit tests for circuit breaker."""
 
-import pytest
 import time
-from unittest.mock import patch
 
 from core.circuit_breaker import (
     CircuitBreaker,
-    CircuitState,
-    CircuitOpenError,
     CircuitBreakerRegistry,
-    get_circuit_breaker,
+    CircuitOpenError,
+    CircuitState,
 )
 
 
@@ -89,7 +86,7 @@ class TestCircuitBreakerRecovery:
             name="test",
             failure_threshold=1,
             recovery_timeout=0.1,
-            half_open_max_requests=2
+            half_open_max_requests=2,
         )
         cb.record_failure()
         time.sleep(0.15)
@@ -236,10 +233,7 @@ class TestCircuitBreakerRegistry:
 
     def test_custom_defaults(self):
         """Test registry with custom defaults."""
-        registry = CircuitBreakerRegistry(
-            failure_threshold=10,
-            recovery_timeout=60.0
-        )
+        registry = CircuitBreakerRegistry(failure_threshold=10, recovery_timeout=60.0)
         cb = registry.get("scanner1")
 
         assert cb.failure_threshold == 10
@@ -263,30 +257,45 @@ class TestMetricsIntegration:
         """Test state metric is updated on transitions."""
         from core.circuit_breaker import circuit_state_gauge
 
-        cb = CircuitBreaker(name="metrics_test", failure_threshold=1, recovery_timeout=0.1)
+        cb = CircuitBreaker(
+            name="metrics_test", failure_threshold=1, recovery_timeout=0.1
+        )
 
         # Initial closed state
-        assert circuit_state_gauge.labels(scanner_instance="metrics_test")._value.get() == 0
+        assert (
+            circuit_state_gauge.labels(scanner_instance="metrics_test")._value.get()
+            == 0
+        )
 
         # Open
         cb.record_failure()
-        assert circuit_state_gauge.labels(scanner_instance="metrics_test")._value.get() == 1
+        assert (
+            circuit_state_gauge.labels(scanner_instance="metrics_test")._value.get()
+            == 1
+        )
 
         # Half-open
         time.sleep(0.15)
         _ = cb.state  # Trigger check
-        assert circuit_state_gauge.labels(scanner_instance="metrics_test")._value.get() == 2
+        assert (
+            circuit_state_gauge.labels(scanner_instance="metrics_test")._value.get()
+            == 2
+        )
 
     def test_failure_counter_incremented(self):
         """Test failure counter incremented."""
         from core.circuit_breaker import circuit_failures_total
 
         cb = CircuitBreaker(name="counter_test", failure_threshold=5)
-        initial = circuit_failures_total.labels(scanner_instance="counter_test")._value.get()
+        initial = circuit_failures_total.labels(
+            scanner_instance="counter_test"
+        )._value.get()
 
         cb.record_failure()
 
-        final = circuit_failures_total.labels(scanner_instance="counter_test")._value.get()
+        final = circuit_failures_total.labels(
+            scanner_instance="counter_test"
+        )._value.get()
         assert final == initial + 1
 
     def test_opens_counter_incremented(self):

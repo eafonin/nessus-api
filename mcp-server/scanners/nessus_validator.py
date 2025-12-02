@@ -1,10 +1,10 @@
 """Nessus scan result validator with authentication detection."""
 
+import logging
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional
 from pathlib import Path
-import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -12,10 +12,11 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ValidationResult:
     """Result of validating a Nessus scan."""
+
     is_valid: bool
-    error: Optional[str] = None
-    warnings: List[str] = field(default_factory=list)
-    stats: Dict[str, Any] = field(default_factory=dict)
+    error: str | None = None
+    warnings: list[str] = field(default_factory=list)
+    stats: dict[str, Any] = field(default_factory=dict)
     authentication_status: str = "unknown"  # success|failed|partial|not_applicable
 
 
@@ -49,10 +50,7 @@ class NessusValidator:
     MIN_AUTH_PLUGINS = 5
 
     def validate(
-        self,
-        nessus_file: Path,
-        scan_type: str = "untrusted",
-        expected_hosts: int = 0
+        self, nessus_file: Path, scan_type: str = "untrusted", expected_hosts: int = 0
     ) -> ValidationResult:
         """
         Validate Nessus scan results.
@@ -73,7 +71,7 @@ class NessusValidator:
             return ValidationResult(
                 is_valid=False,
                 error=f"Results file not found: {nessus_file}",
-                authentication_status="unknown"
+                authentication_status="unknown",
             )
 
         # 2. File size check
@@ -87,7 +85,7 @@ class NessusValidator:
                 is_valid=False,
                 error=f"Results file too small ({file_size} bytes)",
                 stats=stats,
-                authentication_status="unknown"
+                authentication_status="unknown",
             )
 
         # 3. XML parsing
@@ -99,7 +97,7 @@ class NessusValidator:
                 is_valid=False,
                 error=f"Invalid XML: {e}",
                 stats=stats,
-                authentication_status="unknown"
+                authentication_status="unknown",
             )
 
         # 4. Host analysis
@@ -111,7 +109,7 @@ class NessusValidator:
                 is_valid=False,
                 error="No hosts in scan results",
                 stats=stats,
-                authentication_status="unknown"
+                authentication_status="unknown",
             )
 
         if expected_hosts > 0 and len(hosts) < expected_hosts:
@@ -167,7 +165,7 @@ class NessusValidator:
                     ),
                     warnings=warnings,
                     stats=stats,
-                    authentication_status=auth_status
+                    authentication_status=auth_status,
                 )
             elif auth_status == "partial":
                 warnings.append(
@@ -198,10 +196,10 @@ class NessusValidator:
             is_valid=True,
             warnings=warnings,
             stats=stats,
-            authentication_status=auth_status
+            authentication_status=auth_status,
         )
 
-    def _parse_credentialed_status(self, root: ET.Element) -> Optional[str]:
+    def _parse_credentialed_status(self, root: ET.Element) -> str | None:
         """
         Parse plugin 19506 output for credential status.
 
@@ -226,9 +224,7 @@ class NessusValidator:
 
 
 def validate_scan_results(
-    nessus_file: Path,
-    scan_type: str = "untrusted",
-    expected_hosts: int = 0
+    nessus_file: Path, scan_type: str = "untrusted", expected_hosts: int = 0
 ) -> ValidationResult:
     """Convenience function for validation."""
     validator = NessusValidator()

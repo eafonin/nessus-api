@@ -24,26 +24,24 @@ Markers:
   - integration: Integration test requiring external services
 """
 
-import pytest
-import pytest_asyncio
 import asyncio
 import os
 import sys
 import uuid
-import json
 from pathlib import Path
-from datetime import datetime
+
+import pytest
+import pytest_asyncio
 
 # Add mcp-server to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from core.queue import TaskQueue
-from core.task_manager import TaskManager, generate_task_id
-from core.types import Task, ScanState
-from core.logging_config import configure_logging, get_logger
-from scanners.nessus_scanner import NessusScanner
-from scanners.base import ScanRequest
+import contextlib
 
+from core.logging_config import configure_logging, get_logger
+from core.task_manager import TaskManager
+from scanners.base import ScanRequest
+from scanners.nessus_scanner import NessusScanner
 
 # ============================================================================
 # Test Configuration
@@ -78,21 +76,21 @@ TEST_TARGETS = {
                 "password": "TestPass123!",
                 "elevate_privileges_with": "sudo",
                 "escalation_password": "TestPass123!",
-                "expected_auth": "success"
+                "expected_auth": "success",
             },
             "sudo_nopass": {
                 "username": "testauth_sudo_nopass",
                 "password": "TestPass123!",
                 "elevate_privileges_with": "sudo",
-                "expected_auth": "success"
+                "expected_auth": "success",
             },
             "nosudo": {
                 "username": "testauth_nosudo",
                 "password": "TestPass123!",
                 "elevate_privileges_with": "Nothing",
-                "expected_auth": "success"  # SSH works, but limited access
-            }
-        }
+                "expected_auth": "success",  # SSH works, but limited access
+            },
+        },
     },
     # Group 2: External host (172.32.0.215)
     # User: randy (basic authenticated scan)
@@ -103,10 +101,10 @@ TEST_TARGETS = {
                 "username": "randy",
                 "password": "randylovesgoldfish1998",
                 "elevate_privileges_with": "Nothing",
-                "expected_auth": "success"
+                "expected_auth": "success",
             }
-        }
-    }
+        },
+    },
 }
 
 # Task storage
@@ -118,16 +116,17 @@ DATA_DIR = "/tmp/test-phase5-auth-scans"
 # ============================================================================
 
 pytestmark = [
-    pytest.mark.authenticated,          # Uses authenticated credentials
-    pytest.mark.real_nessus,            # Uses real Nessus scanner
-    pytest.mark.slow,                   # Takes several minutes
-    pytest.mark.integration,            # Integration test
+    pytest.mark.authenticated,  # Uses authenticated credentials
+    pytest.mark.real_nessus,  # Uses real Nessus scanner
+    pytest.mark.slow,  # Takes several minutes
+    pytest.mark.integration,  # Integration test
 ]
 
 
 # ============================================================================
 # Test Fixtures
 # ============================================================================
+
 
 @pytest.fixture(scope="module")
 def structured_logging():
@@ -136,17 +135,12 @@ def structured_logging():
     logger = get_logger(__name__)
 
     logger.info(
-        "test_suite_started",
-        test="phase5_authenticated_scans",
-        nessus_url=NESSUS_URL
+        "test_suite_started", test="phase5_authenticated_scans", nessus_url=NESSUS_URL
     )
 
     yield logger
 
-    logger.info(
-        "test_suite_completed",
-        test="phase5_authenticated_scans"
-    )
+    logger.info("test_suite_completed", test="phase5_authenticated_scans")
 
 
 @pytest.fixture(scope="function")
@@ -163,7 +157,7 @@ async def scanner():
         url=NESSUS_URL,
         username=NESSUS_USERNAME,
         password=NESSUS_PASSWORD,
-        verify_ssl=False
+        verify_ssl=False,
     )
     yield scanner
     await scanner.close()
@@ -172,6 +166,7 @@ async def scanner():
 # ============================================================================
 # Test: Credential Payload Verification
 # ============================================================================
+
 
 class TestCredentialInjection:
     """Test that credentials are correctly injected into scan creation."""
@@ -186,7 +181,7 @@ class TestCredentialInjection:
             "auth_method": "password",
             "username": "randy",
             "password": "randylovesgoldfish1998",
-            "elevate_privileges_with": "Nothing"
+            "elevate_privileges_with": "Nothing",
         }
 
         scan_name = f"Phase5_Test_SSH_{uuid.uuid4().hex[:8]}"
@@ -195,7 +190,7 @@ class TestCredentialInjection:
             name=scan_name,
             scan_type="authenticated",
             description="Phase 5 integration test - SSH credentials",
-            credentials=credentials
+            credentials=credentials,
         )
 
         logger.info("creating_authenticated_scan", name=scan_name)
@@ -226,7 +221,7 @@ class TestCredentialInjection:
             "username": "testauth_sudo_pass",
             "password": "TestPass123!",
             "elevate_privileges_with": "sudo",
-            "escalation_password": "TestPass123!"
+            "escalation_password": "TestPass123!",
         }
 
         scan_name = f"Phase5_Test_Sudo_{uuid.uuid4().hex[:8]}"
@@ -235,7 +230,7 @@ class TestCredentialInjection:
             name=scan_name,
             scan_type="authenticated_privileged",
             description="Phase 5 integration test - sudo credentials",
-            credentials=credentials
+            credentials=credentials,
         )
 
         logger.info("creating_privileged_scan", name=scan_name)
@@ -260,12 +255,15 @@ class TestCredentialInjection:
 # Test: Quick Authenticated Scan (SSH only, no escalation)
 # ============================================================================
 
+
 class TestQuickAuthenticatedScan:
     """Quick authenticated scan test - SSH credentials only."""
 
     @pytest.mark.asyncio
     @pytest.mark.timeout(600)  # 10 minute timeout
-    async def test_authenticated_scan_randy(self, scanner, task_manager, structured_logging):
+    async def test_authenticated_scan_randy(
+        self, scanner, task_manager, structured_logging
+    ):
         """
         Test authenticated scan with randy user on 172.32.0.215.
 
@@ -279,7 +277,7 @@ class TestQuickAuthenticatedScan:
             "auth_method": "password",
             "username": "randy",
             "password": "randylovesgoldfish1998",
-            "elevate_privileges_with": "Nothing"
+            "elevate_privileges_with": "Nothing",
         }
 
         scan_name = f"Phase5_QuickAuth_{uuid.uuid4().hex[:8]}"
@@ -288,14 +286,14 @@ class TestQuickAuthenticatedScan:
             name=scan_name,
             scan_type="authenticated",
             description="Phase 5 quick authenticated scan test",
-            credentials=credentials
+            credentials=credentials,
         )
 
         logger.info(
             "starting_quick_auth_test",
             target="172.32.0.215",
             username="randy",
-            scan_name=scan_name
+            scan_name=scan_name,
         )
 
         scan_id = None
@@ -323,7 +321,7 @@ class TestQuickAuthenticatedScan:
                     scan_id=scan_id,
                     status=status["status"],
                     progress=status.get("progress", 0),
-                    elapsed=elapsed
+                    elapsed=elapsed,
                 )
 
                 if status["status"] == "completed":
@@ -345,13 +343,12 @@ class TestQuickAuthenticatedScan:
             logger.info("results_saved", path=str(results_file))
 
             # Basic verification: results should contain credential confirmation
-            results_str = results.decode('utf-8', errors='replace')
+            results_str = results.decode("utf-8", errors="replace")
 
             # Check for Plugin 141118 (Valid Credentials Provided)
             has_valid_creds_plugin = "141118" in results_str
             logger.info(
-                "auth_verification",
-                plugin_141118_present=has_valid_creds_plugin
+                "auth_verification", plugin_141118_present=has_valid_creds_plugin
             )
 
             # Test passes if we got results - detailed validation in validator tests
@@ -371,6 +368,7 @@ class TestQuickAuthenticatedScan:
 # Test: Full Workflow via MCP Tool (if MCP server available)
 # ============================================================================
 
+
 class TestMCPAuthenticatedScanTool:
     """Test authenticated scan via MCP tool interface."""
 
@@ -388,8 +386,9 @@ class TestMCPAuthenticatedScanTool:
         # Import MCP tool - it's wrapped by FastMCP decorator
         try:
             from tools.mcp_server import run_authenticated_scan
+
             # Access the underlying function from the FunctionTool wrapper
-            if hasattr(run_authenticated_scan, 'fn'):
+            if hasattr(run_authenticated_scan, "fn"):
                 tool_fn = run_authenticated_scan.fn
             else:
                 pytest.skip("Cannot access underlying function from MCP tool wrapper")
@@ -402,7 +401,7 @@ class TestMCPAuthenticatedScanTool:
             name="Test Invalid Type",
             scan_type="invalid_type",
             ssh_username="test",
-            ssh_password="test"
+            ssh_password="test",
         )
         assert "error" in result
         assert "Invalid scan_type" in result["error"]
@@ -415,7 +414,7 @@ class TestMCPAuthenticatedScanTool:
             scan_type="authenticated_privileged",
             ssh_username="test",
             ssh_password="test",
-            elevate_privileges_with="Nothing"
+            elevate_privileges_with="Nothing",
         )
         assert "error" in result
         assert "requires elevate_privileges_with" in result["error"]
@@ -428,6 +427,7 @@ class TestMCPAuthenticatedScanTool:
 # Test: Authentication Failure Detection (DISABLED BY DEFAULT)
 # ============================================================================
 
+
 class TestAuthenticationFailureDetection:
     """Test that authentication failures are properly detected.
 
@@ -439,7 +439,7 @@ class TestAuthenticationFailureDetection:
     @pytest.mark.timeout(600)
     @pytest.mark.skipif(
         not os.getenv("RUN_SLOW_AUTH_TESTS"),
-        reason="Slow test (~8min) that tests Nessus behavior. Enable with RUN_SLOW_AUTH_TESTS=1"
+        reason="Slow test (~8min) that tests Nessus behavior. Enable with RUN_SLOW_AUTH_TESTS=1",
     )
     async def test_bad_credentials_detected(self, scanner, structured_logging):
         """
@@ -454,7 +454,7 @@ class TestAuthenticationFailureDetection:
             "auth_method": "password",
             "username": "nonexistent_user_xyz",
             "password": "wrong_password_123",
-            "elevate_privileges_with": "Nothing"
+            "elevate_privileges_with": "Nothing",
         }
 
         scan_name = f"Phase5_BadCreds_{uuid.uuid4().hex[:8]}"
@@ -463,7 +463,7 @@ class TestAuthenticationFailureDetection:
             name=scan_name,
             scan_type="authenticated",
             description="Phase 5 test - bad credentials detection",
-            credentials=credentials
+            credentials=credentials,
         )
 
         logger.info("starting_bad_creds_test", scan_name=scan_name)
@@ -472,7 +472,7 @@ class TestAuthenticationFailureDetection:
         try:
             # Create and launch scan
             scan_id = await scanner.create_scan(request)
-            scan_uuid = await scanner.launch_scan(scan_id)
+            await scanner.launch_scan(scan_id)
             logger.info("scan_launched", scan_id=scan_id)
 
             # Poll until completion
@@ -489,7 +489,7 @@ class TestAuthenticationFailureDetection:
                     "scan_progress",
                     scan_id=scan_id,
                     status=status["status"],
-                    progress=status.get("progress", 0)
+                    progress=status.get("progress", 0),
                 )
 
                 if status["status"] in ("completed", "failed"):
@@ -497,7 +497,7 @@ class TestAuthenticationFailureDetection:
 
             # Export results
             results = await scanner.export_results(scan_id)
-            results_str = results.decode('utf-8', errors='replace')
+            results_str = results.decode("utf-8", errors="replace")
 
             # Should NOT have Plugin 141118 (Valid Credentials)
             has_valid_creds = "141118" in results_str
@@ -505,7 +505,7 @@ class TestAuthenticationFailureDetection:
             logger.info(
                 "bad_creds_result",
                 has_plugin_141118=has_valid_creds,
-                results_size=len(results)
+                results_size=len(results),
             )
 
             # With bad credentials, Plugin 141118 should NOT be present
@@ -513,20 +513,19 @@ class TestAuthenticationFailureDetection:
             if has_valid_creds:
                 logger.warning(
                     "unexpected_valid_creds",
-                    message="Plugin 141118 found with bad credentials - check test setup"
+                    message="Plugin 141118 found with bad credentials - check test setup",
                 )
 
         finally:
             if scan_id:
-                try:
+                with contextlib.suppress(Exception):
                     await scanner.delete_scan(scan_id)
-                except Exception:
-                    pass
 
 
 # ============================================================================
 # Test: Privileged Scans (sudo + password, sudo NOPASSWD)
 # ============================================================================
+
 
 class TestPrivilegedScans:
     """E2E tests for authenticated_privileged scans with sudo escalation.
@@ -545,6 +544,7 @@ class TestPrivilegedScans:
         Uses socket instead of ping since test containers may not have ping installed.
         """
         import socket
+
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(3)
@@ -556,7 +556,9 @@ class TestPrivilegedScans:
 
     @pytest.mark.asyncio
     @pytest.mark.slow
-    async def test_privileged_scan_sudo_with_password(self, scanner, structured_logging):
+    async def test_privileged_scan_sudo_with_password(
+        self, scanner, structured_logging
+    ):
         """
         Test authenticated_privileged scan with sudo requiring password.
 
@@ -578,7 +580,7 @@ class TestPrivilegedScans:
             "username": "testauth_sudo_pass",
             "password": "TestPass123!",
             "elevate_privileges_with": "sudo",
-            "escalation_password": "TestPass123!"
+            "escalation_password": "TestPass123!",
         }
 
         scan_name = f"Phase5_SudoPass_{uuid.uuid4().hex[:8]}"
@@ -587,14 +589,14 @@ class TestPrivilegedScans:
             name=scan_name,
             scan_type="authenticated_privileged",
             description="Phase 5 E2E test - sudo with password",
-            credentials=credentials
+            credentials=credentials,
         )
 
         logger.info(
             "starting_privileged_sudo_pass_test",
             target=target,
             username="testauth_sudo_pass",
-            scan_name=scan_name
+            scan_name=scan_name,
         )
 
         scan_id = None
@@ -622,7 +624,7 @@ class TestPrivilegedScans:
                     scan_id=scan_id,
                     status=status["status"],
                     progress=status.get("progress", 0),
-                    elapsed=elapsed
+                    elapsed=elapsed,
                 )
 
                 if status["status"] == "completed":
@@ -643,13 +645,13 @@ class TestPrivilegedScans:
             results_file.write_bytes(results)
 
             # Verify auth success indicators
-            results_str = results.decode('utf-8', errors='replace')
+            results_str = results.decode("utf-8", errors="replace")
             has_valid_creds_plugin = "141118" in results_str
 
             logger.info(
                 "privileged_scan_result",
                 plugin_141118_present=has_valid_creds_plugin,
-                results_size=len(results)
+                results_size=len(results),
             )
 
             assert len(results) > 1000, "Results too small - scan may have failed"
@@ -685,7 +687,7 @@ class TestPrivilegedScans:
             "auth_method": "password",
             "username": "testauth_sudo_nopass",
             "password": "TestPass123!",
-            "elevate_privileges_with": "sudo"
+            "elevate_privileges_with": "sudo",
             # No escalation_password needed for NOPASSWD
         }
 
@@ -695,14 +697,14 @@ class TestPrivilegedScans:
             name=scan_name,
             scan_type="authenticated_privileged",
             description="Phase 5 E2E test - sudo NOPASSWD",
-            credentials=credentials
+            credentials=credentials,
         )
 
         logger.info(
             "starting_privileged_sudo_nopass_test",
             target=target,
             username="testauth_sudo_nopass",
-            scan_name=scan_name
+            scan_name=scan_name,
         )
 
         scan_id = None
@@ -730,7 +732,7 @@ class TestPrivilegedScans:
                     scan_id=scan_id,
                     status=status["status"],
                     progress=status.get("progress", 0),
-                    elapsed=elapsed
+                    elapsed=elapsed,
                 )
 
                 if status["status"] == "completed":
@@ -751,13 +753,13 @@ class TestPrivilegedScans:
             results_file.write_bytes(results)
 
             # Verify auth success indicators
-            results_str = results.decode('utf-8', errors='replace')
+            results_str = results.decode("utf-8", errors="replace")
             has_valid_creds_plugin = "141118" in results_str
 
             logger.info(
                 "privileged_nopasswd_result",
                 plugin_141118_present=has_valid_creds_plugin,
-                results_size=len(results)
+                results_size=len(results),
             )
 
             assert len(results) > 1000, "Results too small - scan may have failed"
@@ -775,6 +777,7 @@ class TestPrivilegedScans:
 # Test: Idempotent Test User Verification
 # ============================================================================
 
+
 class TestIdempotentUserVerification:
     """
     Verify test users exist and are properly configured on scan-target container.
@@ -787,6 +790,7 @@ class TestIdempotentUserVerification:
     def _check_target_reachable(target: str, port: int = 22) -> bool:
         """Check if target is reachable via TCP socket connection."""
         import socket
+
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(3)
@@ -808,11 +812,7 @@ class TestIdempotentUserVerification:
         target = SCAN_TARGET_IP
         is_reachable = self._check_target_reachable(target, 22)
 
-        logger.info(
-            "scan_target_connectivity",
-            target=target,
-            reachable=is_reachable
-        )
+        logger.info("scan_target_connectivity", target=target, reachable=is_reachable)
 
         assert is_reachable, f"scan-target container at {target}:22 is not reachable"
 
@@ -828,17 +828,13 @@ class TestIdempotentUserVerification:
         target = EXTERNAL_HOST_IP
         is_reachable = self._check_target_reachable(target, 22)
 
-        logger.info(
-            "external_host_connectivity",
-            target=target,
-            reachable=is_reachable
-        )
+        logger.info("external_host_connectivity", target=target, reachable=is_reachable)
 
         # External host may not always be reachable, just log warning
         if not is_reachable:
             logger.warning(
                 "external_host_unreachable",
-                message=f"External host {target}:22 is not reachable - some tests may be skipped"
+                message=f"External host {target}:22 is not reachable - some tests may be skipped",
             )
 
 

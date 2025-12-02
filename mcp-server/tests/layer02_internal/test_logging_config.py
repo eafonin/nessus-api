@@ -1,9 +1,10 @@
 """Unit tests for structured logging configuration."""
-import logging
+
 import json
-import io
+import logging
+
 import pytest
-import structlog
+
 from core.logging_config import configure_logging, get_logger
 
 
@@ -34,9 +35,9 @@ class TestLoggingConfiguration:
         logger = get_logger("test_module")
 
         # Logger should be from structlog (BoundLoggerLazyProxy or BoundLogger)
-        assert hasattr(logger, 'info')
-        assert hasattr(logger, 'error')
-        assert hasattr(logger, 'debug')
+        assert hasattr(logger, "info")
+        assert hasattr(logger, "error")
+        assert hasattr(logger, "debug")
 
     def test_get_logger_without_name(self):
         """Test that get_logger works without a name parameter."""
@@ -44,9 +45,9 @@ class TestLoggingConfiguration:
         logger = get_logger()
 
         # Logger should have standard logging methods
-        assert hasattr(logger, 'info')
-        assert hasattr(logger, 'error')
-        assert hasattr(logger, 'debug')
+        assert hasattr(logger, "info")
+        assert hasattr(logger, "error")
+        assert hasattr(logger, "debug")
 
     def test_json_output_format(self, caplog):
         """Test that logs are output in JSON format."""
@@ -114,7 +115,7 @@ class TestLoggingConfiguration:
             "task_id": "test-123",
             "trace_id": "abc-def-ghi",
             "count": 42,
-            "nested": {"key": "value"}
+            "nested": {"key": "value"},
         }
 
         with caplog.at_level(logging.INFO):

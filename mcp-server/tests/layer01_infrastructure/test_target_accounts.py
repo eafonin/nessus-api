@@ -8,10 +8,10 @@ Usage:
     pytest tests/layer01_infrastructure/test_target_accounts.py -v -s
 """
 
-import pytest
-import socket
 import os
+import socket
 
+import pytest
 
 # Target configuration
 SCAN_TARGET_IP = os.getenv("SCAN_TARGET_IP", "172.30.0.9")
@@ -61,7 +61,7 @@ class TestTargetAccountsExist:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(5)
             sock.connect((SCAN_TARGET_IP, 22))
-            banner = sock.recv(1024).decode('utf-8', errors='ignore')
+            banner = sock.recv(1024).decode("utf-8", errors="ignore")
             sock.close()
 
             assert "SSH" in banner, f"Not an SSH server: {banner[:50]}"
@@ -82,17 +82,23 @@ class TestTargetAccountCredentials:
             "scan_target": {
                 "ip": SCAN_TARGET_IP,
                 "users": {
-                    "testauth_sudo_pass": {"password": "TestPass123!", "sudo": "with_password"},
-                    "testauth_sudo_nopass": {"password": "TestPass123!", "sudo": "nopasswd"},
+                    "testauth_sudo_pass": {
+                        "password": "TestPass123!",
+                        "sudo": "with_password",
+                    },
+                    "testauth_sudo_nopass": {
+                        "password": "TestPass123!",
+                        "sudo": "nopasswd",
+                    },
                     "testauth_nosudo": {"password": "TestPass123!", "sudo": "none"},
-                }
+                },
             },
             "external_host": {
                 "ip": EXTERNAL_HOST_IP,
                 "users": {
                     "randy": {"password": "randylovesgoldfish1998", "sudo": "full"},
-                }
-            }
+                },
+            },
         }
 
         # Verify structure

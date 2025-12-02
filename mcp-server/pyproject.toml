@@ -18,3 +18,203 @@ modules = [
     "core",
     "schema",
 ]
+
+# ============================================================================
+# STATIC ANALYSIS CONFIGURATION - Ruff + MyPy
+# ============================================================================
+# Design goals:
+#   - <1 second linting (Ruff is 10-100x faster than flake8)
+#   - 1-2 second type checking with warm cache
+#   - Async antipattern detection (critical for FastMCP)
+#   - FastAPI-specific rules
+#   - ~80% auto-fixable issues
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# RUFF - All-in-one linter + formatter
+# ----------------------------------------------------------------------------
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100  # 88 is too restrictive for modern code with type hints
+src = [".", "tests"]
+
+[tool.ruff.lint]
+select = [
+    # Core Python quality
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes (undefined names, unused imports)
+    "I",      # isort (import sorting)
+    "B",      # flake8-bugbear (common bugs)
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade (Python 3.11 syntax)
+    "SIM",    # flake8-simplify
+    # Async - CRITICAL for FastMCP
+    "ASYNC",  # flake8-async (blocking calls, missing await)
+    # FastAPI/Web framework
+    "FAST",   # FastAPI best practices
+    # Security
+    "S",      # flake8-bandit (security)
+    # Code quality
+    "PTH",    # flake8-use-pathlib
+    "RUF",    # Ruff-specific rules
+    # Type annotation quality
+    "ANN",    # flake8-annotations
+    "TCH",    # flake8-type-checking
+]
+
+ignore = [
+    "ANN401",  # Dynamically typed expressions (Any) disallowed
+    "S101",    # Use of assert (fine in tests)
+    "S105",    # Hardcoded password - false positives on "password" field names
+    "S106",    # Hardcoded password in func arg - false positives
+    "S501",    # Request with no cert validation - intentional for Nessus self-signed
+    "ASYNC109",# Async function with timeout - false positives on our pattern
+]
+
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.per-file-ignores]
+# Tests: relax security, annotation, line length, and simplification rules
+"tests/**/*.py" = [
+    "S101",    # assert is fine in tests
+    "ANN",     # annotations optional in tests
+    "E501",    # long lines OK in tests for readability
+    "E741",    # ambiguous variable names OK in tests (l for line, etc)
+    "E402",    # imports not at top OK in tests (test organization)
+    "PTH",     # os.path is fine in tests
+    "SIM",     # simplification optional in tests
+    "S103",    # chmod permissions OK in tests
+    "S108",    # hardcoded /tmp is fine in tests
+    "S110",    # try-except-pass OK in test cleanup
+    "S314",    # XML parsing is fine for test data
+    "B904",    # raise from optional in tests
+    "RUF012",  # mutable default OK in test classes
+]
+"**/conftest.py" = ["ANN", "E501"]
+# Tools: monitoring and admin scripts have different needs
+"tools/monitor_and_export.py" = ["S108"]  # /tmp usage is intentional
+"tools/admin_cli.py" = ["ANN001", "E501", "S108", "PTH"]  # CLI scripts
+"tools/test_asgi_direct.py" = ["ANN", "E501"]  # test utility
+"tools/run_server.py" = ["S104"]  # intentional 0.0.0.0 bind for Docker
+# Scanner modules with complex patterns
+"scanners/nessus_validator.py" = ["S314", "RUF012", "E501"]  # XML parsing, ClassVars
+"scanners/mock_scanner.py" = ["RUF006"]  # fire-and-forget task is intentional
+# Core modules with intentional patterns
+"core/queue.py" = ["B904"]  # raise conversion intentional for API
+"core/middleware.py" = ["ANN001", "ANN201"]  # Starlette types complex
+"core/idempotency.py" = ["ANN001"]  # Redis client type complex
+"core/circuit_breaker.py" = ["ANN204"]  # dataclass __post_init__
+"core/ip_utils.py" = ["UP007"]  # Union type alias is clearer
+# Schema modules with XML parsing
+"schema/parser.py" = ["S314"]  # XML parsing of internal data
+"schema/converter.py" = ["B904"]  # re-raise is intentional
+"schema/jsonl_converter.py" = ["E501"]  # comment line
+"schema/profiles.py" = ["E501"]  # error message
+
+[tool.ruff.lint.isort]
+known-first-party = ["scanners", "core", "schema", "tools", "worker"]
+force-single-line = false
+combine-as-imports = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+# ----------------------------------------------------------------------------
+# MYPY - Static type checker
+# ----------------------------------------------------------------------------
+
+[tool.mypy]
+python_version = "3.11"
+# Start with incremental adoption rather than strict mode
+strict = false
+warn_return_any = false  # Too noisy with dict returns
+warn_unused_configs = true
+show_error_codes = true
+pretty = true
+incremental = true
+cache_dir = ".mypy_cache"
+plugins = ["pydantic.mypy"]
+# Relax for gradual adoption
+check_untyped_defs = true
+disallow_untyped_defs = false  # Will enable later
+disallow_incomplete_defs = false
+ignore_missing_imports = false  # Use per-module overrides instead
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+ignore_errors = true  # Tests can be messy
+
+[[tool.mypy.overrides]]
+module = [
+    "fastmcp.*",
+    "mcp.*",
+    "starlette.*",
+    "uvicorn.*",
+    "httpx.*",
+    "prometheus_client.*",
+    "structlog.*",
+    "redis.*",
+    "yaml.*",
+]
+ignore_missing_imports = true
+
+# Client files with external MCP dependencies
+[[tool.mypy.overrides]]
+module = "client.*"
+ignore_errors = true
+
+# Tool files with external deps or complex patterns
+[[tool.mypy.overrides]]
+module = [
+    "tools.mcp_tools",
+    "tools.mcp_server",
+    "tools.admin_cli",
+    "tools.test_asgi_direct",
+    "tools.monitor_and_export",
+]
+ignore_errors = true
+
+# Scanner modules with complex httpx patterns
+[[tool.mypy.overrides]]
+module = [
+    "scanners.nessus",
+    "scanners.nessus_scanner",
+    "scanners.nessus_validator",
+    "scanners.registry",
+]
+ignore_errors = true
+
+# Core modules with complex type patterns
+[[tool.mypy.overrides]]
+module = [
+    "core.ip_utils",
+    "core.housekeeping",
+]
+ignore_errors = true
+
+# Schema modules with stub bodies
+[[tool.mypy.overrides]]
+module = [
+    "schema.parser",
+    "schema.jsonl_converter",
+    "schema.converter",
+]
+ignore_errors = true
+
+# Worker module
+[[tool.mypy.overrides]]
+module = "worker.scanner_worker"
+ignore_errors = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+warn_uninitialized_fields = true

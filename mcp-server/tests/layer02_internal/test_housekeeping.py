@@ -1,11 +1,9 @@
 """Unit tests for TTL housekeeping."""
 
 import json
-import pytest
 import tempfile
-from pathlib import Path
 from datetime import datetime, timedelta
-from unittest.mock import patch
+from pathlib import Path
 
 from core.housekeeping import Housekeeper
 
@@ -23,9 +21,7 @@ class TestHousekeeperInit:
     def test_custom_initialization(self):
         """Test Housekeeper with custom values."""
         hk = Housekeeper(
-            data_dir="/custom/path",
-            completed_ttl_days=3,
-            failed_ttl_days=14
+            data_dir="/custom/path", completed_ttl_days=3, failed_ttl_days=14
         )
         assert hk.data_dir == Path("/custom/path")
         assert hk.completed_ttl == timedelta(days=3)
@@ -43,7 +39,7 @@ class TestHousekeeperCleanup:
         task_data = {
             "task_id": task_dir.name,
             "status": status,
-            "created_at": (datetime.utcnow() - timedelta(days=age_days)).isoformat()
+            "created_at": (datetime.utcnow() - timedelta(days=age_days)).isoformat(),
         }
         task_file.write_text(json.dumps(task_data))
 
@@ -53,6 +49,7 @@ class TestHousekeeperCleanup:
         # Set modification time to simulate age
         if age_days > 0:
             import os
+
             old_time = (datetime.utcnow() - timedelta(days=age_days)).timestamp()
             os.utime(task_file, (old_time, old_time))
 
@@ -215,12 +212,10 @@ class TestHousekeeperStats:
         """Helper to create a task directory."""
         task_dir.mkdir(parents=True, exist_ok=True)
         task_file = task_dir / "task.json"
-        task_file.write_text(json.dumps({
-            "task_id": task_dir.name,
-            "status": status
-        }))
+        task_file.write_text(json.dumps({"task_id": task_dir.name, "status": status}))
         if age_days > 0:
             import os
+
             old_time = (datetime.utcnow() - timedelta(days=age_days)).timestamp()
             os.utime(task_file, (old_time, old_time))
 
@@ -277,13 +272,13 @@ class TestMetricsIntegration:
         with tempfile.TemporaryDirectory() as tmpdir:
             task_dir = Path(tmpdir) / "task_to_delete"
             task_dir.mkdir()
-            (task_dir / "task.json").write_text(json.dumps({
-                "task_id": "test",
-                "status": "completed"
-            }))
+            (task_dir / "task.json").write_text(
+                json.dumps({"task_id": "test", "status": "completed"})
+            )
 
             # Set old modification time
             import os
+
             old_time = (datetime.utcnow() - timedelta(days=10)).timestamp()
             os.utime(task_dir / "task.json", (old_time, old_time))
 

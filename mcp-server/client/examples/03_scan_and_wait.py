@@ -20,33 +20,35 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from client.nessus_fastmcp_client import NessusFastMCPClient
 
 
-def on_progress(status):
+def on_progress(status: dict) -> None:
     """Progress callback for real-time updates."""
-    progress = status.get('progress', 0)
-    task_status = status['status']
+    progress = status.get("progress", 0)
+    task_status = status["status"]
 
     # Create progress bar
     bar_length = 40
     filled = int(bar_length * progress / 100)
-    bar = '█' * filled + '░' * (bar_length - filled)
+    bar = "█" * filled + "░" * (bar_length - filled)
 
-    print(f"\r   [{bar}] {progress}% - {task_status}", end='', flush=True)
+    print(f"\r   [{bar}] {progress}% - {task_status}", end="", flush=True)
 
 
-async def main():
+async def main() -> None:
     """Scan and wait example."""
 
     async with NessusFastMCPClient(
-        url="http://localhost:8836/mcp",
-        debug=False
+        url="http://localhost:8836/mcp", debug=False
     ) as client:
-
         print("Scan and Wait Example")
         print("=" * 60)
         print()
 
-        targets = input("Enter target IP (default: 192.168.1.1): ").strip() or "192.168.1.1"
-        scan_name = input("Enter scan name (default: Quick Scan): ").strip() or "Quick Scan"
+        targets = (
+            input("Enter target IP (default: 192.168.1.1): ").strip() or "192.168.1.1"
+        )
+        scan_name = (
+            input("Enter scan name (default: Quick Scan): ").strip() or "Quick Scan"
+        )
 
         print()
         print(f"Submitting scan: {scan_name}")
@@ -61,7 +63,7 @@ async def main():
                 description="Automated scan from Example 3",
                 timeout=600,
                 poll_interval=10,
-                progress_callback=on_progress
+                progress_callback=on_progress,
             )
 
             print()  # New line after progress bar
@@ -74,7 +76,7 @@ async def main():
             print(f"  Progress: {final_status.get('progress', 0)}%")
 
             # Get quick summary
-            task_id = final_status['task_id']
+            task_id = final_status["task_id"]
             summary = await client.get_vulnerability_summary(task_id)
 
             print()
@@ -89,7 +91,7 @@ async def main():
             if total > 0:
                 print(f"Total vulnerabilities found: {total}")
                 print()
-                print(f"Get detailed results with:")
+                print("Get detailed results with:")
                 print(f"  python 04_get_critical_vulns.py {task_id}")
             else:
                 print("No vulnerabilities found.")

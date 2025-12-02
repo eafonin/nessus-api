@@ -1,9 +1,11 @@
 """Unit tests for authenticated scan functionality (Phase 5)."""
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
 
-from scanners.nessus_scanner import NessusScanner
+from unittest.mock import AsyncMock, Mock
+
+import pytest
+
 from scanners.base import ScanRequest
+from scanners.nessus_scanner import NessusScanner
 
 
 class TestCredentialValidation:
@@ -16,7 +18,7 @@ class TestCredentialValidation:
             url="https://127.0.0.1:8834",
             username="test",
             password="test",
-            verify_ssl=False
+            verify_ssl=False,
         )
 
     def test_missing_username_raises(self, scanner):
@@ -39,7 +41,7 @@ class TestCredentialValidation:
             "type": "ssh",
             "username": "user",
             "password": "pass",
-            "elevate_privileges_with": "invalid_method"
+            "elevate_privileges_with": "invalid_method",
         }
 
         with pytest.raises(ValueError, match="Invalid escalation method"):
@@ -47,11 +49,7 @@ class TestCredentialValidation:
 
     def test_valid_ssh_credentials_pass(self, scanner):
         """Test valid SSH credentials pass validation."""
-        credentials = {
-            "type": "ssh",
-            "username": "testuser",
-            "password": "testpass"
-        }
+        credentials = {"type": "ssh", "username": "testuser", "password": "testpass"}
 
         # Should not raise
         scanner._validate_credentials(credentials)
@@ -63,7 +61,7 @@ class TestCredentialValidation:
             "username": "testuser",
             "password": "testpass",
             "elevate_privileges_with": "sudo",
-            "escalation_password": "sudopass"
+            "escalation_password": "sudopass",
         }
 
         # Should not raise
@@ -72,9 +70,15 @@ class TestCredentialValidation:
     def test_all_valid_escalation_methods(self, scanner):
         """Test all valid escalation methods pass."""
         valid_methods = [
-            "Nothing", "sudo", "su", "su+sudo", "pbrun",
-            "dzdo", ".k5login", "Cisco 'enable'",
-            "Checkpoint Gaia 'expert'"
+            "Nothing",
+            "sudo",
+            "su",
+            "su+sudo",
+            "pbrun",
+            "dzdo",
+            ".k5login",
+            "Cisco 'enable'",
+            "Checkpoint Gaia 'expert'",
         ]
 
         for method in valid_methods:
@@ -82,18 +86,14 @@ class TestCredentialValidation:
                 "type": "ssh",
                 "username": "user",
                 "password": "pass",
-                "elevate_privileges_with": method
+                "elevate_privileges_with": method,
             }
             # Should not raise
             scanner._validate_credentials(credentials)
 
     def test_unsupported_credential_type_raises(self, scanner):
         """Test unsupported credential type raises error."""
-        credentials = {
-            "type": "windows",
-            "username": "admin",
-            "password": "pass"
-        }
+        credentials = {"type": "windows", "username": "admin", "password": "pass"}
 
         with pytest.raises(ValueError, match="Unsupported credential type"):
             scanner._validate_credentials(credentials)
@@ -114,16 +114,12 @@ class TestCredentialPayloadBuilder:
             url="https://127.0.0.1:8834",
             username="test",
             password="test",
-            verify_ssl=False
+            verify_ssl=False,
         )
 
     def test_basic_ssh_password_credentials(self, scanner):
         """Test basic SSH password credential payload."""
-        credentials = {
-            "type": "ssh",
-            "username": "testuser",
-            "password": "testpass"
-        }
+        credentials = {"type": "ssh", "username": "testuser", "password": "testpass"}
 
         payload = scanner._build_credentials_payload(credentials)
 
@@ -146,7 +142,7 @@ class TestCredentialPayloadBuilder:
             "username": "testauth_sudo_pass",
             "password": "TestPass123!",
             "elevate_privileges_with": "sudo",
-            "escalation_password": "TestPass123!"
+            "escalation_password": "TestPass123!",
         }
 
         payload = scanner._build_credentials_payload(credentials)
@@ -163,7 +159,7 @@ class TestCredentialPayloadBuilder:
             "password": "scanpass",
             "elevate_privileges_with": "sudo",
             "escalation_account": "admin",
-            "escalation_password": "adminpass"
+            "escalation_password": "adminpass",
         }
 
         payload = scanner._build_credentials_payload(credentials)
@@ -178,7 +174,7 @@ class TestCredentialPayloadBuilder:
             "type": "ssh",
             "username": "testauth_sudo_nopass",
             "password": "TestPass123!",
-            "elevate_privileges_with": "sudo"
+            "elevate_privileges_with": "sudo",
             # No escalation_password
         }
 
@@ -190,11 +186,7 @@ class TestCredentialPayloadBuilder:
 
     def test_payload_structure_complete(self, scanner):
         """Test complete payload structure for Nessus API."""
-        credentials = {
-            "type": "ssh",
-            "username": "user",
-            "password": "pass"
-        }
+        credentials = {"type": "ssh", "username": "user", "password": "pass"}
 
         payload = scanner._build_credentials_payload(credentials)
 
@@ -202,18 +194,20 @@ class TestCredentialPayloadBuilder:
         assert payload == {
             "add": {
                 "Host": {
-                    "SSH": [{
-                        "auth_method": "password",
-                        "username": "user",
-                        "password": "pass",
-                        "elevate_privileges_with": "Nothing",
-                        "custom_password_prompt": "",
-                        "target_priority_list": ""
-                    }]
+                    "SSH": [
+                        {
+                            "auth_method": "password",
+                            "username": "user",
+                            "password": "pass",
+                            "elevate_privileges_with": "Nothing",
+                            "custom_password_prompt": "",
+                            "target_priority_list": "",
+                        }
+                    ]
                 }
             },
             "edit": {},
-            "delete": []
+            "delete": [],
         }
 
     def test_su_escalation(self, scanner):
@@ -223,7 +217,7 @@ class TestCredentialPayloadBuilder:
             "username": "user",
             "password": "pass",
             "elevate_privileges_with": "su",
-            "escalation_password": "rootpass"
+            "escalation_password": "rootpass",
         }
 
         payload = scanner._build_credentials_payload(credentials)
@@ -242,7 +236,7 @@ class TestScanRequestWithCredentials:
             "type": "ssh",
             "username": "testuser",
             "password": "testpass",
-            "elevate_privileges_with": "sudo"
+            "elevate_privileges_with": "sudo",
         }
 
         request = ScanRequest(
@@ -250,7 +244,7 @@ class TestScanRequestWithCredentials:
             name="Test Auth Scan",
             scan_type="authenticated",
             description="Test authenticated scan",
-            credentials=credentials
+            credentials=credentials,
         )
 
         assert request.credentials == credentials
@@ -260,9 +254,7 @@ class TestScanRequestWithCredentials:
     def test_scan_request_without_credentials(self):
         """Test ScanRequest works without credentials (untrusted)."""
         request = ScanRequest(
-            targets="172.32.0.215",
-            name="Test Untrusted Scan",
-            scan_type="untrusted"
+            targets="172.32.0.215", name="Test Untrusted Scan", scan_type="untrusted"
         )
 
         assert request.credentials is None
@@ -279,7 +271,7 @@ class TestCreateScanWithCredentials:
             url="https://127.0.0.1:8834",
             username="test",
             password="test",
-            verify_ssl=False
+            verify_ssl=False,
         )
 
     @pytest.mark.asyncio
@@ -289,13 +281,11 @@ class TestCreateScanWithCredentials:
             "type": "ssh",
             "username": "testuser",
             "password": "testpass",
-            "elevate_privileges_with": "Nothing"
+            "elevate_privileges_with": "Nothing",
         }
 
         request = ScanRequest(
-            targets="192.168.1.1",
-            name="Test Scan",
-            credentials=credentials
+            targets="192.168.1.1", name="Test Scan", credentials=credentials
         )
 
         # Mock HTTP client and authentication
@@ -318,7 +308,7 @@ class TestCreateScanWithCredentials:
 
         # Verify credentials were included in payload
         call_args = mock_client.post.call_args
-        payload = call_args.kwargs.get('json') or call_args[1].get('json')
+        payload = call_args.kwargs.get("json") or call_args[1].get("json")
 
         assert "credentials" in payload
         assert payload["credentials"]["add"]["Host"]["SSH"][0]["username"] == "testuser"
@@ -328,9 +318,7 @@ class TestCreateScanWithCredentials:
     async def test_create_scan_without_credentials(self, scanner):
         """Test create_scan works without credentials."""
         request = ScanRequest(
-            targets="192.168.1.1",
-            name="Test Untrusted Scan",
-            credentials=None
+            targets="192.168.1.1", name="Test Untrusted Scan", credentials=None
         )
 
         # Mock HTTP client and authentication
@@ -353,6 +341,6 @@ class TestCreateScanWithCredentials:
 
         # Verify credentials were NOT included in payload
         call_args = mock_client.post.call_args
-        payload = call_args.kwargs.get('json') or call_args[1].get('json')
+        payload = call_args.kwargs.get("json") or call_args[1].get("json")
 
         assert "credentials" not in payload

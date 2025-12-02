@@ -1,6 +1,7 @@
 """Middleware for trace ID propagation and other cross-cutting concerns."""
 
 import uuid
+
 from starlette.middleware.base import BaseHTTPMiddleware
 
 

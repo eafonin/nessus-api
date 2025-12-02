@@ -12,7 +12,6 @@ Usage:
 """
 
 import pytest
-import pytest_asyncio
 
 
 @pytest.mark.asyncio
@@ -66,8 +65,7 @@ class TestGetPoolStatus:
     async def test_get_pool_status_specific_pool(self, mcp_client):
         """Test get_pool_status with specific pool."""
         result = await mcp_client.call_tool(
-            "get_pool_status",
-            {"scanner_pool": "nessus"}
+            "get_pool_status", {"scanner_pool": "nessus"}
         )
 
         assert result["pool"] == "nessus"
@@ -143,8 +141,7 @@ class TestPoolOperationsIntegration:
 
         for pool in pools_result["pools"]:
             status_result = await mcp_client.call_tool(
-                "get_pool_status",
-                {"scanner_pool": pool}
+                "get_pool_status", {"scanner_pool": pool}
             )
             assert status_result["pool"] == pool
             assert "total_scanners" in status_result

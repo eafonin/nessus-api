@@ -1,8 +1,8 @@
 """Unit tests for IP address and CIDR matching utilities."""
-import pytest
+
 import ipaddress
 
-from core.ip_utils import parse_target, targets_match, _ip_or_network_match
+from core.ip_utils import _ip_or_network_match, parse_target, targets_match
 
 
 class TestParseTarget:
@@ -217,7 +217,9 @@ class TestTargetsMatch:
 
     def test_multiple_targets_match_cidr_in_list_hit(self):
         """SEARCH HIT: Query IP matches CIDR in target list."""
-        assert targets_match("172.16.0.50", "192.168.1.1,172.16.0.0/16,10.0.0.1") is True
+        assert (
+            targets_match("172.16.0.50", "192.168.1.1,172.16.0.0/16,10.0.0.1") is True
+        )
 
     def test_multiple_targets_cidr_query_hit(self):
         """SEARCH HIT: Query CIDR contains one of the stored IPs."""
@@ -279,7 +281,9 @@ class TestTargetsMatch:
 
     def test_whitespace_handling(self):
         """Test whitespace in comma-separated targets is handled."""
-        assert targets_match("10.0.0.5", "192.168.1.1, 10.0.0.0/24 , 172.16.0.1") is True
+        assert (
+            targets_match("10.0.0.5", "192.168.1.1, 10.0.0.0/24 , 172.16.0.1") is True
+        )
 
     def test_empty_entries_in_list(self):
         """Test empty entries in comma-separated list are skipped."""

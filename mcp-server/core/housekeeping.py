@@ -4,13 +4,13 @@ Phase 4.10: Automatic cleanup of old completed/failed tasks to prevent disk exha
 Phase 7.1: Stale scan cleanup - stop and delete scans running longer than threshold.
 """
 
-import json
-import shutil
-import logging
 import asyncio
-from pathlib import Path
+import json
+import logging
+import shutil
 from datetime import datetime, timedelta
-from typing import Optional, TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, ClassVar
 
 from core.metrics import ttl_deletions_total
 
@@ -40,8 +40,8 @@ class Housekeeper:
         self,
         data_dir: str = "/app/data/tasks",
         completed_ttl_days: int = 7,
-        failed_ttl_days: int = 30
-    ):
+        failed_ttl_days: int = 30,
+    ) -> None:
         """
         Initialize Housekeeper.
 
@@ -79,7 +79,7 @@ class Housekeeper:
                 "freed_bytes": 0,
                 "freed_mb": 0,
                 "errors": ["Data directory does not exist"],
-                "skipped": 0
+                "skipped": 0,
             }
 
         for task_dir in self.data_dir.iterdir():
@@ -97,7 +97,7 @@ class Housekeeper:
                 age = now - mtime
 
                 # Read task status
-                with open(task_file) as f:
+                with task_file.open() as f:
                     task = json.load(f)
 
                 status = task.get("status", "unknown")
@@ -147,7 +147,7 @@ class Housekeeper:
             "freed_bytes": freed,
             "freed_mb": round(freed / 1024 / 1024, 2),
             "errors": errors,
-            "skipped": skipped
+            "skipped": skipped,
         }
 
         if deleted > 0:
@@ -165,7 +165,7 @@ class Housekeeper:
             for f in path.rglob("*"):
                 if f.is_file():
                     total += f.stat().st_size
-        except Exception:
+        except Exception:  # noqa: S110 - Size calculation is best-effort
             pass
         return total
 
@@ -180,7 +180,7 @@ class Housekeeper:
             "total_tasks": 0,
             "total_size_mb": 0,
             "by_status": {},
-            "expired": {"completed": 0, "failed": 0}
+            "expired": {"completed": 0, "failed": 0},
         }
 
         if not self.data_dir.exists():
@@ -198,7 +198,7 @@ class Housekeeper:
                 continue
 
             try:
-                with open(task_file) as f:
+                with task_file.open() as f:
                     task = json.load(f)
 
                 status = task.get("status", "unknown")
@@ -216,7 +216,7 @@ class Housekeeper:
 
                 total_size += self._get_dir_size(task_dir)
 
-            except Exception:
+            except Exception:  # noqa: S110 - Stats are best-effort
                 pass
 
         stats["total_size_mb"] = round(total_size / 1024 / 1024, 2)
@@ -240,8 +240,8 @@ class StaleScanCleaner:
         self,
         data_dir: str = "/app/data/tasks",
         stale_hours: int = 24,
-        delete_from_nessus: bool = True
-    ):
+        delete_from_nessus: bool = True,
+    ) -> None:
         """
         Initialize StaleScanCleaner.
 
@@ -254,10 +254,7 @@ class StaleScanCleaner:
         self.stale_threshold = timedelta(hours=stale_hours)
         self.delete_from_nessus = delete_from_nessus
 
-    async def cleanup_stale_scans(
-        self,
-        scanner_registry: "ScannerRegistry"
-    ) -> dict:
+    async def cleanup_stale_scans(self, scanner_registry: "ScannerRegistry") -> dict:
         """
         Find and stop stale running scans.
 
@@ -277,7 +274,11 @@ class StaleScanCleaner:
 
         if not self.data_dir.exists():
             logger.warning(f"Data directory does not exist: {self.data_dir}")
-            return {"stopped_count": 0, "deleted_count": 0, "errors": ["Data directory missing"]}
+            return {
+                "stopped_count": 0,
+                "deleted_count": 0,
+                "errors": ["Data directory missing"],
+            }
 
         for task_dir in self.data_dir.iterdir():
             if not task_dir.is_dir():
@@ -288,7 +289,7 @@ class StaleScanCleaner:
                 continue
 
             try:
-                with open(task_file) as f:
+                with task_file.open() as f:
                     task = json.load(f)
 
                 status = task.get("status", "unknown")
@@ -304,7 +305,9 @@ class StaleScanCleaner:
                     continue
 
                 try:
-                    start_time = datetime.fromisoformat(started_at.replace("Z", "+00:00").replace("+00:00", ""))
+                    start_time = datetime.fromisoformat(
+                        started_at.replace("Z", "+00:00").replace("+00:00", "")
+                    )
                 except (ValueError, AttributeError):
                     # Fallback to file mtime
                     start_time = datetime.fromtimestamp(task_file.stat().st_mtime)
@@ -328,8 +331,7 @@ class StaleScanCleaner:
                 if nessus_scan_id and scanner_instance_id:
                     try:
                         scanner = await scanner_registry.get_scanner(
-                            pool=scanner_pool,
-                            instance_id=scanner_instance_id
+                            pool=scanner_pool, instance_id=scanner_instance_id
                         )
 
                         if scanner:
@@ -337,19 +339,27 @@ class StaleScanCleaner:
                             try:
                                 await scanner.stop_scan(nessus_scan_id)
                                 stopped += 1
-                                logger.info(f"Stopped stale scan {nessus_scan_id} on {scanner_instance_id}")
+                                logger.info(
+                                    f"Stopped stale scan {nessus_scan_id} on {scanner_instance_id}"
+                                )
                             except Exception as e:
                                 # Scan may already be stopped
-                                logger.warning(f"Could not stop scan {nessus_scan_id}: {e}")
+                                logger.warning(
+                                    f"Could not stop scan {nessus_scan_id}: {e}"
+                                )
 
                             # Delete from Nessus if configured
                             if self.delete_from_nessus:
                                 try:
                                     await scanner.delete_scan(nessus_scan_id)
                                     deleted += 1
-                                    logger.info(f"Deleted stale scan {nessus_scan_id} from Nessus")
+                                    logger.info(
+                                        f"Deleted stale scan {nessus_scan_id} from Nessus"
+                                    )
                                 except Exception as e:
-                                    logger.warning(f"Could not delete scan {nessus_scan_id}: {e}")
+                                    logger.warning(
+                                        f"Could not delete scan {nessus_scan_id}: {e}"
+                                    )
                             # Note: Don't close scanner - registry manages lifetime
                     except Exception as e:
                         errors.append(f"{task_id}: Scanner error - {e}")
@@ -358,9 +368,12 @@ class StaleScanCleaner:
                 # Update task status to timeout
                 task["status"] = "timeout"
                 task["completed_at"] = datetime.utcnow().isoformat()
-                task["error_message"] = f"Scan exceeded {self.stale_threshold.total_seconds() / 3600:.0f}h timeout and was automatically stopped"
+                threshold_hours = self.stale_threshold.total_seconds() / 3600
+                task["error_message"] = (
+                    f"Scan exceeded {threshold_hours:.0f}h timeout and was automatically stopped"
+                )
 
-                with open(task_file, "w") as f:
+                with task_file.open("w") as f:
                     json.dump(task, f, indent=2)
 
                 logger.info(f"Marked stale task {task_id} as timeout")
@@ -371,11 +384,7 @@ class StaleScanCleaner:
                 errors.append(f"{task_dir.name}: {e}")
                 logger.error(f"Error processing stale scan {task_dir.name}: {e}")
 
-        result = {
-            "stopped_count": stopped,
-            "deleted_count": deleted,
-            "errors": errors
-        }
+        result = {"stopped_count": stopped, "deleted_count": deleted, "errors": errors}
 
         if stopped > 0 or deleted > 0:
             logger.info(
@@ -398,7 +407,7 @@ class StaleScanCleaner:
             "stale_queued": 0,
             "active_running": 0,
             "active_queued": 0,
-            "threshold_hours": self.stale_threshold.total_seconds() / 3600
+            "threshold_hours": self.stale_threshold.total_seconds() / 3600,
         }
 
         if not self.data_dir.exists():
@@ -413,7 +422,7 @@ class StaleScanCleaner:
                 continue
 
             try:
-                with open(task_file) as f:
+                with task_file.open() as f:
                     task = json.load(f)
 
                 status = task.get("status", "unknown")
@@ -423,7 +432,9 @@ class StaleScanCleaner:
                 started_at = task.get("started_at") or task.get("created_at")
                 if started_at:
                     try:
-                        start_time = datetime.fromisoformat(started_at.replace("Z", "+00:00").replace("+00:00", ""))
+                        start_time = datetime.fromisoformat(
+                            started_at.replace("Z", "+00:00").replace("+00:00", "")
+                        )
                     except (ValueError, AttributeError):
                         start_time = datetime.fromtimestamp(task_file.stat().st_mtime)
                 else:
@@ -443,7 +454,7 @@ class StaleScanCleaner:
                     else:
                         stats["active_queued"] += 1
 
-            except Exception:
+            except Exception:  # noqa: S110 - Stats are best-effort
                 pass
 
         return stats
@@ -464,14 +475,10 @@ class NessusScanCleaner:
     """
 
     # Nessus scan statuses
-    RUNNING_STATUSES = {"running", "pending", "pausing", "resuming"}
-    COMPLETED_STATUSES = {"completed", "canceled", "imported"}
+    RUNNING_STATUSES: ClassVar[set[str]] = {"running", "pending", "pausing", "resuming"}
+    COMPLETED_STATUSES: ClassVar[set[str]] = {"completed", "canceled", "imported"}
 
-    def __init__(
-        self,
-        retention_hours: int = 24,
-        stale_running_hours: int = 24
-    ):
+    def __init__(self, retention_hours: int = 24, stale_running_hours: int = 24) -> None:
         """
         Initialize NessusScanCleaner.
 
@@ -482,10 +489,7 @@ class NessusScanCleaner:
         self.retention_seconds = retention_hours * 3600
         self.stale_running_seconds = stale_running_hours * 3600
 
-    async def cleanup_all_scanners(
-        self,
-        scanner_registry: "ScannerRegistry"
-    ) -> dict:
+    async def cleanup_all_scanners(self, scanner_registry: "ScannerRegistry") -> dict:
         """
         Clean up old scans from all registered scanners.
 
@@ -505,6 +509,7 @@ class NessusScanCleaner:
                 - errors: List of error messages
         """
         import time
+
         now = time.time()
         deleted = 0
         stopped = 0
@@ -518,7 +523,7 @@ class NessusScanCleaner:
                 "scanners_processed": 0,
                 "deleted_count": 0,
                 "stopped_count": 0,
-                "errors": ["No scanners registered"]
+                "errors": ["No scanners registered"],
             }
 
         for instance_key, scanner in all_scanners:
@@ -553,16 +558,22 @@ class NessusScanCleaner:
                                     await scanner.stop_scan(scan_id)
                                     stopped += 1
                                 except Exception as e:
-                                    logger.warning(f"Could not stop scan {scan_id}: {e}")
+                                    logger.warning(
+                                        f"Could not stop scan {scan_id}: {e}"
+                                    )
 
                                 # Delete after stopping
                                 await scanner.delete_scan(scan_id)
                                 deleted += 1
-                                logger.info(f"[{instance_key}] Deleted stale scan {scan_id}")
+                                logger.info(
+                                    f"[{instance_key}] Deleted stale scan {scan_id}"
+                                )
 
                         # Handle finished scans that are old
-                        elif status in self.COMPLETED_STATUSES:
-                            if age_seconds > self.retention_seconds:
+                        elif (
+                            status in self.COMPLETED_STATUSES
+                            and age_seconds > self.retention_seconds
+                        ):
                                 await scanner.delete_scan(scan_id)
                                 deleted += 1
                                 logger.info(
@@ -586,7 +597,7 @@ class NessusScanCleaner:
             "scanners_processed": scanners_processed,
             "deleted_count": deleted,
             "stopped_count": stopped,
-            "errors": errors
+            "errors": errors,
         }
 
         if deleted > 0 or stopped > 0:
@@ -602,8 +613,8 @@ async def run_periodic_cleanup(
     data_dir: str = "/app/data/tasks",
     interval_hours: int = 1,
     completed_ttl_days: int = 7,
-    failed_ttl_days: int = 30
-):
+    failed_ttl_days: int = 30,
+) -> None:
     """
     Run cleanup periodically as background task.
 
@@ -618,7 +629,7 @@ async def run_periodic_cleanup(
     housekeeper = Housekeeper(
         data_dir=data_dir,
         completed_ttl_days=completed_ttl_days,
-        failed_ttl_days=failed_ttl_days
+        failed_ttl_days=failed_ttl_days,
     )
 
     logger.info(
@@ -645,8 +656,8 @@ async def run_stale_scan_cleanup(
     data_dir: str = "/app/data/tasks",
     interval_hours: int = 1,
     stale_hours: int = 24,
-    delete_from_nessus: bool = True
-):
+    delete_from_nessus: bool = True,
+) -> None:
     """
     Run stale scan cleanup periodically as background task.
 
@@ -662,7 +673,7 @@ async def run_stale_scan_cleanup(
     cleaner = StaleScanCleaner(
         data_dir=data_dir,
         stale_hours=stale_hours,
-        delete_from_nessus=delete_from_nessus
+        delete_from_nessus=delete_from_nessus,
     )
 
     logger.info(
@@ -673,7 +684,11 @@ async def run_stale_scan_cleanup(
     while True:
         try:
             result = await cleaner.cleanup_stale_scans(scanner_registry)
-            if result["stopped_count"] > 0 or result["deleted_count"] > 0 or result["errors"]:
+            if (
+                result["stopped_count"] > 0
+                or result["deleted_count"] > 0
+                or result["errors"]
+            ):
                 logger.info(
                     f"Stale scan cleanup cycle: stopped {result['stopped_count']}, "
                     f"deleted {result['deleted_count']}, {len(result['errors'])} errors"
@@ -688,8 +703,8 @@ async def run_nessus_scan_cleanup(
     scanner_registry: "ScannerRegistry",
     interval_hours: int = 1,
     retention_hours: int = 24,
-    stale_running_hours: int = 24
-):
+    stale_running_hours: int = 24,
+) -> None:
     """
     Run scanner-centric cleanup periodically as background task.
 
@@ -706,8 +721,7 @@ async def run_nessus_scan_cleanup(
         stale_running_hours: Hours after which running scans are stopped (default: 24)
     """
     cleaner = NessusScanCleaner(
-        retention_hours=retention_hours,
-        stale_running_hours=stale_running_hours
+        retention_hours=retention_hours, stale_running_hours=stale_running_hours
     )
 
     logger.info(
@@ -718,7 +732,11 @@ async def run_nessus_scan_cleanup(
     while True:
         try:
             result = await cleaner.cleanup_all_scanners(scanner_registry)
-            if result["deleted_count"] > 0 or result["stopped_count"] > 0 or result["errors"]:
+            if (
+                result["deleted_count"] > 0
+                or result["stopped_count"] > 0
+                or result["errors"]
+            ):
                 logger.info(
                     f"Nessus scan cleanup cycle: {result['scanners_processed']} scanners, "
                     f"deleted {result['deleted_count']}, stopped {result['stopped_count']}, "

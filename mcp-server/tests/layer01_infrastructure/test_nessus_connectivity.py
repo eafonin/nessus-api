@@ -8,11 +8,11 @@ Usage:
     pytest tests/layer01_infrastructure/test_nessus_connectivity.py -v -s
 """
 
-import pytest
-import httpx
 import os
 import socket
 
+import httpx
+import pytest
 
 # Configuration from environment or defaults
 NESSUS_URL = os.getenv("NESSUS_URL", "https://nessus-pro-1:8834")
@@ -44,7 +44,7 @@ class TestNessusConnectivity:
             result = sock.connect_ex((hostname, port))
             sock.close()
             assert result == 0, f"TCP port {port} is closed (error code: {result})"
-        except socket.timeout:
+        except TimeoutError:
             pytest.fail(f"Connection timeout to {hostname}:{port}")
 
     @pytest.mark.asyncio
@@ -52,7 +52,9 @@ class TestNessusConnectivity:
         """Verify HTTPS endpoint responds."""
         async with httpx.AsyncClient(verify=False, timeout=10.0) as client:
             response = await client.get(f"{NESSUS_URL}/server/status")
-            assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+            assert response.status_code == 200, (
+                f"Expected 200, got {response.status_code}"
+            )
 
     @pytest.mark.asyncio
     async def test_server_status_ready(self):
@@ -110,7 +112,7 @@ class TestNessusEndpoints:
             response = await client.post(
                 f"{NESSUS_URL}/session",
                 json={"username": "invalid", "password": "invalid"},
-                headers={"Content-Type": "application/json"}
+                headers={"Content-Type": "application/json"},
             )
             # 401 expected for bad creds, but endpoint is accessible
             assert response.status_code in [200, 401, 403]
@@ -127,7 +129,9 @@ class TestNessusServerProperties:
             assert response.status_code == 200
             data = response.json()
             # Nessus returns nessus_type and other properties
-            assert "nessus_type" in data, f"Expected 'nessus_type' in {list(data.keys())}"
+            assert "nessus_type" in data, (
+                f"Expected 'nessus_type' in {list(data.keys())}"
+            )
 
 
 if __name__ == "__main__":

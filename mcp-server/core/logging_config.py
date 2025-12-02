@@ -1,9 +1,11 @@
 """Structured logging configuration with JSON output and trace IDs."""
+
 import logging
+
 import structlog
 
 
-def configure_logging(log_level: str = "INFO"):
+def configure_logging(log_level: str = "INFO") -> None:
     """
     Configure structlog for JSON output with trace IDs.
 
@@ -13,7 +15,7 @@ def configure_logging(log_level: str = "INFO"):
     logging.basicConfig(
         format="%(message)s",
         level=getattr(logging, log_level.upper()),
-        handlers=[logging.StreamHandler()]
+        handlers=[logging.StreamHandler()],
     )
 
     structlog.configure(
@@ -26,7 +28,7 @@ def configure_logging(log_level: str = "INFO"):
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
             structlog.processors.UnicodeDecoder(),
-            structlog.processors.JSONRenderer()
+            structlog.processors.JSONRenderer(),
         ],
         wrapper_class=structlog.stdlib.BoundLogger,
         context_class=dict,
@@ -35,14 +37,6 @@ def configure_logging(log_level: str = "INFO"):
     )
 
 
-def get_logger(name: str = None):
-    """
-    Get a structured logger instance.
-
-    Args:
-        name: Logger name (defaults to caller's module)
-
-    Returns:
-        Structured logger instance
-    """
+def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
+    """Get a structured logger instance."""
     return structlog.get_logger(name)

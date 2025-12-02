@@ -1,7 +1,9 @@
 """Health check utilities for dependencies."""
-import redis
+
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
+
+import redis
 
 
 def check_redis(redis_url: str, timeout: int = 2) -> bool:
@@ -16,7 +18,9 @@ def check_redis(redis_url: str, timeout: int = 2) -> bool:
         True if Redis is accessible, False otherwise
     """
     try:
-        r = redis.from_url(redis_url, socket_connect_timeout=timeout, decode_responses=True)
+        r = redis.from_url(
+            redis_url, socket_connect_timeout=timeout, decode_responses=True
+        )
         r.ping()
         return True
     except Exception:
@@ -47,7 +51,7 @@ def check_filesystem(data_dir: str) -> bool:
         return False
 
 
-def check_all_dependencies(redis_url: str, data_dir: str) -> Dict[str, Any]:
+def check_all_dependencies(redis_url: str, data_dir: str) -> dict[str, Any]:
     """
     Check all service dependencies.
 
@@ -75,5 +79,5 @@ def check_all_dependencies(redis_url: str, data_dir: str) -> Dict[str, Any]:
         "redis_healthy": redis_healthy,
         "filesystem_healthy": filesystem_healthy,
         "redis_url": redis_url,
-        "data_dir": data_dir
+        "data_dir": data_dir,
     }

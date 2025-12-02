@@ -1,8 +1,9 @@
 """Unit tests for pool-based scanner registry operations."""
+
+from unittest.mock import AsyncMock, MagicMock, mock_open, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, mock_open, AsyncMock
 import yaml
-import asyncio
 
 
 class TestScannerRegistryPools:
@@ -57,10 +58,13 @@ class TestScannerRegistryPools:
         """ScannerRegistry with mocked config."""
         config_yaml = yaml.dump(pool_config)
 
-        with patch('builtins.open', mock_open(read_data=config_yaml)):
-            with patch('pathlib.Path.exists', return_value=True):
-                with patch('scanners.registry.NessusScanner', return_value=mock_scanner):
+        with patch("builtins.open", mock_open(read_data=config_yaml)):
+            with patch("pathlib.Path.exists", return_value=True):
+                with patch(
+                    "scanners.registry.NessusScanner", return_value=mock_scanner
+                ):
                     from scanners.registry import ScannerRegistry
+
                     return ScannerRegistry(config_file="/fake/config.yaml")
 
     def test_list_pools(self, registry):
@@ -183,10 +187,13 @@ class TestScannerRegistryLoadBalancing:
         }
         config_yaml = yaml.dump(config)
 
-        with patch('builtins.open', mock_open(read_data=config_yaml)):
-            with patch('pathlib.Path.exists', return_value=True):
-                with patch('scanners.registry.NessusScanner', return_value=mock_scanner):
+        with patch("builtins.open", mock_open(read_data=config_yaml)):
+            with patch("pathlib.Path.exists", return_value=True):
+                with patch(
+                    "scanners.registry.NessusScanner", return_value=mock_scanner
+                ):
                     from scanners.registry import ScannerRegistry
+
                     registry = ScannerRegistry(config_file="/fake/config.yaml")
 
                     # Simulate load on scanner1
@@ -197,7 +204,7 @@ class TestScannerRegistryLoadBalancing:
 
     def test_least_loaded_selection(self, registry_with_load):
         """Test that least loaded scanner is selected."""
-        scanner, key = registry_with_load.get_available_scanner(pool="nessus")
+        _scanner, key = registry_with_load.get_available_scanner(pool="nessus")
 
         # scanner2 has less load (1 vs 3)
         assert key == "nessus:scanner2"
@@ -207,10 +214,13 @@ class TestScannerRegistryLoadBalancing:
         """Test acquire_scanner increments active_scans."""
         initial_count = registry_with_load._instances["nessus:scanner2"]["active_scans"]
 
-        scanner, key = await registry_with_load.acquire_scanner(pool="nessus")
+        _scanner, key = await registry_with_load.acquire_scanner(pool="nessus")
 
         assert key == "nessus:scanner2"  # Least loaded
-        assert registry_with_load._instances["nessus:scanner2"]["active_scans"] == initial_count + 1
+        assert (
+            registry_with_load._instances["nessus:scanner2"]["active_scans"]
+            == initial_count + 1
+        )
 
     @pytest.mark.asyncio
     async def test_release_decrements_active_scans(self, registry_with_load):
@@ -219,14 +229,16 @@ class TestScannerRegistryLoadBalancing:
 
         await registry_with_load.release_scanner("nessus:scanner1")
 
-        assert registry_with_load._instances["nessus:scanner1"]["active_scans"] == initial_count - 1
+        assert (
+            registry_with_load._instances["nessus:scanner1"]["active_scans"]
+            == initial_count - 1
+        )
 
     @pytest.mark.asyncio
     async def test_acquire_specific_instance(self, registry_with_load):
         """Test acquiring specific scanner instance."""
-        scanner, key = await registry_with_load.acquire_scanner(
-            pool="nessus",
-            instance_id="scanner1"
+        _scanner, key = await registry_with_load.acquire_scanner(
+            pool="nessus", instance_id="scanner1"
         )
 
         # Should return scanner1 even though it's more loaded
@@ -256,21 +268,39 @@ class TestScannerRegistryPoolIsolation:
         """Registry with multiple pools."""
         config = {
             "nessus": [
-                {"instance_id": "main-1", "url": "https://main:8834", "enabled": True, "max_concurrent_scans": 5},
+                {
+                    "instance_id": "main-1",
+                    "url": "https://main:8834",
+                    "enabled": True,
+                    "max_concurrent_scans": 5,
+                },
             ],
             "nessus_dmz": [
-                {"instance_id": "dmz-1", "url": "https://dmz:8834", "enabled": True, "max_concurrent_scans": 3},
+                {
+                    "instance_id": "dmz-1",
+                    "url": "https://dmz:8834",
+                    "enabled": True,
+                    "max_concurrent_scans": 3,
+                },
             ],
             "nessus_lan": [
-                {"instance_id": "lan-1", "url": "https://lan:8834", "enabled": True, "max_concurrent_scans": 5},
+                {
+                    "instance_id": "lan-1",
+                    "url": "https://lan:8834",
+                    "enabled": True,
+                    "max_concurrent_scans": 5,
+                },
             ],
         }
         config_yaml = yaml.dump(config)
 
-        with patch('builtins.open', mock_open(read_data=config_yaml)):
-            with patch('pathlib.Path.exists', return_value=True):
-                with patch('scanners.registry.NessusScanner', return_value=mock_scanner):
+        with patch("builtins.open", mock_open(read_data=config_yaml)):
+            with patch("pathlib.Path.exists", return_value=True):
+                with patch(
+                    "scanners.registry.NessusScanner", return_value=mock_scanner
+                ):
                     from scanners.registry import ScannerRegistry
+
                     return ScannerRegistry(config_file="/fake/config.yaml")
 
     def test_pools_are_isolated(self, multi_pool_registry):
@@ -308,7 +338,7 @@ class TestScannerRegistryPoolIsolation:
     @pytest.mark.asyncio
     async def test_acquire_respects_pool(self, multi_pool_registry):
         """Test acquire only returns scanner from specified pool."""
-        scanner, key = await multi_pool_registry.acquire_scanner(pool="nessus_dmz")
+        _scanner, key = await multi_pool_registry.acquire_scanner(pool="nessus_dmz")
 
         assert key.startswith("nessus_dmz:")
         assert not key.startswith("nessus:main")

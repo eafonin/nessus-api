@@ -1,17 +1,19 @@
 """Mock scanner for testing and development."""
+
 import asyncio
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
+
 from .base import ScannerInterface, ScanRequest
 
 
 class MockNessusScanner(ScannerInterface):
     """Mock Nessus scanner using fixture files."""
 
-    def __init__(self, fixtures_dir: str = "tests/fixtures", scan_duration: int = 5):
+    def __init__(self, fixtures_dir: str = "tests/fixtures", scan_duration: int = 5) -> None:
         self.fixtures_dir = Path(fixtures_dir)
         self.scan_duration = scan_duration
-        self._scans: Dict[int, Dict[str, Any]] = {}
+        self._scans: dict[int, dict[str, Any]] = {}
         self._scan_counter = 1000
 
     async def create_scan(self, request: ScanRequest) -> int:
@@ -46,7 +48,7 @@ class MockNessusScanner(ScannerInterface):
         await asyncio.sleep(0.1)
         return self._scans[scan_id]["uuid"]
 
-    async def _simulate_scan(self, scan_id: int):
+    async def _simulate_scan(self, scan_id: int) -> None:
         """Simulate scan progression."""
         interval = self.scan_duration / 4
         for progress in [25, 50, 75, 100]:
@@ -57,7 +59,7 @@ class MockNessusScanner(ScannerInterface):
         if scan_id in self._scans:
             self._scans[scan_id]["status"] = "completed"
 
-    async def get_status(self, scan_id: int) -> Dict[str, Any]:
+    async def get_status(self, scan_id: int) -> dict[str, Any]:
         """Get mock scan status."""
         if scan_id not in self._scans:
             raise ValueError(f"Scan {scan_id} not found")

@@ -22,16 +22,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from client.nessus_fastmcp_client import NessusFastMCPClient
 
 
-async def main():
+async def main() -> None:
     """Basic usage example."""
 
     # Create client (debug=True for verbose logging)
     async with NessusFastMCPClient(
-        url="http://localhost:8836/mcp",
-        timeout=30.0,
-        debug=True
+        url="http://localhost:8836/mcp", timeout=30.0, debug=True
     ) as client:
-
         # 1. Ping server to verify connection
         print("1. Pinging MCP server...")
         await client.ping()
@@ -49,7 +46,7 @@ async def main():
         task = await client.submit_scan(
             targets="192.168.1.1",
             scan_name="Example Basic Scan",
-            description="Demonstration scan from Example 1"
+            description="Demonstration scan from Example 1",
         )
 
         task_id = task["task_id"]
@@ -67,12 +64,12 @@ async def main():
         print("5. Listing recent tasks...")
         tasks = await client.list_tasks(limit=5)
         print(f"   Total tasks: {tasks['total']}")
-        for t in tasks['tasks'][:3]:
+        for t in tasks["tasks"][:3]:
             print(f"   - {t['task_id']}: {t['status']}")
         print()
 
         print("✓ Example completed successfully!")
-        print(f"\nNext: Wait for scan to complete with:")
+        print("\nNext: Wait for scan to complete with:")
         print(f"  python 02_wait_for_completion.py {task_id}")
 
 

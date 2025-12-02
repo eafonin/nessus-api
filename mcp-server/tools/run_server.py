@@ -11,12 +11,14 @@ Rationale:
 
 The app is imported from mcp_server.py where it's created via mcp.sse_app().
 """
+
 import sys
+
 import uvicorn
 
 # Add /app to path for imports to work in Docker container
 # This allows imports like "from tools.mcp_server import app" to work
-sys.path.insert(0, '/app')
+sys.path.insert(0, "/app")
 
 from tools.mcp_server import app
 

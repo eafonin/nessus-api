@@ -1,8 +1,9 @@
 """Unit tests for pool-based queue operations."""
-import pytest
-from unittest.mock import MagicMock, patch
-import json
 
+import json
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Mock redis module before importing TaskQueue
 mock_redis_module = MagicMock()
@@ -11,7 +12,7 @@ mock_redis_module = MagicMock()
 @pytest.fixture(scope="module", autouse=True)
 def mock_redis_import():
     """Mock redis import at module level."""
-    with patch.dict('sys.modules', {'redis': mock_redis_module}):
+    with patch.dict("sys.modules", {"redis": mock_redis_module}):
         yield
 
 
@@ -38,7 +39,7 @@ class TestTaskQueuePools:
         from core.queue import TaskQueue
 
         # Patch redis.from_url to return our mock
-        with patch('core.queue.redis') as mock_redis:
+        with patch("core.queue.redis") as mock_redis:
             mock_redis.from_url.return_value = mock_redis_client
             mock_redis.ConnectionError = Exception
             mock_redis.RedisError = Exception
@@ -82,7 +83,7 @@ class TestTaskQueuePools:
         task = {
             "task_id": "test-001",
             "scanner_pool": "nessus_lan",
-            "payload": {"targets": "10.0.0.1"}
+            "payload": {"targets": "10.0.0.1"},
         }
         task_queue.enqueue(task)
 
@@ -95,7 +96,7 @@ class TestTaskQueuePools:
         task = {
             "task_id": "test-001",
             "scanner_pool": "nessus_lan",
-            "payload": {"targets": "10.0.0.1"}
+            "payload": {"targets": "10.0.0.1"},
         }
         task_queue.enqueue(task, pool="nessus_dmz")
 
@@ -106,7 +107,10 @@ class TestTaskQueuePools:
     def test_dequeue_from_default_pool(self, task_queue):
         """Test dequeue from default pool."""
         task_data = {"task_id": "test-001"}
-        task_queue.redis_client.brpop.return_value = ("nessus:queue", json.dumps(task_data))
+        task_queue.redis_client.brpop.return_value = (
+            "nessus:queue",
+            json.dumps(task_data),
+        )
 
         result = task_queue.dequeue()
 
@@ -116,17 +120,25 @@ class TestTaskQueuePools:
     def test_dequeue_from_specific_pool(self, task_queue):
         """Test dequeue from specific pool."""
         task_data = {"task_id": "test-002"}
-        task_queue.redis_client.brpop.return_value = ("nessus_dmz:queue", json.dumps(task_data))
+        task_queue.redis_client.brpop.return_value = (
+            "nessus_dmz:queue",
+            json.dumps(task_data),
+        )
 
         result = task_queue.dequeue(pool="nessus_dmz")
 
-        task_queue.redis_client.brpop.assert_called_once_with("nessus_dmz:queue", timeout=5)
+        task_queue.redis_client.brpop.assert_called_once_with(
+            "nessus_dmz:queue", timeout=5
+        )
         assert result["task_id"] == "test-002"
 
     def test_dequeue_any_from_multiple_pools(self, task_queue):
         """Test dequeue_any from multiple pools."""
         task_data = {"task_id": "test-003", "scanner_pool": "nessus"}
-        task_queue.redis_client.brpop.return_value = ("nessus:queue", json.dumps(task_data))
+        task_queue.redis_client.brpop.return_value = (
+            "nessus:queue",
+            json.dumps(task_data),
+        )
 
         pools = ["nessus", "nessus_dmz", "nessus_lan"]
         result = task_queue.dequeue_any(pools)
@@ -182,7 +194,9 @@ class TestTaskQueuePools:
 
         result = task_queue.peek(count=1, pool="nessus_lan")
 
-        task_queue.redis_client.lrange.assert_called_once_with("nessus_lan:queue", -1, -1)
+        task_queue.redis_client.lrange.assert_called_once_with(
+            "nessus_lan:queue", -1, -1
+        )
         assert len(result) == 1
 
     def test_clear_dlq_for_pool(self, task_queue):

@@ -14,12 +14,13 @@ Transitions:
 - HALF_OPEN -> OPEN: On failed request
 """
 
-import time
 import logging
 import threading
-from enum import Enum
-from typing import Optional, Dict, Any, Callable
+import time
 from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
 from prometheus_client import Counter, Gauge
 
 logger = logging.getLogger(__name__)
@@ -27,8 +28,9 @@ logger = logging.getLogger(__name__)
 
 class CircuitState(Enum):
     """Circuit breaker states."""
-    CLOSED = "closed"      # Normal operation
-    OPEN = "open"          # Failing, reject requests
+
+    CLOSED = "closed"  # Normal operation
+    OPEN = "open"  # Failing, reject requests
     HALF_OPEN = "half_open"  # Testing recovery
 
 
@@ -36,19 +38,19 @@ class CircuitState(Enum):
 circuit_state_gauge = Gauge(
     "nessus_circuit_state",
     "Circuit breaker state (0=closed, 1=open, 2=half_open)",
-    ["scanner_instance"]
+    ["scanner_instance"],
 )
 
 circuit_failures_total = Counter(
     "nessus_circuit_failures_total",
     "Total failures recorded by circuit breaker",
-    ["scanner_instance"]
+    ["scanner_instance"],
 )
 
 circuit_opens_total = Counter(
     "nessus_circuit_opens_total",
     "Total times circuit breaker opened",
-    ["scanner_instance"]
+    ["scanner_instance"],
 )
 
 
@@ -84,7 +86,7 @@ class CircuitBreaker:
     # Internal state
     _state: CircuitState = field(default=CircuitState.CLOSED, init=False)
     _failure_count: int = field(default=0, init=False)
-    _last_failure_time: Optional[float] = field(default=None, init=False)
+    _last_failure_time: float | None = field(default=None, init=False)
     _half_open_requests: int = field(default=0, init=False)
     _lock: threading.Lock = field(default_factory=threading.Lock, init=False)
 
@@ -193,11 +195,11 @@ class CircuitBreaker:
         state_value = {
             CircuitState.CLOSED: 0,
             CircuitState.OPEN: 1,
-            CircuitState.HALF_OPEN: 2
+            CircuitState.HALF_OPEN: 2,
         }[self._state]
         circuit_state_gauge.labels(scanner_instance=self.name).set(state_value)
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """
         Get current circuit breaker status.
 
@@ -214,16 +216,17 @@ class CircuitBreaker:
                 "last_failure_time": self._last_failure_time,
                 "recovery_timeout": self.recovery_timeout,
                 "time_until_recovery": max(
-                    0,
-                    self.recovery_timeout - (time.time() - self._last_failure_time)
-                ) if self._last_failure_time and self._state == CircuitState.OPEN else None
+                    0, self.recovery_timeout - (time.time() - self._last_failure_time)
+                )
+                if self._last_failure_time and self._state == CircuitState.OPEN
+                else None,
             }
 
 
 class CircuitOpenError(Exception):
     """Raised when circuit is open and request cannot proceed."""
 
-    def __init__(self, message: str, circuit_name: str = None):
+    def __init__(self, message: str, circuit_name: str | None = None) -> None:
         super().__init__(message)
         self.circuit_name = circuit_name
 
@@ -238,11 +241,7 @@ class CircuitBreakerRegistry:
     - Manually resetting circuits
     """
 
-    def __init__(
-        self,
-        failure_threshold: int = 5,
-        recovery_timeout: float = 30.0
-    ):
+    def __init__(self, failure_threshold: int = 5, recovery_timeout: float = 30.0) -> None:
         """
         Initialize circuit breaker registry.
 
@@ -252,7 +251,7 @@ class CircuitBreakerRegistry:
         """
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
-        self._breakers: Dict[str, CircuitBreaker] = {}
+        self._breakers: dict[str, CircuitBreaker] = {}
         self._lock = threading.Lock()
 
     def get(self, scanner_name: str) -> CircuitBreaker:
@@ -270,11 +269,11 @@ class CircuitBreakerRegistry:
                 self._breakers[scanner_name] = CircuitBreaker(
                     name=scanner_name,
                     failure_threshold=self.failure_threshold,
-                    recovery_timeout=self.recovery_timeout
+                    recovery_timeout=self.recovery_timeout,
                 )
             return self._breakers[scanner_name]
 
-    def get_all_status(self) -> Dict[str, Dict[str, Any]]:
+    def get_all_status(self) -> dict[str, dict[str, Any]]:
         """
         Get status of all circuit breakers.
 
@@ -282,10 +281,7 @@ class CircuitBreakerRegistry:
             Dict mapping scanner names to status dicts
         """
         with self._lock:
-            return {
-                name: cb.get_status()
-                for name, cb in self._breakers.items()
-            }
+            return {name: cb.get_status() for name, cb in self._breakers.items()}
 
     def reset_all(self) -> None:
         """Reset all circuit breakers to closed state."""
@@ -311,7 +307,7 @@ class CircuitBreakerRegistry:
 
 
 # Global registry instance (can be overridden in tests)
-_registry: Optional[CircuitBreakerRegistry] = None
+_registry: CircuitBreakerRegistry | None = None
 
 
 def get_circuit_breaker_registry() -> CircuitBreakerRegistry:

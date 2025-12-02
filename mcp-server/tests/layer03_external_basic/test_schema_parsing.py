@@ -11,18 +11,18 @@ This tests:
 - Pagination
 """
 
-import pytest
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from schema.parser import parse_nessus_file
-from schema.profiles import get_schema_fields, SCHEMAS
-from schema.filters import apply_filters, matches_all_filters, compare_number
 from schema.converter import NessusToJsonNL
-
+from schema.filters import apply_filters, compare_number
+from schema.parser import parse_nessus_file
+from schema.profiles import SCHEMAS, get_schema_fields
 
 # Mark all tests as phase2
 pytestmark = pytest.mark.phase2
@@ -243,7 +243,9 @@ class TestConverter:
     def test_converter_basic(self, sample_nessus_data):
         """Test basic converter functionality"""
         converter = NessusToJsonNL()
-        result = converter.convert(sample_nessus_data, schema_profile="brief", page=1, page_size=40)
+        result = converter.convert(
+            sample_nessus_data, schema_profile="brief", page=1, page_size=40
+        )
 
         lines = result.split("\n")
         assert len(lines) >= 4  # schema + metadata + vulns + pagination
@@ -271,7 +273,7 @@ class TestConverter:
 
         # Check that only minimal fields are present (plus 'type')
         minimal_fields = SCHEMAS["minimal"]
-        for field in minimal_fields:
+        for _field in minimal_fields:
             # Field might not be in data, but if it is in minimal schema, converter tried to include it
             pass
         assert "type" in vuln
@@ -371,7 +373,7 @@ class TestIntegration:
             schema_profile="brief",
             filters={"severity": "4"},  # Critical only
             page=1,
-            page_size=10
+            page_size=10,
         )
 
         lines = result.split("\n")
@@ -440,10 +442,7 @@ class TestIntegration:
         # Filter for critical vulnerabilities (severity 4)
         # page_size=10 (minimum), 11 critical vulns = 2 pages
         result = converter.convert(
-            real_scan_data,
-            filters={"severity": "4"},
-            page=1,
-            page_size=10
+            real_scan_data, filters={"severity": "4"}, page=1, page_size=10
         )
 
         lines = result.split("\n")
@@ -465,10 +464,7 @@ class TestIntegration:
 
         # Get page 2 - should have only 1 vulnerability (11 total - 10 on page 1)
         page2 = converter.convert(
-            real_scan_data,
-            filters={"severity": "4"},
-            page=2,
-            page_size=10
+            real_scan_data, filters={"severity": "4"}, page=2, page_size=10
         )
         lines2 = page2.split("\n")
         # schema + metadata + 1 vuln + pagination = 4 lines
@@ -480,11 +476,11 @@ class TestIntegration:
 
 # Export all test classes for easy import
 __all__ = [
-    'TestParser',
-    'TestProfiles',
-    'TestFilters',
-    'TestConverter',
-    'TestIntegration',
+    "TestConverter",
+    "TestFilters",
+    "TestIntegration",
+    "TestParser",
+    "TestProfiles",
 ]
 
 

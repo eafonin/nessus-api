@@ -4,16 +4,16 @@ Layer 02 Internal Test Fixtures.
 These fixtures support isolated unit tests with mocked dependencies.
 """
 
-import pytest
-import tempfile
 import shutil
-from pathlib import Path
-from unittest.mock import MagicMock, AsyncMock
+import tempfile
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 
 # =============================================================================
 # Directory Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def temp_data_dir():
@@ -34,6 +34,7 @@ def temp_config_dir():
 # =============================================================================
 # Mock Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def mock_redis():
@@ -78,6 +79,7 @@ def mock_task_manager():
 # Sample Data Fixtures
 # =============================================================================
 
+
 @pytest.fixture
 def sample_task_data():
     """Sample task data for tests."""
@@ -89,11 +91,8 @@ def sample_task_data():
         "scanner_instance_id": "scanner1",
         "scanner_pool": "nessus",
         "status": "queued",
-        "payload": {
-            "targets": "192.168.1.1",
-            "name": "Test Scan"
-        },
-        "created_at": "2025-01-01T00:00:00Z"
+        "payload": {"targets": "192.168.1.1", "name": "Test Scan"},
+        "created_at": "2025-01-01T00:00:00Z",
     }
 
 
@@ -109,7 +108,7 @@ def sample_vulnerability():
         "cvss_score": 9.0,
         "cve": ["CVE-2021-1234"],
         "exploit_available": True,
-        "description": "A test vulnerability"
+        "description": "A test vulnerability",
     }
 
 

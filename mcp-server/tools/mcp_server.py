@@ -1,23 +1,25 @@
 """FastMCP server with queue-based scan execution (Phase 1 + 2)."""
-import os
+
 import json
+import os
 import uuid
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 from fastmcp import FastMCP
-from core.task_manager import TaskManager, generate_task_id
-from core.types import Task, ScanState
-from core.queue import TaskQueue, get_queue_stats
-from core.idempotency import IdempotencyManager, ConflictError
+from starlette.responses import JSONResponse, PlainTextResponse
+from starlette.routing import Route
+
+from core.health import check_all_dependencies
+from core.idempotency import ConflictError, IdempotencyManager
 from core.ip_utils import targets_match
+from core.logging_config import configure_logging, get_logger
+from core.metrics import metrics_response, record_scan_submission, record_tool_call
+from core.queue import TaskQueue, get_queue_stats
+from core.task_manager import TaskManager, generate_task_id
+from core.types import ScanState, Task
 from scanners.registry import ScannerRegistry
 from schema.converter import NessusToJsonNL
-from core.metrics import metrics_response, record_tool_call, record_scan_submission
-from core.health import check_all_dependencies
-from core.logging_config import configure_logging, get_logger
-from starlette.responses import PlainTextResponse, JSONResponse
-
 
 # =============================================================================
 # FastMCP Server Configuration
@@ -38,12 +40,18 @@ task_queue = TaskQueue(redis_url=REDIS_URL)
 scanner_registry = ScannerRegistry(config_file=SCANNER_CONFIG)
 idempotency_manager = IdempotencyManager(redis_client=task_queue.redis_client)
 
-logger.info("mcp_server_initialized", redis_url=REDIS_URL, data_dir=DATA_DIR, scanner_config=SCANNER_CONFIG)
+logger.info(
+    "mcp_server_initialized",
+    redis_url=REDIS_URL,
+    data_dir=DATA_DIR,
+    scanner_config=SCANNER_CONFIG,
+)
 
 
 # =============================================================================
 # MCP Tools
 # =============================================================================
+
 
 @mcp.tool()
 async def run_untrusted_scan(
@@ -91,12 +99,16 @@ async def run_untrusted_scan(
     try:
         if scanner_instance:
             # Validate scanner exists
-            _ = scanner_registry.get_instance(pool=target_pool, instance_id=scanner_instance)
+            _ = scanner_registry.get_instance(
+                pool=target_pool, instance_id=scanner_instance
+            )
             selected_instance = scanner_instance
         else:
             # Get least loaded scanner in pool
             _, instance_key = scanner_registry.get_available_scanner(pool=target_pool)
-            selected_instance = instance_key.split(":")[-1]  # Extract instance ID from key
+            selected_instance = instance_key.split(":")[
+                -1
+            ]  # Extract instance ID from key
     except ValueError as e:
         return {
             "error": "Scanner not found",
@@ -127,7 +139,9 @@ async def run_untrusted_scan(
         }
 
         try:
-            existing_task_id = await idempotency_manager.check(idempotency_key, request_params)
+            existing_task_id = await idempotency_manager.check(
+                idempotency_key, request_params
+            )
             if existing_task_id:
                 # Return existing task
                 existing_task = task_manager.get_task(existing_task_id)
@@ -191,7 +205,9 @@ async def run_untrusted_scan(
     record_scan_submission("untrusted", "queued")
 
     # Get scanner URL for transparency
-    scanner_info = scanner_registry.get_instance_info(pool=target_pool, instance_id=selected_instance)
+    scanner_info = scanner_registry.get_instance_info(
+        pool=target_pool, instance_id=selected_instance
+    )
     scanner_url = scanner_info.get("url", "unknown") if scanner_info else "unknown"
 
     # Estimate wait time (rough: queue_position * 15 minutes average scan time)
@@ -202,7 +218,7 @@ async def run_untrusted_scan(
         task_id=task_id,
         trace_id=trace_id,
         scanner_pool=target_pool,
-        queue_position=queue_depth
+        queue_position=queue_depth,
     )
 
     return {
@@ -214,7 +230,7 @@ async def run_untrusted_scan(
         "scanner_url": scanner_url,
         "queue_position": queue_depth,
         "estimated_wait_minutes": estimated_wait_minutes,
-        "message": "Scan enqueued successfully. Worker will process asynchronously."
+        "message": "Scan enqueued successfully. Worker will process asynchronously.",
     }
 
 
@@ -301,14 +317,14 @@ async def run_authenticated_scan(
     if scan_type not in valid_types:
         return {
             "error": f"Invalid scan_type: {scan_type}. Must be one of: {valid_types}",
-            "trace_id": trace_id
+            "trace_id": trace_id,
         }
 
     # Validate privileged scan has escalation configured
     if scan_type == "authenticated_privileged" and elevate_privileges_with == "Nothing":
         return {
             "error": "authenticated_privileged scan requires elevate_privileges_with (sudo/su)",
-            "trace_id": trace_id
+            "trace_id": trace_id,
         }
 
     # Pool selection
@@ -317,7 +333,9 @@ async def run_authenticated_scan(
     # Select scanner: use specified or get least loaded in pool
     try:
         if scanner_instance:
-            _ = scanner_registry.get_instance(pool=target_pool, instance_id=scanner_instance)
+            _ = scanner_registry.get_instance(
+                pool=target_pool, instance_id=scanner_instance
+            )
             selected_instance = scanner_instance
         else:
             _, instance_key = scanner_registry.get_available_scanner(pool=target_pool)
@@ -373,7 +391,9 @@ async def run_authenticated_scan(
         }
 
         try:
-            existing_task_id = await idempotency_manager.check(idempotency_key, request_params)
+            existing_task_id = await idempotency_manager.check(
+                idempotency_key, request_params
+            )
             if existing_task_id:
                 existing_task = task_manager.get_task(existing_task_id)
                 return {
@@ -438,7 +458,9 @@ async def run_authenticated_scan(
     record_scan_submission(scan_type, "queued")
 
     # Get scanner URL for transparency
-    scanner_info = scanner_registry.get_instance_info(pool=target_pool, instance_id=selected_instance)
+    scanner_info = scanner_registry.get_instance_info(
+        pool=target_pool, instance_id=selected_instance
+    )
     scanner_url = scanner_info.get("url", "unknown") if scanner_info else "unknown"
 
     # Estimate wait time
@@ -450,7 +472,7 @@ async def run_authenticated_scan(
         trace_id=trace_id,
         scan_type=scan_type,
         scanner_pool=target_pool,
-        queue_position=queue_depth
+        queue_position=queue_depth,
     )
 
     return {
@@ -463,7 +485,7 @@ async def run_authenticated_scan(
         "scanner_url": scanner_url,
         "queue_position": queue_depth,
         "estimated_wait_minutes": estimated_wait_minutes,
-        "message": f"{scan_type.replace('_', ' ').title()} scan enqueued successfully. Worker will process asynchronously."
+        "message": f"{scan_type.replace('_', ' ').title()} scan enqueued. Worker will process.",
     }
 
 
@@ -524,9 +546,13 @@ async def get_scan_status(task_id: str) -> dict:
     if task.status == "completed" and task.validation_stats:
         response["results_summary"] = {
             "hosts_scanned": task.validation_stats.get("hosts_scanned", 0),
-            "total_vulnerabilities": task.validation_stats.get("total_vulnerabilities", 0),
+            "total_vulnerabilities": task.validation_stats.get(
+                "total_vulnerabilities", 0
+            ),
             "severity_breakdown": task.validation_stats.get("severity_counts", {}),
-            "file_size_kb": round(task.validation_stats.get("file_size_bytes", 0) / 1024, 1),
+            "file_size_kb": round(
+                task.validation_stats.get("file_size_bytes", 0) / 1024, 1
+            ),
             "auth_plugins_found": task.validation_stats.get("auth_plugins_found", 0),
         }
 
@@ -539,8 +565,8 @@ async def get_scan_status(task_id: str) -> dict:
                 "Check target allows SSH/WinRM from scanner IP",
                 "Verify target firewall rules",
                 "Check credential permissions on target",
-                "Review scan logs for specific error"
-            ]
+                "Review scan logs for specific error",
+            ],
         }
 
     # Get live progress from scanner if running
@@ -549,8 +575,7 @@ async def get_scan_status(task_id: str) -> dict:
             # Use pool for scanner lookup
             pool = task.scanner_pool or task.scanner_type
             scanner = scanner_registry.get_instance(
-                pool=pool,
-                instance_id=task.scanner_instance_id
+                pool=pool, instance_id=task.scanner_instance_id
             )
 
             status_info = await scanner.get_status(task.nessus_scan_id)
@@ -597,15 +622,13 @@ async def list_scanners(scanner_pool: str | None = None) -> dict:
         }
     """
     scanners = scanner_registry.list_instances(
-        enabled_only=True,
-        include_load=True,
-        pool=scanner_pool
+        enabled_only=True, include_load=True, pool=scanner_pool
     )
 
     return {
         "scanners": scanners,
         "total": len(scanners),
-        "pools": scanner_registry.list_pools()
+        "pools": scanner_registry.list_pools(),
     }
 
 
@@ -622,7 +645,7 @@ async def list_pools() -> dict:
     """
     return {
         "pools": scanner_registry.list_pools(),
-        "default_pool": scanner_registry.get_default_pool()
+        "default_pool": scanner_registry.get_default_pool(),
     }
 
 
@@ -725,14 +748,14 @@ async def list_tasks(
     task_dirs = sorted(
         task_manager.data_dir.glob("*/task.json"),
         key=lambda p: p.stat().st_mtime,
-        reverse=True
+        reverse=True,
     )
 
     # When filtering by target, we may need to scan more files
     scan_multiplier = 10 if target_filter else 2
 
     tasks = []
-    for task_file in task_dirs[:limit * scan_multiplier]:
+    for task_file in task_dirs[: limit * scan_multiplier]:
         try:
             task = task_manager.get_task(task_file.parent.name)
             if task:
@@ -747,35 +770,38 @@ async def list_tasks(
 
                 # Apply target filter if provided (CIDR-aware)
                 if target_filter:
-                    stored_targets = task.payload.get("targets", "") if task.payload else ""
+                    stored_targets = (
+                        task.payload.get("targets", "") if task.payload else ""
+                    )
                     if not targets_match(target_filter, stored_targets):
                         continue
 
-                tasks.append({
-                    "task_id": task.task_id,
-                    "trace_id": task.trace_id,
-                    "status": task.status,
-                    "scan_type": task.scan_type,
-                    "scanner_pool": task_pool,
-                    "scanner_type": task.scanner_type,
-                    "scanner_instance": task.scanner_instance_id,
-                    "targets": task.payload.get("targets", "") if task.payload else "",
-                    "name": task.payload.get("name", "") if task.payload else "",
-                    "created_at": task.created_at,
-                    "started_at": task.started_at,
-                    "completed_at": task.completed_at,
-                    "nessus_scan_id": task.nessus_scan_id,
-                })
+                tasks.append(
+                    {
+                        "task_id": task.task_id,
+                        "trace_id": task.trace_id,
+                        "status": task.status,
+                        "scan_type": task.scan_type,
+                        "scanner_pool": task_pool,
+                        "scanner_type": task.scanner_type,
+                        "scanner_instance": task.scanner_instance_id,
+                        "targets": task.payload.get("targets", "")
+                        if task.payload
+                        else "",
+                        "name": task.payload.get("name", "") if task.payload else "",
+                        "created_at": task.created_at,
+                        "started_at": task.started_at,
+                        "completed_at": task.completed_at,
+                        "nessus_scan_id": task.nessus_scan_id,
+                    }
+                )
 
                 if len(tasks) >= limit:
                     break
-        except Exception:
+        except Exception:  # noqa: S112 - continue on malformed files, logged elsewhere
             continue
 
-    return {
-        "tasks": tasks,
-        "total": len(tasks)
-    }
+    return {"tasks": tasks, "total": len(tasks)}
 
 
 @mcp.tool()
@@ -784,8 +810,8 @@ async def get_scan_results(
     page: int = 1,
     page_size: int = 40,
     schema_profile: str = "brief",
-    custom_fields: Optional[List[str]] = None,
-    filters: Optional[Dict[str, Any]] = None
+    custom_fields: list[str] | None = None,
+    filters: dict[str, Any] | None = None,
 ) -> str:
     """
     Get scan results in paginated JSON-NL format (Phase 2).
@@ -803,9 +829,9 @@ async def get_scan_results(
     """
     # Validate mutual exclusivity
     if schema_profile != "brief" and custom_fields is not None:
-        return json.dumps({
-            "error": "Cannot specify both schema_profile and custom_fields"
-        })
+        return json.dumps(
+            {"error": "Cannot specify both schema_profile and custom_fields"}
+        )
 
     # Get task
     task = task_manager.get_task(task_id)
@@ -813,9 +839,7 @@ async def get_scan_results(
         return json.dumps({"error": f"Task {task_id} not found"})
 
     if task.status != "completed":
-        return json.dumps({
-            "error": f"Scan not completed yet (status: {task.status})"
-        })
+        return json.dumps({"error": f"Scan not completed yet (status: {task.status})"})
 
     # Load .nessus file
     nessus_file = task_manager.data_dir / task_id / "scan_native.nessus"
@@ -833,7 +857,7 @@ async def get_scan_results(
             custom_fields=custom_fields,
             filters=filters,
             page=page,
-            page_size=page_size
+            page_size=page_size,
         )
         return results
     except ValueError as e:
@@ -846,17 +870,9 @@ async def get_scan_results(
 # NOTE: These functions are defined here but registered to the Starlette app
 # after it's created below (see "Register HTTP endpoints" section)
 
-async def health(request):
-    """
-    Health check endpoint.
 
-    Checks:
-    - Redis connectivity (PING)
-    - Filesystem writability (touch test)
-
-    Returns:
-        200 OK if healthy, 503 Service Unavailable if unhealthy
-    """
+async def health(request: object) -> JSONResponse:
+    """Health check endpoint."""
     health_status = check_all_dependencies(REDIS_URL, DATA_DIR)
 
     if health_status["status"] == "healthy":
@@ -865,20 +881,8 @@ async def health(request):
         return JSONResponse(status_code=503, content=health_status)
 
 
-async def metrics(request):
-    """
-    Prometheus metrics endpoint.
-
-    Returns metrics in Prometheus text format:
-    - nessus_scans_total
-    - nessus_api_requests_total
-    - nessus_active_scans
-    - nessus_scanner_instances
-    - nessus_queue_depth
-    - nessus_dlq_size
-    - nessus_task_duration_seconds
-    - nessus_ttl_deletions_total
-    """
+async def metrics(request: object) -> PlainTextResponse:
+    """Prometheus metrics endpoint."""
     return PlainTextResponse(metrics_response())
 
 
@@ -915,7 +919,5 @@ app = mcp.http_app(path="/mcp", transport="streamable-http", stateless_http=True
 # =============================================================================
 # Add health and metrics endpoints to the Starlette app
 # These need to be added after the app is created above
-from starlette.routing import Route
-
 app.routes.append(Route("/health", endpoint=health, methods=["GET"]))
 app.routes.append(Route("/metrics", endpoint=metrics, methods=["GET"]))

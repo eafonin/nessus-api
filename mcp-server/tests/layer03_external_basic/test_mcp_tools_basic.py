@@ -17,12 +17,12 @@ Requirements:
     - Scanner worker running
 """
 
-import pytest
 import json
-import asyncio
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -67,8 +67,7 @@ class TestScanSubmission:
         """Test basic scan submission."""
         async with NessusFastMCPClient() as client:
             task = await client.submit_scan(
-                targets="192.168.1.1",
-                scan_name="Test Scan - FastMCP Client"
+                targets="192.168.1.1", scan_name="Test Scan - FastMCP Client"
             )
 
             assert "task_id" in task
@@ -82,7 +81,7 @@ class TestScanSubmission:
             task = await client.submit_scan(
                 targets="192.168.1.1",
                 scan_name="Test Scan with Description",
-                description="Integration test scan"
+                description="Integration test scan",
             )
 
             assert task["status"] == "queued"
@@ -102,14 +101,14 @@ class TestScanSubmission:
             task1 = await client.submit_scan(
                 targets="192.168.1.100",
                 scan_name="Idempotency Test Scan",
-                idempotency_key=idemp_key
+                idempotency_key=idemp_key,
             )
 
             # Second submission with same idempotency_key
             task2 = await client.submit_scan(
                 targets="192.168.1.100",
                 scan_name="Idempotency Test Scan",
-                idempotency_key=idemp_key
+                idempotency_key=idemp_key,
             )
 
             # Should return same task_id when using same idempotency_key
@@ -124,8 +123,7 @@ class TestScanStatus:
         async with NessusFastMCPClient() as client:
             # Submit scan
             task = await client.submit_scan(
-                targets="192.168.1.1",
-                scan_name="Status Test Scan"
+                targets="192.168.1.1", scan_name="Status Test Scan"
             )
             task_id = task["task_id"]
 
@@ -136,7 +134,13 @@ class TestScanStatus:
             assert "status" in status
             # Note: progress may not be present for failed/queued scans
             # Only running and completed scans have progress
-            assert status["status"] in ["queued", "running", "completed", "failed", "timeout"]
+            assert status["status"] in [
+                "queued",
+                "running",
+                "completed",
+                "failed",
+                "timeout",
+            ]
 
     async def test_list_tasks(self):
         """Test list_tasks method."""
@@ -194,10 +198,7 @@ class TestResultRetrieval:
 
         async with NessusFastMCPClient() as client:
             results = await client.get_results(
-                task_id=task_id,
-                schema_profile="minimal",
-                page=1,
-                page_size=10
+                task_id=task_id, schema_profile="minimal", page=1, page_size=10
             )
 
             assert isinstance(results, str)
@@ -243,16 +244,13 @@ class TestHelperMethods:
         async with NessusFastMCPClient() as client:
             # Submit scan
             task = await client.submit_scan(
-                targets="192.168.1.1",
-                scan_name="Wait Test Scan"
+                targets="192.168.1.1", scan_name="Wait Test Scan"
             )
             task_id = task["task_id"]
 
             # Wait for completion
             final_status = await client.wait_for_completion(
-                task_id=task_id,
-                timeout=600,
-                poll_interval=10
+                task_id=task_id, timeout=600, poll_interval=10
             )
 
             assert final_status["status"] in ["completed", "failed"]
@@ -265,7 +263,7 @@ class TestHelperMethods:
                 targets="192.168.1.1",
                 scan_name="Scan and Wait Test",
                 timeout=600,
-                poll_interval=10
+                poll_interval=10,
             )
 
             assert final_status["status"] in ["completed", "failed"]
@@ -290,8 +288,7 @@ class TestErrorHandling:
             async with NessusFastMCPClient(timeout=0.001) as client:
                 # Should fail during connection, not here
                 await client.submit_scan(
-                    targets="192.168.1.1",
-                    scan_name="Timeout Test"
+                    targets="192.168.1.1", scan_name="Timeout Test"
                 )
 
 
@@ -308,8 +305,7 @@ class TestProgressCallbacks:
         async with NessusFastMCPClient() as client:
             # Submit scan
             task = await client.submit_scan(
-                targets="192.168.1.1",
-                scan_name="Callback Test Scan"
+                targets="192.168.1.1", scan_name="Callback Test Scan"
             )
             task_id = task["task_id"]
 
@@ -319,7 +315,7 @@ class TestProgressCallbacks:
                     task_id=task_id,
                     timeout=30,  # Short timeout
                     poll_interval=5,
-                    progress_callback=progress_callback
+                    progress_callback=progress_callback,
                 )
             except TimeoutError:
                 pass  # Expected - we're just testing callbacks
@@ -330,14 +326,14 @@ class TestProgressCallbacks:
 
 # Export test classes
 __all__ = [
-    'TestClientConnection',
-    'TestScanSubmission',
-    'TestScanStatus',
-    'TestQueueOperations',
-    'TestResultRetrieval',
-    'TestHelperMethods',
-    'TestErrorHandling',
-    'TestProgressCallbacks',
+    "TestClientConnection",
+    "TestErrorHandling",
+    "TestHelperMethods",
+    "TestProgressCallbacks",
+    "TestQueueOperations",
+    "TestResultRetrieval",
+    "TestScanStatus",
+    "TestScanSubmission",
 ]
 
 

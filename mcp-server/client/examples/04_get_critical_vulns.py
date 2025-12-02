@@ -13,8 +13,8 @@ Usage:
 """
 
 import asyncio
-import sys
 import json
+import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from client.nessus_fastmcp_client import NessusFastMCPClient
 
 
-async def main():
+async def main() -> None:
     """Get critical vulnerabilities example."""
 
     if len(sys.argv) < 2:
@@ -35,10 +35,8 @@ async def main():
     task_id = sys.argv[1]
 
     async with NessusFastMCPClient(
-        url="http://localhost:8836/mcp",
-        debug=False
+        url="http://localhost:8836/mcp", debug=False
     ) as client:
-
         print(f"Retrieving results for: {task_id}")
         print("=" * 60)
         print()
@@ -57,7 +55,7 @@ async def main():
             print(f"   Plugin: {vuln.get('plugin_name')}")
             print(f"   Severity: {vuln.get('severity')} (Critical)")
             print(f"   CVSS: {vuln.get('cvss_score', 'N/A')}")
-            cve = vuln.get('cve', [])
+            cve = vuln.get("cve", [])
             if cve:
                 print(f"   CVE: {', '.join(cve if isinstance(cve, list) else [cve])}")
             print()
@@ -73,15 +71,18 @@ async def main():
         results = await client.get_results(
             task_id=task_id,
             schema_profile="minimal",  # Smaller schema
-            filters={"severity": "4", "exploit_available": True},  # Critical with exploits
-            page=0  # Get all data
+            filters={
+                "severity": "4",
+                "exploit_available": True,
+            },  # Critical with exploits
+            page=0,  # Get all data
         )
 
         # Parse JSON-NL format
         exploitable_critical = []
-        for line in results.strip().split('\n'):
+        for line in results.strip().split("\n"):
             data = json.loads(line)
-            if data.get('type') == 'vulnerability':
+            if data.get("type") == "vulnerability":
                 exploitable_critical.append(data)
 
         print(f"Found {len(exploitable_critical)} EXPLOITABLE critical vulnerabilities")
@@ -101,23 +102,19 @@ async def main():
 
         # Minimal schema
         minimal_results = await client.get_results(
-            task_id=task_id,
-            schema_profile="minimal",
-            page=1,
-            page_size=10
+            task_id=task_id, schema_profile="minimal", page=1, page_size=10
         )
 
         # Brief schema (default)
         brief_results = await client.get_results(
-            task_id=task_id,
-            schema_profile="brief",
-            page=1,
-            page_size=10
+            task_id=task_id, schema_profile="brief", page=1, page_size=10
         )
 
         print(f"Minimal schema size: {len(minimal_results)} bytes")
         print(f"Brief schema size: {len(brief_results)} bytes")
-        print(f"Size reduction: ~{100 - (len(minimal_results) / len(brief_results) * 100):.0f}%")
+        print(
+            f"Size reduction: ~{100 - (len(minimal_results) / len(brief_results) * 100):.0f}%"
+        )
         print()
 
         print("✓ Example completed!")

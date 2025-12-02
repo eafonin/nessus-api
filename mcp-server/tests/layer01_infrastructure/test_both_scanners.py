@@ -8,10 +8,10 @@ Usage:
     pytest tests/layer01_infrastructure/test_both_scanners.py -v -s
 """
 
-import pytest
-import httpx
 import os
 
+import httpx
+import pytest
 
 # Scanner configurations
 SCANNERS = [
@@ -36,8 +36,9 @@ class TestBothScannersConnectivity:
         async with httpx.AsyncClient(verify=False, timeout=10.0) as client:
             try:
                 response = await client.get(f"{scanner['url']}/server/status")
-                assert response.status_code == 200, \
+                assert response.status_code == 200, (
                     f"{scanner['name']} returned {response.status_code}"
+                )
             except httpx.ConnectError as e:
                 pytest.fail(f"{scanner['name']} not reachable at {scanner['url']}: {e}")
 
@@ -48,8 +49,9 @@ class TestBothScannersConnectivity:
         async with httpx.AsyncClient(verify=False, timeout=10.0) as client:
             response = await client.get(f"{scanner['url']}/server/status")
             data = response.json()
-            assert data.get("status") == "ready", \
+            assert data.get("status") == "ready", (
                 f"{scanner['name']} not ready: {data.get('status')}"
+            )
 
 
 class TestScannersIndependent:
@@ -71,8 +73,9 @@ class TestScannersIndependent:
 
         # If we got UUIDs, they should be unique
         if len(uuids) >= 2:
-            assert len(uuids) == len(set(uuids)), \
+            assert len(uuids) == len(set(uuids)), (
                 f"Scanner UUIDs are not unique: {uuids}"
+            )
 
 
 if __name__ == "__main__":

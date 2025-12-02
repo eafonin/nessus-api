@@ -1,15 +1,17 @@
 """Test real Nessus scanner."""
-import pytest
-import os
+
 import asyncio
+import os
 import sys
 from pathlib import Path
+
+import pytest
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from scanners.nessus_scanner import NessusScanner
 from scanners.base import ScanRequest
+from scanners.nessus_scanner import NessusScanner
 
 
 @pytest.mark.asyncio
@@ -20,7 +22,7 @@ async def test_nessus_authentication():
         url=os.getenv("NESSUS_URL", "https://localhost:8834"),
         username=os.getenv("NESSUS_USERNAME", "nessus"),
         password=os.getenv("NESSUS_PASSWORD", "nessus"),
-        verify_ssl=False
+        verify_ssl=False,
     )
 
     try:
@@ -41,7 +43,7 @@ async def test_nessus_create_and_launch():
         url=os.getenv("NESSUS_URL", "https://localhost:8834"),
         username=os.getenv("NESSUS_USERNAME", "nessus"),
         password=os.getenv("NESSUS_PASSWORD", "nessus"),
-        verify_ssl=False
+        verify_ssl=False,
     )
 
     try:
@@ -52,7 +54,7 @@ async def test_nessus_create_and_launch():
                 targets="192.168.1.1",
                 name="Phase 1 Integration Test",
                 scan_type="untrusted",
-                description="Automated test from Phase 1 implementation"
+                description="Automated test from Phase 1 implementation",
             )
         )
         assert scan_id > 0, "Scan ID should be positive"
@@ -67,7 +69,9 @@ async def test_nessus_create_and_launch():
         # Check status
         print("3. Checking status...")
         status = await scanner.get_status(scan_id)
-        assert status["status"] in ["queued", "running"], f"Unexpected status: {status['status']}"
+        assert status["status"] in ["queued", "running"], (
+            f"Unexpected status: {status['status']}"
+        )
         print(f"   ✓ Scan status: {status['status']}, progress: {status['progress']}%")
 
         # Wait a bit to let it start
@@ -75,13 +79,15 @@ async def test_nessus_create_and_launch():
 
         # Check status again
         status = await scanner.get_status(scan_id)
-        print(f"   ✓ Updated status: {status['status']}, progress: {status['progress']}%")
+        print(
+            f"   ✓ Updated status: {status['status']}, progress: {status['progress']}%"
+        )
 
         # Stop scan (cleanup)
         print("4. Stopping scan...")
         stopped = await scanner.stop_scan(scan_id)
         assert stopped, "Scan should be stopped"
-        print(f"   ✓ Scan stopped")
+        print("   ✓ Scan stopped")
 
         # Wait for stop to complete
         await asyncio.sleep(2)
@@ -90,7 +96,7 @@ async def test_nessus_create_and_launch():
         print("5. Deleting scan...")
         deleted = await scanner.delete_scan(scan_id)
         assert deleted, "Scan should be deleted"
-        print(f"   ✓ Scan deleted")
+        print("   ✓ Scan deleted")
 
         print("\n✅ All tests passed!")
 
@@ -109,7 +115,7 @@ async def test_nessus_status_mapping():
         url=os.getenv("NESSUS_URL", "https://localhost:8834"),
         username=os.getenv("NESSUS_USERNAME", "nessus"),
         password=os.getenv("NESSUS_PASSWORD", "nessus"),
-        verify_ssl=False
+        verify_ssl=False,
     )
 
     # Test status mapping

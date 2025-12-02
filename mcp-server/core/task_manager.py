@@ -1,10 +1,12 @@
 """Task manager with file-based storage."""
+
 import json
 import uuid
-from pathlib import Path
 from datetime import datetime
-from typing import Optional
-from .types import Task, ScanState, VALID_TRANSITIONS, StateTransitionError
+from pathlib import Path
+from typing import Any
+
+from .types import VALID_TRANSITIONS, ScanState, StateTransitionError, Task
 
 
 def generate_task_id(scanner_type: str, instance_id: str) -> str:
@@ -19,7 +21,7 @@ def generate_task_id(scanner_type: str, instance_id: str) -> str:
 class TaskManager:
     """Manages task lifecycle with file-based storage."""
 
-    def __init__(self, data_dir: str = "/app/data/tasks"):
+    def __init__(self, data_dir: str = "/app/data/tasks") -> None:
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
@@ -29,26 +31,21 @@ class TaskManager:
         task_dir.mkdir(parents=True, exist_ok=True)
 
         task_file = task_dir / "task.json"
-        with open(task_file, "w") as f:
+        with task_file.open("w") as f:
             json.dump(self._task_to_dict(task), f, indent=2)
 
-    def get_task(self, task_id: str) -> Optional[Task]:
+    def get_task(self, task_id: str) -> Task | None:
         """Retrieve task metadata."""
         task_file = self.data_dir / task_id / "task.json"
         if not task_file.exists():
             return None
 
-        with open(task_file) as f:
+        with task_file.open() as f:
             data = json.load(f)
 
         return Task(**data)
 
-    def update_status(
-        self,
-        task_id: str,
-        new_state: ScanState,
-        **metadata
-    ) -> None:
+    def update_status(self, task_id: str, new_state: ScanState, **metadata: Any) -> None:
         """Update task status with state machine validation."""
         task = self.get_task(task_id)
         if not task:
@@ -77,7 +74,7 @@ class TaskManager:
 
         # Write back
         task_file = self.data_dir / task_id / "task.json"
-        with open(task_file, "w") as f:
+        with task_file.open("w") as f:
             json.dump(self._task_to_dict(task), f, indent=2)
 
     @staticmethod
@@ -106,9 +103,9 @@ class TaskManager:
     def mark_completed_with_validation(
         self,
         task_id: str,
-        validation_stats: dict = None,
-        validation_warnings: list = None,
-        authentication_status: str = None
+        validation_stats: dict | None = None,
+        validation_warnings: list | None = None,
+        authentication_status: str | None = None,
     ) -> None:
         """
         Mark task as completed with validation results.
@@ -124,15 +121,15 @@ class TaskManager:
             ScanState.COMPLETED,
             validation_stats=validation_stats,
             validation_warnings=validation_warnings,
-            authentication_status=authentication_status
+            authentication_status=authentication_status,
         )
 
     def mark_failed_with_validation(
         self,
         task_id: str,
         error_message: str,
-        validation_stats: dict = None,
-        authentication_status: str = None
+        validation_stats: dict | None = None,
+        authentication_status: str | None = None,
     ) -> None:
         """
         Mark task as failed with validation context.
@@ -150,5 +147,5 @@ class TaskManager:
             ScanState.FAILED,
             error_message=error_message,
             validation_stats=validation_stats,
-            authentication_status=authentication_status
+            authentication_status=authentication_status,
         )

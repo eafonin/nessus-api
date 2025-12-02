@@ -9,14 +9,13 @@ Tests the list_tasks filtering logic:
 - Empty results handling
 """
 
-import pytest
-import tempfile
 import shutil
-from pathlib import Path
-from datetime import datetime
+import tempfile
 
-from core.types import Task
+import pytest
+
 from core.task_manager import TaskManager
+from core.types import Task
 
 
 class TestListTasksFiltering:

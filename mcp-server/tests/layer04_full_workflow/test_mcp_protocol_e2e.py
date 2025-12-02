@@ -21,26 +21,24 @@ Markers:
     - slow: Long-running tests (scans)
 """
 
-import pytest
-import pytest_asyncio
 import asyncio
-import os
 import json
+import os
 from datetime import datetime
-from typing import Any
 
+import pytest
 from mcp.client.session import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
-
 
 # ============================================================================
 # Configuration
 # ============================================================================
 
+
 def get_mcp_url() -> str:
     """Get MCP URL based on environment."""
     # Inside Docker container
-    if os.path.exists('/.dockerenv') or os.environ.get('CONTAINER'):
+    if os.path.exists("/.dockerenv") or os.environ.get("CONTAINER"):
         return "http://mcp-api:8000/mcp"
     # From host
     return os.environ.get("MCP_URL", "http://localhost:8836/mcp")
@@ -90,7 +88,7 @@ async def create_mcp_session():
         async with create_mcp_session() as session:
             result = await session.call_tool(...)
     """
-    async with streamablehttp_client(MCP_URL) as (read, write, get_session_id):
+    async with streamablehttp_client(MCP_URL) as (read, write, _get_session_id):
         async with ClientSession(read, write) as session:
             init_result = await session.initialize()
             server_info = init_result.serverInfo
@@ -102,12 +100,13 @@ async def create_mcp_session():
 # Helper Functions
 # ============================================================================
 
+
 def extract_tool_result(result) -> dict:
     """Extract the actual result data from MCP tool response."""
     # MCP SDK returns CallToolResult with content list
-    if hasattr(result, 'content') and result.content:
+    if hasattr(result, "content") and result.content:
         content = result.content[0]
-        if hasattr(content, 'text'):
+        if hasattr(content, "text"):
             return json.loads(content.text)
     return {}
 
@@ -116,7 +115,7 @@ async def poll_until_complete(
     session: ClientSession,
     task_id: str,
     timeout: int = SCAN_TIMEOUT,
-    poll_interval: int = POLL_INTERVAL
+    poll_interval: int = POLL_INTERVAL,
 ) -> dict:
     """Poll scan status until completion."""
     start_time = asyncio.get_event_loop().time()
@@ -136,7 +135,7 @@ async def poll_until_complete(
         if elapsed > timeout:
             raise TimeoutError(f"Scan did not complete in {timeout}s")
 
-        progress = status.get('progress', 'N/A')
+        progress = status.get("progress", "N/A")
         print(f"  [{elapsed:.0f}s] Status: {current_status}, Progress: {progress}%")
         await asyncio.sleep(poll_interval)
 
@@ -144,6 +143,7 @@ async def poll_until_complete(
 # ============================================================================
 # Phase 6.1: MCP Protocol Integration Tests
 # ============================================================================
+
 
 class TestMCPProtocolBasic:
     """Basic MCP protocol tests - quick validation."""
@@ -160,7 +160,7 @@ class TestMCPProtocolBasic:
 
             # Verify tools capability is present
             assert caps.tools is not None, "Server should have tools capability"
-            print(f"  Server capabilities retrieved successfully")
+            print("  Server capabilities retrieved successfully")
             print(f"  Tools capability: {caps.tools}")
 
     async def test_mcp_list_tools(self):
@@ -220,15 +220,15 @@ class TestMCPProtocolBasic:
         print(f"\n  Connecting to MCP server at {MCP_URL}...")
         async with create_mcp_session() as session:
             result = await session.call_tool(
-                "get_scan_status",
-                {"task_id": "nonexistent-task-id-12345"}
+                "get_scan_status", {"task_id": "nonexistent-task-id-12345"}
             )
             data = extract_tool_result(result)
 
             # Should return error for non-existent task
-            assert "error" in data or data.get("status") == "not_found", \
+            assert "error" in data or data.get("status") == "not_found", (
                 f"Expected error for non-existent task, got: {data}"
-            print(f"  Correctly handled non-existent task")
+            )
+            print("  Correctly handled non-existent task")
 
     async def test_mcp_list_scanners_e2e(self):
         """Test list_scanners via MCP protocol."""
@@ -244,8 +244,10 @@ class TestMCPProtocolBasic:
             print(f"  Total scanners: {data['total']}")
             if "pools" in data:
                 print(f"  Pools: {data['pools']}")
-            for scanner in data['scanners']:
-                print(f"    - {scanner.get('instance_id')}: enabled={scanner.get('enabled')}")
+            for scanner in data["scanners"]:
+                print(
+                    f"    - {scanner.get('instance_id')}: enabled={scanner.get('enabled')}"
+                )
 
     async def test_mcp_get_queue_status_e2e(self):
         """Test get_queue_status via MCP protocol."""
@@ -255,12 +257,15 @@ class TestMCPProtocolBasic:
             data = extract_tool_result(result)
 
             # Queue status should have depth info
-            assert "queue_depth" in data or "main_queue_depth" in data, \
+            assert "queue_depth" in data or "main_queue_depth" in data, (
                 f"Missing queue depth field in: {data}"
+            )
 
             if "pool" in data:
                 print(f"  Pool: {data['pool']}")
-            print(f"  Queue depth: {data.get('queue_depth', data.get('main_queue_depth', 0))}")
+            print(
+                f"  Queue depth: {data.get('queue_depth', data.get('main_queue_depth', 0))}"
+            )
             print(f"  DLQ size: {data.get('dlq_size', 0)}")
 
 
@@ -285,16 +290,17 @@ class TestMCPErrorPropagation:
                     "name": "Error Test",
                     "scan_type": "invalid_type_xyz",
                     "ssh_username": "user",
-                    "ssh_password": "pass"
-                }
+                    "ssh_password": "pass",
+                },
             )
             data = extract_tool_result(result)
 
             # Should contain error about invalid scan_type
             assert "error" in data, f"Expected error field, got: {data}"
             error_msg = data["error"].lower()
-            assert "scan_type" in error_msg or "invalid" in error_msg, \
+            assert "scan_type" in error_msg or "invalid" in error_msg, (
                 f"Error should mention scan_type: {data['error']}"
+            )
             print(f"  Error properly propagated: {data['error']}")
 
     async def test_mcp_missing_required_params(self):
@@ -305,7 +311,7 @@ class TestMCPErrorPropagation:
             try:
                 result = await session.call_tool(
                     "run_untrusted_scan",
-                    {"name": "Missing Target Test"}
+                    {"name": "Missing Target Test"},
                     # Missing 'targets' parameter
                 )
                 data = extract_tool_result(result)
@@ -331,37 +337,36 @@ class TestMCPScanWorkflow:
         """
         scan_name = f"MCP_E2E_Untrusted_{datetime.now().strftime('%H%M%S')}"
 
-        print(f"\n  === Untrusted Scan E2E Test ===")
+        print("\n  === Untrusted Scan E2E Test ===")
         print(f"  Target: {LOCAL_TARGET}")
         print(f"  Scan: {scan_name}")
         print(f"  Connecting to MCP server at {MCP_URL}...")
 
         async with create_mcp_session() as session:
             # Step 1: Submit scan
-            print(f"\n  [1] Submitting scan...")
+            print("\n  [1] Submitting scan...")
             result = await session.call_tool(
-                "run_untrusted_scan",
-                {
-                    "targets": LOCAL_TARGET,
-                    "name": scan_name
-                }
+                "run_untrusted_scan", {"targets": LOCAL_TARGET, "name": scan_name}
             )
             data = extract_tool_result(result)
 
             assert "task_id" in data, f"Missing task_id in response: {data}"
-            assert data.get("status") == "queued", f"Expected 'queued', got: {data.get('status')}"
+            assert data.get("status") == "queued", (
+                f"Expected 'queued', got: {data.get('status')}"
+            )
 
             task_id = data["task_id"]
             print(f"  Task ID: {task_id}")
             print(f"  Queue position: {data.get('queue_position', 'N/A')}")
 
             # Step 2: Poll until complete
-            print(f"\n  [2] Polling status...")
+            print("\n  [2] Polling status...")
             final_status = await poll_until_complete(session, task_id)
 
             print(f"\n  [3] Final status: {final_status.get('status')}")
-            assert final_status["status"] in ("completed", "failed"), \
+            assert final_status["status"] in ("completed", "failed"), (
                 f"Unexpected final status: {final_status['status']}"
+            )
 
             if final_status["status"] == "failed":
                 print(f"  Warning: Scan failed - {final_status.get('error')}")
@@ -370,7 +375,7 @@ class TestMCPScanWorkflow:
                 print(f"  Progress: {final_status.get('progress')}%")
                 print(f"  Scan ID: {final_status.get('nessus_scan_id')}")
 
-            print(f"\n  === Test Passed ===")
+            print("\n  === Test Passed ===")
 
     @pytest.mark.slow
     async def test_mcp_run_authenticated_scan_e2e(self):
@@ -382,7 +387,7 @@ class TestMCPScanWorkflow:
         """
         scan_name = f"MCP_E2E_Auth_{datetime.now().strftime('%H%M%S')}"
 
-        print(f"\n  === Authenticated Scan E2E Test ===")
+        print("\n  === Authenticated Scan E2E Test ===")
         print(f"  Target: {SCAN_TARGET_IP}")
         print(f"  Scan: {scan_name}")
         print(f"  User: {SSH_TEST_USER}")
@@ -397,7 +402,7 @@ class TestMCPScanWorkflow:
                 pytest.skip("run_authenticated_scan not available")
 
             # Step 1: Submit authenticated scan
-            print(f"\n  [1] Submitting authenticated scan...")
+            print("\n  [1] Submitting authenticated scan...")
             result = await session.call_tool(
                 "run_authenticated_scan",
                 {
@@ -405,26 +410,31 @@ class TestMCPScanWorkflow:
                     "name": scan_name,
                     "scan_type": "authenticated",
                     "ssh_username": SSH_TEST_USER,
-                    "ssh_password": SSH_TEST_PASS
-                }
+                    "ssh_password": SSH_TEST_PASS,
+                },
             )
             data = extract_tool_result(result)
 
             assert "task_id" in data, f"Missing task_id in response: {data}"
-            assert data.get("status") == "queued", f"Expected 'queued', got: {data.get('status')}"
+            assert data.get("status") == "queued", (
+                f"Expected 'queued', got: {data.get('status')}"
+            )
 
             task_id = data["task_id"]
             print(f"  Task ID: {task_id}")
             print(f"  Queue position: {data.get('queue_position', 'N/A')}")
-            print(f"  Estimated wait: {data.get('estimated_wait_minutes', 'N/A')} minutes")
+            print(
+                f"  Estimated wait: {data.get('estimated_wait_minutes', 'N/A')} minutes"
+            )
 
             # Step 2: Poll until complete
-            print(f"\n  [2] Polling status...")
+            print("\n  [2] Polling status...")
             final_status = await poll_until_complete(session, task_id)
 
             print(f"\n  [3] Final status: {final_status.get('status')}")
-            assert final_status["status"] in ("completed", "failed"), \
+            assert final_status["status"] in ("completed", "failed"), (
                 f"Unexpected final status: {final_status['status']}"
+            )
 
             if final_status["status"] == "completed":
                 print(f"  Progress: {final_status.get('progress')}%")
@@ -433,12 +443,16 @@ class TestMCPScanWorkflow:
                 # Check for authentication validation
                 validation = final_status.get("validation", {})
                 if validation:
-                    print(f"  Auth detected: {validation.get('authentication_detected')}")
-                    print(f"  Credentialed checks: {validation.get('credentialed_checks_percentage', 0)}%")
+                    print(
+                        f"  Auth detected: {validation.get('authentication_detected')}"
+                    )
+                    print(
+                        f"  Credentialed checks: {validation.get('credentialed_checks_percentage', 0)}%"
+                    )
             else:
                 print(f"  Scan failed: {final_status.get('error')}")
 
-            print(f"\n  === Test Passed ===")
+            print("\n  === Test Passed ===")
 
 
 class TestMCPQueueInfo:
@@ -452,8 +466,8 @@ class TestMCPQueueInfo:
                 "run_untrusted_scan",
                 {
                     "targets": "10.255.255.1",  # Unreachable - will queue but fail
-                    "name": f"Queue_Test_{datetime.now().strftime('%H%M%S')}"
-                }
+                    "name": f"Queue_Test_{datetime.now().strftime('%H%M%S')}",
+                },
             )
             data = extract_tool_result(result)
 
@@ -461,7 +475,9 @@ class TestMCPQueueInfo:
             assert "queue_position" in data, "Missing queue_position in response"
 
             print(f"  Queue position: {data['queue_position']}")
-            print(f"  Estimated wait: {data.get('estimated_wait_minutes', 'N/A')} minutes")
+            print(
+                f"  Estimated wait: {data.get('estimated_wait_minutes', 'N/A')} minutes"
+            )
 
     async def test_queue_position_multiple_submits(self):
         """Test that queue positions increment for multiple submissions."""
@@ -476,8 +492,8 @@ class TestMCPQueueInfo:
                     "run_untrusted_scan",
                     {
                         "targets": f"10.255.255.{100 + i}",  # Unreachable IPs
-                        "name": f"Queue_Multi_{i}_{datetime.now().strftime('%H%M%S')}"
-                    }
+                        "name": f"Queue_Multi_{i}_{datetime.now().strftime('%H%M%S')}",
+                    },
                 )
                 data = extract_tool_result(result)
                 positions.append(data.get("queue_position", 0))
@@ -488,13 +504,15 @@ class TestMCPQueueInfo:
 
             # Positions should be non-decreasing (may be same if processed fast)
             for i in range(1, len(positions)):
-                assert positions[i] >= positions[i-1], \
+                assert positions[i] >= positions[i - 1], (
                     f"Position should not decrease: {positions}"
+                )
 
 
 # ============================================================================
 # Phase 6.3: Failure Mode Testing
 # ============================================================================
+
 
 class TestMCPFailureModes:
     """Test system behavior under failure conditions."""
@@ -507,7 +525,7 @@ class TestMCPFailureModes:
         1. Be accepted and queued
         2. Eventually complete (with no findings)
         """
-        print(f"\n  === Unreachable Target Test ===")
+        print("\n  === Unreachable Target Test ===")
         print(f"  Connecting to MCP server at {MCP_URL}...")
 
         async with create_mcp_session() as session:
@@ -516,8 +534,8 @@ class TestMCPFailureModes:
                 "run_untrusted_scan",
                 {
                     "targets": "10.255.255.1",  # Unreachable private IP
-                    "name": f"Unreachable_Test_{datetime.now().strftime('%H%M%S')}"
-                }
+                    "name": f"Unreachable_Test_{datetime.now().strftime('%H%M%S')}",
+                },
             )
             data = extract_tool_result(result)
 
@@ -530,22 +548,25 @@ class TestMCPFailureModes:
 
             # Check status - should not have immediate error
             status_result = await session.call_tool(
-                "get_scan_status",
-                {"task_id": task_id}
+                "get_scan_status", {"task_id": task_id}
             )
             status = extract_tool_result(status_result)
 
             # Task should exist and be in a valid state
-            assert status.get("status") in ("queued", "running", "completed", "failed"), \
-                f"Unexpected status: {status}"
+            assert status.get("status") in (
+                "queued",
+                "running",
+                "completed",
+                "failed",
+            ), f"Unexpected status: {status}"
             print(f"  Status: {status.get('status')}")
-            print(f"  === Test Passed ===")
+            print("  === Test Passed ===")
 
     async def test_invalid_target_format_handling(self):
         """
         Test that invalid target formats return appropriate errors.
         """
-        print(f"\n  === Invalid Target Format Test ===")
+        print("\n  === Invalid Target Format Test ===")
         print(f"  Connecting to MCP server at {MCP_URL}...")
 
         async with create_mcp_session() as session:
@@ -554,8 +575,8 @@ class TestMCPFailureModes:
                 "run_untrusted_scan",
                 {
                     "targets": "",  # Empty target
-                    "name": f"Empty_Target_Test_{datetime.now().strftime('%H%M%S')}"
-                }
+                    "name": f"Empty_Target_Test_{datetime.now().strftime('%H%M%S')}",
+                },
             )
             data = extract_tool_result(result)
 
@@ -566,20 +587,19 @@ class TestMCPFailureModes:
                 # Might be accepted - check if it's queued
                 print(f"  Scan accepted with empty target: {data.get('task_id')}")
 
-            print(f"  === Test Passed ===")
+            print("  === Test Passed ===")
 
     async def test_task_status_shows_error_details(self):
         """
         Test that failed tasks include error details in status.
         """
-        print(f"\n  === Error Details Test ===")
+        print("\n  === Error Details Test ===")
         print(f"  Connecting to MCP server at {MCP_URL}...")
 
         async with create_mcp_session() as session:
             # Get list of recent tasks
             result = await session.call_tool(
-                "list_tasks",
-                {"limit": 20, "status_filter": "failed"}
+                "list_tasks", {"limit": 20, "status_filter": "failed"}
             )
             data = extract_tool_result(result)
 
@@ -590,8 +610,7 @@ class TestMCPFailureModes:
                 print(f"  Checking failed task: {task_id}")
 
                 status_result = await session.call_tool(
-                    "get_scan_status",
-                    {"task_id": task_id}
+                    "get_scan_status", {"task_id": task_id}
                 )
                 status = extract_tool_result(status_result)
 
@@ -601,9 +620,9 @@ class TestMCPFailureModes:
                 if "failed_at" in status:
                     print(f"  Failed at: {status['failed_at']}")
             else:
-                print(f"  No failed tasks found (this is OK)")
+                print("  No failed tasks found (this is OK)")
 
-            print(f"  === Test Passed ===")
+            print("  === Test Passed ===")
 
     @pytest.mark.slow
     async def test_scan_with_timeout_target(self):
@@ -613,7 +632,7 @@ class TestMCPFailureModes:
         Note: This test submits to an unreachable target and waits
         for the scan to fail/complete. Takes 2-5 minutes.
         """
-        print(f"\n  === Timeout Target Test ===")
+        print("\n  === Timeout Target Test ===")
         print(f"  Connecting to MCP server at {MCP_URL}...")
 
         async with create_mcp_session() as session:
@@ -622,8 +641,8 @@ class TestMCPFailureModes:
                 "run_untrusted_scan",
                 {
                     "targets": "10.255.255.254",
-                    "name": f"Timeout_Test_{datetime.now().strftime('%H%M%S')}"
-                }
+                    "name": f"Timeout_Test_{datetime.now().strftime('%H%M%S')}",
+                },
             )
             data = extract_tool_result(result)
 
@@ -632,25 +651,27 @@ class TestMCPFailureModes:
             print(f"  Task ID: {task_id}")
 
             # Poll for completion (shorter timeout since we expect failure)
-            print(f"  Waiting for scan to complete/fail...")
+            print("  Waiting for scan to complete/fail...")
             try:
                 final_status = await poll_until_complete(
-                    session, task_id,
+                    session,
+                    task_id,
                     timeout=300,  # 5 minutes
-                    poll_interval=15
+                    poll_interval=15,
                 )
                 print(f"  Final status: {final_status.get('status')}")
                 if final_status.get("error"):
                     print(f"  Error: {final_status['error']}")
             except TimeoutError:
-                print(f"  Scan still running after 5 min (expected for some targets)")
+                print("  Scan still running after 5 min (expected for some targets)")
 
-            print(f"  === Test Passed ===")
+            print("  === Test Passed ===")
 
 
 # ============================================================================
 # Phase 6.2: Queue Information Accuracy Tests
 # ============================================================================
+
 
 class TestMCPQueueAccuracy:
     """Additional queue accuracy tests."""
@@ -661,7 +682,7 @@ class TestMCPQueueAccuracy:
 
         Note: This submits multiple scans rapidly to test queue depth.
         """
-        print(f"\n  === Estimated Wait Time Test ===")
+        print("\n  === Estimated Wait Time Test ===")
         print(f"  Connecting to MCP server at {MCP_URL}...")
 
         async with create_mcp_session() as session:
@@ -673,8 +694,8 @@ class TestMCPQueueAccuracy:
                     "run_untrusted_scan",
                     {
                         "targets": f"10.255.255.{50 + i}",
-                        "name": f"Wait_Test_{i}_{datetime.now().strftime('%H%M%S')}"
-                    }
+                        "name": f"Wait_Test_{i}_{datetime.now().strftime('%H%M%S')}",
+                    },
                 )
                 data = extract_tool_result(result)
                 wait = data.get("estimated_wait_minutes", 0)
@@ -690,17 +711,18 @@ class TestMCPQueueAccuracy:
                 if i > 0:
                     # Each submission should increase wait by ~15 min (queue_depth * 15)
                     expected_increase = 15
-                    actual_increase = wait - wait_times[i-1]
-                    assert actual_increase == expected_increase, \
+                    actual_increase = wait - wait_times[i - 1]
+                    assert actual_increase == expected_increase, (
                         f"Expected ~{expected_increase}min increase, got {actual_increase}min"
+                    )
 
-            print(f"  === Test Passed ===")
+            print("  === Test Passed ===")
 
     async def test_queue_status_reflects_submissions(self):
         """
         Test that queue status updates after submissions.
         """
-        print(f"\n  === Queue Status Update Test ===")
+        print("\n  === Queue Status Update Test ===")
         print(f"  Connecting to MCP server at {MCP_URL}...")
 
         async with create_mcp_session() as session:
@@ -715,8 +737,8 @@ class TestMCPQueueAccuracy:
                 "run_untrusted_scan",
                 {
                     "targets": "10.255.255.200",
-                    "name": f"Queue_Status_Test_{datetime.now().strftime('%H%M%S')}"
-                }
+                    "name": f"Queue_Status_Test_{datetime.now().strftime('%H%M%S')}",
+                },
             )
             extract_tool_result(result)
 
@@ -728,7 +750,7 @@ class TestMCPQueueAccuracy:
 
             # Queue depth should be same or more (may be processed fast)
             assert after_depth >= 0, f"Invalid queue depth: {after_depth}"
-            print(f"  === Test Passed ===")
+            print("  === Test Passed ===")
 
 
 # ============================================================================

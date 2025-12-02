@@ -8,9 +8,9 @@ Tests error handling and response formats for:
 - Error message formats and status codes
 """
 
-import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
 import json
+
+import pytest
 
 from core.idempotency import ConflictError
 
@@ -74,9 +74,7 @@ class TestConflictErrors:
     def test_conflict_error_exception_handling(self):
         """Test ConflictError exception contains proper info."""
         existing_task_id = "task_xyz"
-        conflict = ConflictError(
-            f"Key already used for task {existing_task_id}"
-        )
+        conflict = ConflictError(f"Key already used for task {existing_task_id}")
 
         assert existing_task_id in str(conflict)
 
@@ -115,7 +113,10 @@ class TestValidationErrors:
         }
 
         assert "authenticated_privileged" in error_response["error"]
-        assert "sudo" in error_response["error"].lower() or "su" in error_response["error"].lower()
+        assert (
+            "sudo" in error_response["error"].lower()
+            or "su" in error_response["error"].lower()
+        )
 
     def test_schema_conflict_error(self):
         """Test schema profile and custom fields conflict error."""
@@ -129,9 +130,7 @@ class TestValidationErrors:
     def test_scan_not_completed_error(self):
         """Test scan not completed error format."""
         current_status = "running"
-        error_response = {
-            "error": f"Scan not completed yet (status: {current_status})"
-        }
+        error_response = {"error": f"Scan not completed yet (status: {current_status})"}
 
         assert "not completed" in error_response["error"]
         assert current_status in error_response["error"]
@@ -235,9 +234,9 @@ class TestAuthenticationErrorResponses:
                 "suggestions": [
                     "Verify SSH credentials are correct",
                     "Check if target host is reachable on port 22",
-                    "Review scan logs for specific error"
+                    "Review scan logs for specific error",
                 ]
-            }
+            },
         }
 
         assert auth_failed_response["authentication_status"] == "failed"
@@ -255,7 +254,7 @@ class TestAuthenticationErrorResponses:
                 "total": 3,
                 "authenticated": 2,
                 "failed": 1,
-            }
+            },
         }
 
         assert partial_auth_response["authentication_status"] == "partial"

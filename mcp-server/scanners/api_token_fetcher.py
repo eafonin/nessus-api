@@ -12,15 +12,15 @@ The X-API-Token is:
 This module fetches it dynamically to ensure compatibility after Nessus rebuilds.
 """
 
-import re
-import httpx
 import logging
-from typing import Optional
+import re
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
 
-async def extract_api_token(nessus_url: str, verify_ssl: bool = False) -> Optional[str]:
+async def extract_api_token(nessus_url: str, verify_ssl: bool = False) -> str | None:
     """
     Extract X-API-Token from Nessus Web UI JavaScript (async version).
 
@@ -37,7 +37,7 @@ async def extract_api_token(nessus_url: str, verify_ssl: bool = False) -> Option
     try:
         async with httpx.AsyncClient(verify=verify_ssl, timeout=10.0) as client:
             # Fetch the main JavaScript file
-            response = await client.get(f'{nessus_url}/nessus6.js')
+            response = await client.get(f"{nessus_url}/nessus6.js")
 
             if response.status_code != 200:
                 logger.error(f"Failed to fetch nessus6.js: HTTP {response.status_code}")
@@ -63,11 +63,7 @@ async def extract_api_token(nessus_url: str, verify_ssl: bool = False) -> Option
 
 
 async def verify_token(
-    nessus_url: str,
-    token: str,
-    username: str,
-    password: str,
-    verify_ssl: bool = False
+    nessus_url: str, token: str, username: str, password: str, verify_ssl: bool = False
 ) -> bool:
     """
     Verify the X-API-Token by attempting authentication.
@@ -84,27 +80,21 @@ async def verify_token(
     """
     try:
         async with httpx.AsyncClient(verify=verify_ssl, timeout=10.0) as client:
-            headers = {
-                'Content-Type': 'application/json',
-                'X-API-Token': token
-            }
+            headers = {"Content-Type": "application/json", "X-API-Token": token}
 
-            payload = {
-                'username': username,
-                'password': password
-            }
+            payload = {"username": username, "password": password}
 
             response = await client.post(
-                f'{nessus_url}/session',
-                json=payload,
-                headers=headers
+                f"{nessus_url}/session", json=payload, headers=headers
             )
 
             success = response.status_code == 200
             if success:
                 logger.info("X-API-Token verification successful")
             else:
-                logger.warning(f"X-API-Token verification failed: HTTP {response.status_code}")
+                logger.warning(
+                    f"X-API-Token verification failed: HTTP {response.status_code}"
+                )
 
             return success
 
@@ -114,11 +104,8 @@ async def verify_token(
 
 
 async def fetch_and_verify_token(
-    nessus_url: str,
-    username: str,
-    password: str,
-    verify_ssl: bool = False
-) -> Optional[str]:
+    nessus_url: str, username: str, password: str, verify_ssl: bool = False
+) -> str | None:
     """
     Fetch X-API-Token and verify it works.
 

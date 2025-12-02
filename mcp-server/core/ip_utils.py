@@ -1,4 +1,5 @@
 """IP address and CIDR matching utilities for target filtering."""
+
 import ipaddress
 from typing import Union
 
@@ -7,7 +8,7 @@ IPorNetwork = Union[
     ipaddress.IPv4Address,
     ipaddress.IPv6Address,
     ipaddress.IPv4Network,
-    ipaddress.IPv6Network
+    ipaddress.IPv6Network,
 ]
 
 
@@ -27,7 +28,7 @@ def parse_target(target_str: str) -> IPorNetwork | None:
         return None
 
     try:
-        if '/' in target_str:
+        if "/" in target_str:
             # CIDR notation - use strict=False to allow host bits
             # e.g., "192.168.1.5/24" -> "192.168.1.0/24"
             return ipaddress.ip_network(target_str, strict=False)
@@ -114,7 +115,7 @@ def targets_match(query: str, stored_targets: str) -> bool:
     query_parsed = parse_target(query)
 
     # Iterate through comma-separated targets
-    for target in stored_targets.split(','):
+    for target in stored_targets.split(","):
         target = target.strip()
         if not target:
             continue

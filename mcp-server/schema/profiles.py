@@ -1,7 +1,5 @@
 """Schema profile definitions for vulnerability output formatting."""
 
-from typing import Optional, List
-
 
 # Four predefined schema profiles
 SCHEMAS = {
@@ -11,29 +9,43 @@ SCHEMAS = {
         "severity",
         "cve",
         "cvss_score",
-        "exploit_available"
+        "exploit_available",
     ],
     "summary": [
         # minimal fields +
-        "host", "plugin_id", "severity", "cve", "cvss_score", "exploit_available",
+        "host",
+        "plugin_id",
+        "severity",
+        "cve",
+        "cvss_score",
+        "exploit_available",
         # 3 additional fields
         "plugin_name",
         "cvss3_base_score",
-        "synopsis"
+        "synopsis",
     ],
     "brief": [
         # summary fields +
-        "host", "plugin_id", "severity", "cve", "cvss_score", "exploit_available",
-        "plugin_name", "cvss3_base_score", "synopsis",
+        "host",
+        "plugin_id",
+        "severity",
+        "cve",
+        "cvss_score",
+        "exploit_available",
+        "plugin_name",
+        "cvss3_base_score",
+        "synopsis",
         # 2 more fields
         "description",
-        "solution"
+        "solution",
     ],
-    "full": None  # None means all fields (no filtering)
+    "full": None,  # None means all fields (no filtering)
 }
 
 
-def get_schema_fields(profile: str, custom_fields: Optional[List[str]] = None) -> Optional[List[str]]:
+def get_schema_fields(
+    profile: str, custom_fields: list[str] | None = None
+) -> list[str] | None:
     """
     Get field list for given schema profile or custom fields.
 
@@ -60,6 +72,8 @@ def get_schema_fields(profile: str, custom_fields: Optional[List[str]] = None) -
 
     # Validate profile name
     if profile not in SCHEMAS:
-        raise ValueError(f"Invalid schema profile: {profile}. Must be one of: {list(SCHEMAS.keys())}")
+        raise ValueError(
+            f"Invalid schema profile: {profile}. Must be one of: {list(SCHEMAS.keys())}"
+        )
 
     return SCHEMAS[profile]

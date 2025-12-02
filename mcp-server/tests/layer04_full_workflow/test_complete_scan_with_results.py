@@ -5,16 +5,17 @@ Target: 172.32.0.215 (Ubuntu server - should have vulnerabilities)
 Goal: Start scan, wait for completion, export results with vulnerabilities
 """
 
-import pytest
 import asyncio
 import os
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from scanners.nessus_scanner import NessusScanner
 from scanners.base import ScanRequest
+from scanners.nessus_scanner import NessusScanner
 
 # Test Configuration
 NESSUS_URL = os.getenv("NESSUS_URL", "https://172.32.0.209:8834")
@@ -39,20 +40,20 @@ async def test_complete_scan_workflow_with_export():
         url=NESSUS_URL,
         username=NESSUS_USERNAME,
         password=NESSUS_PASSWORD,
-        verify_ssl=False
+        verify_ssl=False,
     )
 
     try:
         # Step 1: Create scan
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"STEP 1: Creating scan for {TARGET_HOST}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         request = ScanRequest(
             name=f"Integration Test - Complete Scan {TARGET_HOST}",
             targets=TARGET_HOST,
             description=f"Full vulnerability scan of {TARGET_HOST} for integration testing",
-            scan_type="untrusted"
+            scan_type="untrusted",
         )
 
         scan_id = await scanner.create_scan(request)
@@ -62,9 +63,9 @@ async def test_complete_scan_workflow_with_export():
         await asyncio.sleep(2)
 
         # Step 2: Launch scan
-        print(f"\n{'='*60}")
-        print(f"STEP 2: Launching scan")
-        print(f"{'='*60}")
+        print(f"\n{'=' * 60}")
+        print("STEP 2: Launching scan")
+        print(f"{'=' * 60}")
 
         scan_uuid = await scanner.launch_scan(scan_id)
         print(f"✓ Launched scan UUID: {scan_uuid}")
@@ -73,9 +74,9 @@ async def test_complete_scan_workflow_with_export():
         await asyncio.sleep(3)
 
         # Step 3: Wait for completion
-        print(f"\n{'='*60}")
-        print(f"STEP 3: Monitoring scan progress")
-        print(f"{'='*60}")
+        print(f"\n{'=' * 60}")
+        print("STEP 3: Monitoring scan progress")
+        print(f"{'=' * 60}")
 
         max_wait = 900  # 15 minutes
         poll_interval = 15  # Check every 15 seconds
@@ -87,12 +88,14 @@ async def test_complete_scan_workflow_with_export():
             elapsed += poll_interval
 
             status = await scanner.get_status(scan_id)
-            current_status = status['status']
-            current_progress = status['progress']
+            current_status = status["status"]
+            current_progress = status["progress"]
 
             # Only print when progress changes
             if current_progress != last_progress:
-                print(f"  [{elapsed:4d}s] Status: {current_status:10s} | Progress: {current_progress:3d}%")
+                print(
+                    f"  [{elapsed:4d}s] Status: {current_status:10s} | Progress: {current_progress:3d}%"
+                )
                 last_progress = current_progress
 
             if current_status == "completed":
@@ -101,7 +104,7 @@ async def test_complete_scan_workflow_with_export():
                 await asyncio.sleep(3)
                 break
             elif current_status == "failed":
-                info = status.get('info', {})
+                info = status.get("info", {})
                 print(f"\n✗ Scan failed: {info.get('status')}")
                 pytest.fail(f"Scan failed: {info}")
         else:
@@ -111,9 +114,9 @@ async def test_complete_scan_workflow_with_export():
             pytest.skip(f"Scan did not complete in {max_wait} seconds")
 
         # Step 4: Export results
-        print(f"\n{'='*60}")
-        print(f"STEP 4: Exporting results")
-        print(f"{'='*60}")
+        print(f"\n{'=' * 60}")
+        print("STEP 4: Exporting results")
+        print(f"{'=' * 60}")
 
         results = await scanner.export_results(scan_id)
         print(f"✓ Exported {len(results)} bytes")
@@ -122,9 +125,9 @@ async def test_complete_scan_workflow_with_export():
         await asyncio.sleep(2)
 
         # Step 5: Verify results
-        print(f"\n{'='*60}")
-        print(f"STEP 5: Verifying results")
-        print(f"{'='*60}")
+        print(f"\n{'=' * 60}")
+        print("STEP 5: Verifying results")
+        print(f"{'=' * 60}")
 
         # Basic XML validation
         assert results is not None
@@ -132,7 +135,7 @@ async def test_complete_scan_workflow_with_export():
         assert len(results) > 1000, "Results file too small"
         assert b"<?xml" in results, "Not valid XML"
         assert b"<NessusClientData_v2>" in results, "Not valid .nessus format"
-        print(f"✓ Valid .nessus XML format")
+        print("✓ Valid .nessus XML format")
 
         # Save to file for inspection
         output_file = Path(f"/tmp/scan_{scan_id}_results.nessus")
@@ -140,10 +143,10 @@ async def test_complete_scan_workflow_with_export():
         print(f"✓ Results saved to: {output_file}")
 
         # Check for vulnerabilities
-        results_str = results.decode('utf-8')
+        results_str = results.decode("utf-8")
 
         # Count ReportItem elements (vulnerabilities)
-        vuln_count = results_str.count('<ReportItem')
+        vuln_count = results_str.count("<ReportItem")
         print(f"✓ Found {vuln_count} vulnerability entries")
 
         # Verify we have vulnerabilities
@@ -156,7 +159,7 @@ async def test_complete_scan_workflow_with_export():
         low = results_str.count('severity="1"')
         info = results_str.count('severity="0"')
 
-        print(f"\nVulnerability Summary:")
+        print("\nVulnerability Summary:")
         print(f"  Critical: {critical}")
         print(f"  High:     {high}")
         print(f"  Medium:   {medium}")
@@ -165,9 +168,9 @@ async def test_complete_scan_workflow_with_export():
         print(f"  Total:    {vuln_count}")
 
         # Final success message
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"✅ TEST PASSED - Scan completed with {vuln_count} findings")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
     finally:
         # Cleanup

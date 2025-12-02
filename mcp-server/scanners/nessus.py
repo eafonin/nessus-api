@@ -1,19 +1,21 @@
 """Native async Nessus scanner implementation."""
 
+from typing import Any
+
 import httpx
-from typing import Dict, Any, Optional
+
 from .base import ScannerInterface, ScanRequest
 
 
 class NessusScanner(ScannerInterface):
     """Nessus Pro scanner backend using native async httpx."""
 
-    def __init__(self, url: str, access_key: str, secret_key: str):
+    def __init__(self, url: str, access_key: str, secret_key: str) -> None:
         self.url = url
         self.access_key = access_key
         self.secret_key = secret_key
-        self._session: Optional[httpx.AsyncClient] = None
-        self._api_token: Optional[str] = None
+        self._session: httpx.AsyncClient | None = None
+        self._api_token: str | None = None
 
     async def _get_session(self) -> httpx.AsyncClient:
         """Get or create async HTTP session."""
@@ -48,12 +50,14 @@ class NessusScanner(ScannerInterface):
         # TODO: Implement scan launch
         pass
 
-    async def get_status(self, scan_id: int) -> Dict[str, Any]:
+    async def get_status(self, scan_id: int) -> dict[str, Any]:
         """Get Nessus scan status with progress."""
         # TODO: Implement status retrieval
         pass
 
-    async def get_results(self, scan_id: int, filters: Optional[Dict] = None) -> Dict[str, Any]:
+    async def get_results(
+        self, scan_id: int, filters: dict | None = None
+    ) -> dict[str, Any]:
         """Get Nessus scan results."""
         # TODO: Implement result retrieval
         pass

@@ -6,14 +6,14 @@ These fixtures support complete E2E workflow tests that run real scans.
 
 import os
 import uuid
-import pytest
-import pytest_asyncio
 from pathlib import Path
 
-from scanners.nessus_scanner import NessusScanner
-from core.task_manager import TaskManager
-from core.logging_config import configure_logging, get_logger
+import pytest
+import pytest_asyncio
 
+from core.logging_config import configure_logging, get_logger
+from core.task_manager import TaskManager
+from scanners.nessus_scanner import NessusScanner
 
 # =============================================================================
 # Configuration
@@ -39,6 +39,7 @@ DATA_DIR = os.getenv("TEST_DATA_DIR", "/tmp/test-layer04-workflows")
 # Logging Fixture
 # =============================================================================
 
+
 @pytest.fixture(scope="module")
 def structured_logging():
     """Configure structured logging for workflow tests."""
@@ -53,6 +54,7 @@ def structured_logging():
 # Scanner Fixtures
 # =============================================================================
 
+
 @pytest_asyncio.fixture
 async def scanner():
     """Async scanner with automatic cleanup."""
@@ -60,7 +62,7 @@ async def scanner():
         url=NESSUS_URL,
         username=NESSUS_USERNAME,
         password=NESSUS_PASSWORD,
-        verify_ssl=False
+        verify_ssl=False,
     )
     yield scanner
     await scanner.close()
@@ -69,6 +71,7 @@ async def scanner():
 # =============================================================================
 # Task Manager Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def task_manager():
@@ -80,6 +83,7 @@ def task_manager():
 # =============================================================================
 # MCP Client Fixtures
 # =============================================================================
+
 
 @pytest_asyncio.fixture
 async def mcp_client():
@@ -95,6 +99,7 @@ async def mcp_client():
 # =============================================================================
 # Test Target Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def scan_target():
@@ -118,6 +123,7 @@ def scan_timeout():
 # Credential Fixtures
 # =============================================================================
 
+
 @pytest.fixture
 def ssh_credentials_randy():
     """SSH credentials for randy user on external host."""
@@ -126,7 +132,7 @@ def ssh_credentials_randy():
         "auth_method": "password",
         "username": "randy",
         "password": "randylovesgoldfish1998",
-        "elevate_privileges_with": "Nothing"
+        "elevate_privileges_with": "Nothing",
     }
 
 
@@ -139,7 +145,7 @@ def ssh_credentials_sudo_pass():
         "username": "testauth_sudo_pass",
         "password": "TestPass123!",
         "elevate_privileges_with": "sudo",
-        "escalation_password": "TestPass123!"
+        "escalation_password": "TestPass123!",
     }
 
 
@@ -151,13 +157,14 @@ def ssh_credentials_sudo_nopass():
         "auth_method": "password",
         "username": "testauth_sudo_nopass",
         "password": "TestPass123!",
-        "elevate_privileges_with": "sudo"
+        "elevate_privileges_with": "sudo",
     }
 
 
 # =============================================================================
 # Utility Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def unique_scan_name():
@@ -177,6 +184,7 @@ def results_dir():
 # Cleanup Fixtures
 # =============================================================================
 
+
 @pytest.fixture(autouse=True)
 def cleanup_test_scans(scanner):
     """
@@ -194,10 +202,9 @@ def cleanup_test_scans(scanner):
 
     # Cleanup after test
     import asyncio
+
     for scan_id in created_scan_ids:
         try:
-            asyncio.get_event_loop().run_until_complete(
-                scanner.delete_scan(scan_id)
-            )
+            asyncio.get_event_loop().run_until_complete(scanner.delete_scan(scan_id))
         except Exception:
             pass  # Ignore cleanup errors

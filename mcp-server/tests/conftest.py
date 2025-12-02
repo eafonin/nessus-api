@@ -24,95 +24,56 @@ def pytest_configure(config):
     # ==========================================================================
     config.addinivalue_line(
         "markers",
-        "layer01: Layer 01 tests - Infrastructure checks (connectivity, access)"
+        "layer01: Layer 01 tests - Infrastructure checks (connectivity, access)",
     )
     config.addinivalue_line(
-        "markers",
-        "layer02: Layer 02 tests - Internal modules (mocked dependencies)"
+        "markers", "layer02: Layer 02 tests - Internal modules (mocked dependencies)"
     )
     config.addinivalue_line(
-        "markers",
-        "layer03: Layer 03 tests - External basic (single tool calls)"
+        "markers", "layer03: Layer 03 tests - External basic (single tool calls)"
     )
     config.addinivalue_line(
-        "markers",
-        "layer04: Layer 04 tests - Full workflow E2E (complete scans)"
+        "markers", "layer04: Layer 04 tests - Full workflow E2E (complete scans)"
     )
 
     # ==========================================================================
     # Dependency Markers
     # ==========================================================================
     config.addinivalue_line(
-        "markers",
-        "requires_nessus: Test requires Nessus scanner access"
+        "markers", "requires_nessus: Test requires Nessus scanner access"
     )
+    config.addinivalue_line("markers", "requires_redis: Test requires Redis connection")
+    config.addinivalue_line("markers", "requires_mcp: Test requires MCP server running")
     config.addinivalue_line(
-        "markers",
-        "requires_redis: Test requires Redis connection"
-    )
-    config.addinivalue_line(
-        "markers",
-        "requires_mcp: Test requires MCP server running"
-    )
-    config.addinivalue_line(
-        "markers",
-        "requires_docker_network: Test must run inside Docker network"
+        "markers", "requires_docker_network: Test must run inside Docker network"
     )
 
     # ==========================================================================
     # Behavior Markers
     # ==========================================================================
+    config.addinivalue_line("markers", "slow: Test takes > 1 minute to complete")
+    config.addinivalue_line("markers", "e2e: End-to-end test covering full workflow")
+    config.addinivalue_line("markers", "authenticated: Test uses SSH credentials")
     config.addinivalue_line(
-        "markers",
-        "slow: Test takes > 1 minute to complete"
+        "markers", "real_nessus: Test uses real Nessus scanner (NOT mocks)"
     )
+    config.addinivalue_line("markers", "mcp: Test exercises MCP protocol layer")
     config.addinivalue_line(
-        "markers",
-        "e2e: End-to-end test covering full workflow"
-    )
-    config.addinivalue_line(
-        "markers",
-        "authenticated: Test uses SSH credentials"
-    )
-    config.addinivalue_line(
-        "markers",
-        "real_nessus: Test uses real Nessus scanner (NOT mocks)"
-    )
-    config.addinivalue_line(
-        "markers",
-        "mcp: Test exercises MCP protocol layer"
-    )
-    config.addinivalue_line(
-        "markers",
-        "timeout: Test timeout in seconds (requires pytest-timeout plugin)"
+        "markers", "timeout: Test timeout in seconds (requires pytest-timeout plugin)"
     )
 
     # ==========================================================================
     # Legacy Phase Markers (Deprecated - kept for backwards compatibility)
     # ==========================================================================
     config.addinivalue_line(
-        "markers",
-        "phase0: [DEPRECATED] Use layer01/layer02 instead"
+        "markers", "phase0: [DEPRECATED] Use layer01/layer02 instead"
     )
+    config.addinivalue_line("markers", "phase1: [DEPRECATED] Use layer03 instead")
+    config.addinivalue_line("markers", "phase2: [DEPRECATED] Use layer03 instead")
+    config.addinivalue_line("markers", "phase3: [DEPRECATED] Use layer02 instead")
+    config.addinivalue_line("markers", "phase4: [DEPRECATED] Use layer04 instead")
     config.addinivalue_line(
-        "markers",
-        "phase1: [DEPRECATED] Use layer03 instead"
-    )
-    config.addinivalue_line(
-        "markers",
-        "phase2: [DEPRECATED] Use layer03 instead"
-    )
-    config.addinivalue_line(
-        "markers",
-        "phase3: [DEPRECATED] Use layer02 instead"
-    )
-    config.addinivalue_line(
-        "markers",
-        "phase4: [DEPRECATED] Use layer04 instead"
-    )
-    config.addinivalue_line(
-        "markers",
-        "integration: Integration tests (use layer03 or layer04 instead)"
+        "markers", "integration: Integration tests (use layer03 or layer04 instead)"
     )
 
 

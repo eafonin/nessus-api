@@ -3,11 +3,10 @@
 These tests verify end-to-end pool functionality with real Redis.
 Requires: Redis running on localhost:6379 (or REDIS_URL env var)
 """
-import pytest
+
 import os
-import json
-import asyncio
-from datetime import datetime
+
+import pytest
 
 # Skip if Redis not available
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
@@ -18,6 +17,7 @@ def redis_available():
     """Check if Redis is available."""
     try:
         import redis
+
         client = redis.from_url(REDIS_URL)
         client.ping()
         client.close()
@@ -33,6 +33,7 @@ def task_queue(redis_available):
         pytest.skip("Redis not available")
 
     from core.queue import TaskQueue
+
     queue = TaskQueue(redis_url=REDIS_URL)
 
     # Clear test queues before test
@@ -229,7 +230,11 @@ class TestWorkerPoolConsumption:
         worker_pools = ["nessus", "nessus_dmz"]
         consumed = []
 
-        while task_queue.get_queue_depth(pool="nessus") + task_queue.get_queue_depth(pool="nessus_dmz") > 0:
+        while (
+            task_queue.get_queue_depth(pool="nessus")
+            + task_queue.get_queue_depth(pool="nessus_dmz")
+            > 0
+        ):
             task = task_queue.dequeue_any(worker_pools, timeout=1)
             if task:
                 consumed.append(task["task_id"])
@@ -267,7 +272,7 @@ class TestPoolBackwardCompatibility:
         task = {
             "task_id": "task-001",
             "scanner_pool": "nessus_dmz",
-            "payload": {"targets": "192.168.1.1"}
+            "payload": {"targets": "192.168.1.1"},
         }
         task_queue.enqueue(task)  # No pool param, should use task's scanner_pool
 
