@@ -1,15 +1,20 @@
 """Integration tests for idempotency system."""
 
+import os
+
 import pytest
 import redis
 
 from core.idempotency import ConflictError, IdempotencyManager
 
+# Support running outside Docker network
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+
 
 @pytest.fixture
 def redis_client():
     """Redis client for testing."""
-    client = redis.from_url("redis://redis:6379", decode_responses=True)
+    client = redis.from_url(REDIS_URL, decode_responses=True)
     yield client
     # Cleanup test keys
     for key in client.scan_iter("idemp:test-*"):

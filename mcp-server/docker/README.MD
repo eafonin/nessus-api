@@ -123,9 +123,3 @@ services:
       context: ../mcp-server
       dockerfile: docker/Dockerfile.api
 ```
-
-## Production
-
-For production, use optimized images in `prod/`:
-- `prod/Dockerfile.api`
-- `prod/Dockerfile.worker`

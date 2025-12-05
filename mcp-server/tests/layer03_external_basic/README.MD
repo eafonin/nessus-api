@@ -20,8 +20,8 @@ Test single MCP tool calls and scanner operations with real services. Each test 
 | `test_mcp_tools_basic.py` | MCP connection, tool listing, single tool calls |
 | `test_scanner_operations.py` | Nessus API: create scan, launch, delete |
 | `test_pool_selection.py` | Pool-based scanner selection, load balancing |
+| `test_pool_operations.py` | Pool listing and status operations |
 | `test_schema_parsing.py` | XML parser, schema profiles (minimal/brief/full), filters |
-| `test_authenticated_credentials.py` | SSH credential injection into scan configs |
 
 ---
 

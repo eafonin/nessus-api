@@ -22,6 +22,7 @@
 # - 172.30.0.6: mcp-api (this file)
 # - 172.30.0.7: debug-scanner (scanners-infra)
 # - 172.30.0.8: nginx-proxy (scanners-infra)
+# - 172.30.0.9: scan-target (this file)
 #
 # See scanners-infra/ARCHITECTURE.md for full network topology
 # =============================================================================
@@ -138,6 +139,27 @@ services:
       start_period: 10s
     labels:
       - autoheal=true
+
+  # ==========================================================================
+  # Scan Target - Test container for authenticated scans
+  # ==========================================================================
+  # Provides SSH access with test users for authenticated scan testing
+  # Test users: testauth_sudo_pass, testauth_sudo_nopass, testauth_nosudo
+  # All use password: TestPass123!
+  scan-target:
+    build:
+      context: ../mcp-server
+      dockerfile: docker/Dockerfile.scan-target
+    container_name: scan-target
+    networks:
+      scanner_bridge:
+        ipv4_address: 172.30.0.9
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "pgrep", "sshd"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   # ==========================================================================
   # Autoheal - Automatically restart unhealthy containers

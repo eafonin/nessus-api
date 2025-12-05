@@ -20,14 +20,41 @@ Layer 01: Infrastructure     [<1 sec]    Connectivity & access
 
 ---
 
+## Test Environment
+
+Tests run against the **dev1** environment (`/home/nessus/projects/nessus-api/dev1/`).
+
+```bash
+# Start dev1 environment (required for Layer 03/04 tests)
+cd /home/nessus/projects/nessus-api/dev1
+docker compose up -d
+
+# Verify services are running
+docker compose ps
+```
+
+**Services provided by dev1:**
+| Service | Container | Purpose |
+|---------|-----------|---------|
+| `redis` | nessus-mcp-redis-dev | Task queue |
+| `mcp-api` | nessus-mcp-api-dev | MCP server (port 8836) |
+| `scanner-worker` | nessus-mcp-worker-dev | Scan processor |
+| `scan-target` | scan-target | SSH test target (172.30.0.9) |
+| `autoheal` | autoheal-mcp-dev | Auto-restart unhealthy containers |
+
+---
+
 ## Quick Start
 
 ```bash
 cd /home/nessus/projects/nessus-api/mcp-server
 
-# Run layer by layer (recommended troubleshooting approach)
+# Layer 01-02: Run locally (no Docker needed)
 pytest tests/layer01_infrastructure/ -v          # Infrastructure
 pytest tests/layer02_internal/ -v                # Internal
+
+# Layer 03-04: Run inside mcp-api container (requires dev1 environment)
+cd /home/nessus/projects/nessus-api/dev1
 docker compose exec mcp-api pytest tests/layer03_external_basic/ -v   # External
 docker compose exec mcp-api pytest tests/layer04_full_workflow/ -v -s # Full E2E
 
@@ -43,42 +70,45 @@ pytest -m "not layer04"              # Skip slow tests
 
 ```text
 tests/
-├── README.MD                   # This file
-├── TEST_REPORT.md              # Test documentation (grep-optimized)
-├── reconcile_tests.py          # Documentation reconciliation script
-├── conftest.py                 # Root pytest config, markers
-├── TEST_REFACTOR_PLAN.md       # Migration plan (temporary)
+├── README.MD                        # This file
+├── TEST_DOCUMENTATION_GUIDE.md      # Format guide for test docs
+├── conftest.py                      # Root pytest config, markers
+├── reconcile_tests.py               # Documentation reconciliation script
 │
-├── layer01_infrastructure/     # Connectivity checks [<1s]
-│   ├── README.MD
+├── layer01_infrastructure/          # Connectivity checks [<1s]
+│   ├── README.MD                    # Layer overview
+│   ├── TESTS.md                     # Test catalog (23 tests)
 │   ├── test_nessus_connectivity.py
 │   ├── test_redis_connectivity.py
 │   ├── test_target_accounts.py
 │   └── test_both_scanners.py
 │
-├── layer02_internal/           # Core modules [~30s]
+├── layer02_internal/                # Core modules [~30s]
 │   ├── README.MD
+│   ├── TESTS.md                     # Test catalog (343 tests)
 │   ├── test_task_manager.py
 │   ├── test_queue.py
 │   ├── test_pool_registry.py
-│   └── ... (12 files)
+│   └── ... (16 files)
 │
-├── layer03_external_basic/     # Single tool calls [~1min]
+├── layer03_external_basic/          # Single tool calls [~1min]
 │   ├── README.MD
+│   ├── TESTS.md                     # Test catalog (79 tests)
 │   ├── test_mcp_tools_basic.py
 │   ├── test_scanner_operations.py
 │   └── ... (5 files)
 │
-├── layer04_full_workflow/      # E2E workflows [5-10min]
+├── layer04_full_workflow/           # E2E workflows [5-10min]
 │   ├── README.MD
+│   ├── TESTS.md                     # Test catalog (42 tests)
 │   ├── test_untrusted_scan_workflow.py
 │   ├── test_authenticated_scan_workflow.py
 │   └── ... (5 files)
 │
-├── fixtures/                   # Sample data for tests
+├── fixtures/                        # Sample data for tests
 │   └── sample_scan.nessus
 │
-└── client/                     # Test utilities
+└── client/                          # Test utilities
     └── nessus_fastmcp_client.py
 ```
 
@@ -196,14 +226,16 @@ tests/
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `NESSUS_URL` | `https://vpn-gateway:8834` | Nessus scanner URL |
+These are set automatically by the dev1 docker-compose.yml:
+
+| Variable | Default (dev1) | Description |
+|----------|----------------|-------------|
+| `NESSUS_URL` | `https://nessus-pro-1:8834` | Nessus scanner URL |
 | `NESSUS_USERNAME` | `nessus` | Scanner login |
 | `NESSUS_PASSWORD` | `nessus` | Scanner password |
 | `REDIS_URL` | `redis://redis:6379` | Redis URL |
 | `MCP_SERVER_URL` | `http://mcp-api:8000/mcp` | MCP endpoint |
-| `SCAN_TARGET_IP` | `172.30.0.9` | Test target |
+| `SCAN_TARGET_IP` | `172.30.0.9` | Test target (scan-target container) |
 
 ---
 
@@ -211,9 +243,12 @@ tests/
 
 ### Layer 01 failures
 
-- Check `docker compose ps` - all containers running?
-- Check network: `docker compose exec mcp-api ping redis`
-- Check Nessus: `curl -k https://vpn-gateway:8834/server/status`
+```bash
+cd /home/nessus/projects/nessus-api/dev1
+docker compose ps                              # All containers running?
+docker compose exec mcp-api ping redis         # Network connectivity
+curl -k https://nessus-pro-1:8834/server/status  # Nessus reachable
+```
 
 ### Layer 02 failures
 
@@ -222,8 +257,11 @@ tests/
 
 ### Layer 03 failures
 
-- Run from Docker: `docker compose exec mcp-api pytest tests/layer03_external_basic/ -v -s`
-- Check MCP server logs: `docker compose logs mcp-api`
+```bash
+cd /home/nessus/projects/nessus-api/dev1
+docker compose exec mcp-api pytest tests/layer03_external_basic/ -v -s
+docker compose logs mcp-api                    # Check MCP server logs
+```
 
 ### Layer 04 failures
 
@@ -233,28 +271,80 @@ tests/
 
 ---
 
-## Test Documentation (TEST_REPORT.md)
+## Test Documentation
 
-The [TEST_REPORT.md](TEST_REPORT.md) file contains detailed documentation for all 487 tests:
-- Test arguments (actual parameter values)
-- Expected return values
-- Pass/fail criteria descriptions
+Test documentation is split by layer for modularity and context-efficiency. Each layer directory contains:
 
-### Documentation Format (Mandatory)
+- **README.MD** - Layer overview, purpose, troubleshooting
+- **TESTS.md** - Test catalog with arguments, returns, pass criteria
 
-All tests **must** be documented in TEST_REPORT.md using this format:
+### Documentation Files
+
+| File | Purpose | Tests |
+|------|---------|-------|
+| [layer01_infrastructure/TESTS.md](layer01_infrastructure/TESTS.md) | Infrastructure tests | 23 |
+| [layer02_internal/TESTS.md](layer02_internal/TESTS.md) | Unit tests with mocks | 343 |
+| [layer03_external_basic/TESTS.md](layer03_external_basic/TESTS.md) | Integration tests | 79 |
+| [layer04_full_workflow/TESTS.md](layer04_full_workflow/TESTS.md) | E2E workflow tests | 42 |
+| [TEST_DOCUMENTATION_GUIDE.md](TEST_DOCUMENTATION_GUIDE.md) | Format guide for creating new layers | - |
+
+### Documentation Format
+
+Each `TESTS.md` uses this table format:
 
 ```markdown
-### test_file_name.py (N tests)
-
-| Test | File | Arguments | Returns | Description |
-|------|------|-----------|---------|-------------|
-| `test_function_name` | `layer0X_dir/test_file.py` | `param=value` | `expected: type` | What is tested. Pass: condition. |
+| Test | Arguments | Returns | Description |
+|------|-----------|---------|-------------|
+| `test_function_name` | `param=value` | `expected: type` | What is tested. Pass: condition. |
 ```
 
-**File column**: Each test row includes the relative path from `tests/` directory for grep-friendly lookup.
+### Agent-Optimized Lookup (Grep Patterns)
 
-**Update requirement**: TEST_REPORT.md must be updated when tests are added, modified, or removed.
+Test docs are structured for grep-based lookup. **Do NOT load full files into context unless required**
+
+```bash
+# Find test by name across all layers
+grep -r "test_scanner_reachable" tests/*/TESTS.md
+
+# Find DLQ-related tests
+grep -ri "DLQ" tests/*/TESTS.md
+
+# Find authentication tests
+grep -ri "auth\|credential\|ssh" tests/*/TESTS.md
+
+# Find error-handling tests
+grep -r "raises.*Error\|ValueError" tests/*/TESTS.md
+```
+
+### Generating Test Run Reports
+
+After running tests, generate a consolidated report using the **same format as TESTS.md** plus status/duration/error:
+
+```bash
+# Run tests with JSON output
+pytest tests/ --json-report --json-report-file=test_results.json
+
+# Generate markdown report (see TEST_DOCUMENTATION_GUIDE.md for script)
+python tests/generate_test_report.py test_results.json
+```
+
+This creates `TEST_RUN_REPORT.md` with:
+- **Single flat table** - All tests, grep-friendly
+- **Same columns as TESTS.md** - Test, File, Arguments, Returns, Description
+- **Plus runtime columns** - Status, Duration, Error
+- **Full file paths** - `layer02_internal/test_queue.py` for layer extraction
+
+```bash
+# Find test and extract layer from report
+grep "test_opens_after_threshold" tests/TEST_RUN_REPORT.md | grep -oE "layer[0-9]+_[a-z_]+"
+# Output: layer02_internal
+
+# Find all failed tests
+grep "| failed |" tests/TEST_RUN_REPORT.md
+
+# Find source file for test
+grep "test_circuit_breaker" tests/TEST_RUN_REPORT.md | cut -d'|' -f3
+```
 
 ### Reconciliation Script
 
@@ -263,56 +353,7 @@ Use `reconcile_tests.py` to verify documentation completeness:
 ```bash
 python3 tests/reconcile_tests.py           # Full detailed report
 python3 tests/reconcile_tests.py --summary # Summary statistics
-python3 tests/reconcile_tests.py --fix     # Show corrected header counts
 python3 tests/reconcile_tests.py --stubs   # Generate stub entries for missing tests
-```
-
-### Agent-Optimized Lookup (Grep Patterns)
-
-TEST_REPORT.md is structured for grep-based lookup. **Do NOT load the full file into context.**
-
-Each table row contains: `| Test | File | Arguments | Returns | Description |`
-
-#### Search by Test Name (Most Common)
-
-```bash
-# Find test by name - returns file path, args, returns, description
-grep "test_scanner_reachable" tests/TEST_REPORT.md
-# Output: | `test_scanner_reachable` | `layer01_infrastructure/test_both_scanners.py` | `url` param | `status_code: 200` | ... |
-```
-
-#### Search by File Name
-
-```bash
-# Find all tests in a specific file
-grep "test_queue.py" tests/TEST_REPORT.md
-
-# Find tests in a layer directory
-grep "layer03_external_basic" tests/TEST_REPORT.md
-```
-
-#### Search by Functionality
-
-```bash
-# Find DLQ-related tests
-grep -i "DLQ" tests/TEST_REPORT.md
-
-# Find authentication tests
-grep -i "auth\|credential\|ssh" tests/TEST_REPORT.md
-
-# Find error-handling tests
-grep "raises.*Error\|ValueError\|Exception" tests/TEST_REPORT.md
-```
-
-#### Layer Information
-
-```bash
-# Which layer is a test in? (extract from file path)
-grep "test_initial_state_closed" tests/TEST_REPORT.md | grep -oE "layer[0-9]+_[a-z_]+"
-# Output: layer02_internal
-
-# List all layers with test counts
-grep "^## Layer" tests/TEST_REPORT.md
 ```
 
 ### Quick Reference: Test File → Layer Mapping
@@ -328,7 +369,6 @@ grep "^## Layer" tests/TEST_REPORT.md
 
 ## See Also
 
-- [TEST_REPORT.md](TEST_REPORT.md) - Detailed test documentation (grep, don't load)
+- [TEST_DOCUMENTATION_GUIDE.md](TEST_DOCUMENTATION_GUIDE.md) - Format guide for test documentation
 - [Testing Guide](../docs/TESTING.md) - Detailed testing documentation
 - [FEATURES.md](../docs/FEATURES.md) - MCP tools being tested
-- [TEST_REFACTOR_PLAN.md](TEST_REFACTOR_PLAN.md) - Migration plan

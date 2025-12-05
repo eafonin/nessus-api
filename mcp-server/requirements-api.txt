@@ -1,6 +1,14 @@
 # =============================================================================
-# Core MCP Dependencies
+# MCP API Server Requirements
 # =============================================================================
+# Extends base requirements with MCP server and testing dependencies.
+
+-r requirements-base.txt
+
+# =============================================================================
+# MCP Server Dependencies
+# =============================================================================
+
 # FastMCP: High-level framework for building MCP servers
 # Version pinned to avoid regressions with task group initialization
 fastmcp==2.13.0.2
@@ -9,48 +17,26 @@ fastmcp==2.13.0.2
 # Minimum version required for StreamableHTTP transport support
 mcp>=1.18.0
 
-# =============================================================================
-# CRITICAL VERSION PINS - DO NOT UPGRADE WITHOUT TESTING
-# =============================================================================
-# These specific versions fix "Task group is not initialized" error
-#
-# Background:
-# - anyio >= 4.11.0 + starlette >= 0.50.0 causes task group initialization bugs
-# - Affects StreamableHTTPSessionManager in MCP SDK
-# - Manifests as RuntimeError during HTTP request handling
-#
-# Solution:
-# - Pin to starlette 0.49.1 (last working version before regression)
-# - Pin to anyio 4.6.2.post1 (stable version compatible with starlette 0.49.1)
-#
-# Testing before upgrade:
-# 1. Verify StreamableHTTP works: docker compose exec mcp-api python client_smoke.py
-# 2. Check for task group errors in logs
-# 3. Run integration tests with actual MCP clients
-# =============================================================================
-starlette==0.49.1
-anyio==4.6.2.post1
-
 # ASGI server - version compatible with anyio 4.6.x
 # [standard] includes uvloop, websockets for better performance
 uvicorn[standard]==0.38.0
-
-# HTTP client
-httpx>=0.27.0
-
-# Redis client
-# IMPORTANT: Must match Redis server version (currently 7.4.7)
-# NOTE: Redis connectivity from host may fail due to Docker port forwarding issues
-#       Tests requiring Redis must run inside Docker network (see pytest.ini markers)
-redis>=7.0.0,<8.0.0
-
-# Other required packages
-prometheus-client>=0.20.0
-pyyaml>=6.0.1
-structlog>=24.1.0
 
 # =============================================================================
 # Testing Infrastructure
 # =============================================================================
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
+pytest-cov>=4.1.0
+pytest-json-report>=1.5.0
+pytest-timeout>=2.3.0
+pytest-xdist>=3.5.0
+inline-snapshot>=0.13.0
+
+# =============================================================================
+# Static Analysis & Type Checking
+# =============================================================================
+# Ruff replaces black, isort, flake8
+ruff>=0.8.0
+mypy>=1.13.0
+types-redis>=4.6.0
+types-PyYAML>=6.0.12

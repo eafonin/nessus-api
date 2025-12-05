@@ -58,8 +58,8 @@ class TestScannerRegistryPools:
         """ScannerRegistry with mocked config."""
         config_yaml = yaml.dump(pool_config)
 
-        with patch("builtins.open", mock_open(read_data=config_yaml)):
-            with patch("pathlib.Path.exists", return_value=True):
+        with patch("pathlib.Path.exists", return_value=True):
+            with patch("pathlib.Path.open", mock_open(read_data=config_yaml)):
                 with patch(
                     "scanners.registry.NessusScanner", return_value=mock_scanner
                 ):
@@ -187,8 +187,8 @@ class TestScannerRegistryLoadBalancing:
         }
         config_yaml = yaml.dump(config)
 
-        with patch("builtins.open", mock_open(read_data=config_yaml)):
-            with patch("pathlib.Path.exists", return_value=True):
+        with patch("pathlib.Path.exists", return_value=True):
+            with patch("pathlib.Path.open", mock_open(read_data=config_yaml)):
                 with patch(
                     "scanners.registry.NessusScanner", return_value=mock_scanner
                 ):
@@ -294,8 +294,8 @@ class TestScannerRegistryPoolIsolation:
         }
         config_yaml = yaml.dump(config)
 
-        with patch("builtins.open", mock_open(read_data=config_yaml)):
-            with patch("pathlib.Path.exists", return_value=True):
+        with patch("pathlib.Path.exists", return_value=True):
+            with patch("pathlib.Path.open", mock_open(read_data=config_yaml)):
                 with patch(
                     "scanners.registry.NessusScanner", return_value=mock_scanner
                 ):

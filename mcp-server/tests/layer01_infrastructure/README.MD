@@ -20,7 +20,6 @@ Verify all external services are accessible before running any other tests. Thes
 | `test_nessus_connectivity.py` | Nessus WebUI reachable, SSL works, auth endpoints respond |
 | `test_redis_connectivity.py` | Redis server accessible, basic SET/GET operations |
 | `test_target_accounts.py` | SSH test accounts accessible on scan targets |
-| `test_debug_scanner.py` | Debug scanner instance responding, internet access via VPN, scan targets accessible (network) |
 | `test_both_scanners.py` | Both scanner instances (scanner1, scanner2) responding |
 
 ---

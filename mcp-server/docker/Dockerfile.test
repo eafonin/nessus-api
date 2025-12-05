@@ -17,16 +17,11 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Copy requirements
-COPY requirements-api.txt /app/
+# Copy requirements (base + api which includes all test deps)
+COPY requirements-base.txt requirements-api.txt /app/
 
-# Install Python dependencies
+# Install Python dependencies (api includes pytest-timeout, pytest-xdist)
 RUN pip install --no-cache-dir -r requirements-api.txt
-
-# Install additional test dependencies (if needed)
-RUN pip install --no-cache-dir \
-    pytest-timeout \
-    pytest-xdist
 
 # Copy application code (mounted as volume in docker-compose.test.yml)
 # This is a placeholder - actual code is mounted at runtime for live updates
